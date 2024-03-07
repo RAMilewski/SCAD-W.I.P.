@@ -27,7 +27,11 @@ def img2tex(filename, varname, invert, hflip, resize, outf):
     width, height = im.size
     print("// Image {} ({}x{})".format(filename, height, width), file=outf)
 
-    
+    if hflip:
+        print("// Data in texture order.", file=outf)
+    else:
+        print("// Data in heightfield order.", file=outf)
+
     pixmin = 255;
     pixmax = 0;
     for x in range(width):
