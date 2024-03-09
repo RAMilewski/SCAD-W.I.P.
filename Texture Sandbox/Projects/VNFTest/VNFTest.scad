@@ -1,7 +1,7 @@
 include <BOSL2/std.scad>
-include <20x20S.scad>
+include <data3.scad>
 
-vnf =   heightfield(custom, size = [20,20], bottom = 1e-12, maxz = 1);
+vnf = heightfield(data, size = [10,10], bottom = 30, maxz = 33);
 vnf_validate(vnf);
 
-*heightfield(custom, size = [20,20], bottom = -1e-12, maxz = 1, style = "alt");
+left(20)  heightfield(data, size = [10,10], bottom = 30, maxz = 33);
