@@ -1,0 +1,9 @@
+Fonts used in this design:
+
+Font: Caviar Dreams
+Author: Nymphont
+Url: http://www.fontsquirrel.com/fonts/caviar-dreams
+
+Font: Vanilla
+Author: Cutie Explosion
+Url: http://www.fontsquirrel.com/fonts/vanilla
