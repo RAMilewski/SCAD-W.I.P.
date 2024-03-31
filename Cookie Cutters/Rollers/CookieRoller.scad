@@ -10,22 +10,23 @@ include <texture.data>
 $fn=72;
 $slop = 0.25;
 
-part = "roller";    // roller, handle, axle, ring, test
+part = "handle";    // roller, handle, axle, ring, test
 
 r = 16;             // Roller Radius
 h = 50;             // Roller Height
 depth = 4;          // Dough Thickness
-tex_depth = 2;     // Texture Depth ( + or - )
+tex_depth = 3;      // Texture Depth ( + or - )
 tex_reps = [1,1];   //Image Layout
 
-
-r_rod = 6;
-h_size = 18;
-h_round = 5;
-h_fudge = 2; 
+r_max = 25;         //Max roller radius the will fit in handle.
+r_rod = 6;          //Axle radius
+h_size = 18;        //Handle width & height
+h_round = 5;        //Handle Rounding
+h_fudge = 2;        //Handle clearance for roller ends 
+h2 = h - depth - 2; // Height of roller image area
 handle = [100, h_size, h_size];
 forkA = [h_size, h + h_size/2 + h_fudge, h_size];
-forkB = [h_size + r + r_rod +2, h_size, h_size];
+forkB = [h_size + r_max + r_rod +2, h_size, h_size];
 
 id_ring = 42;
 h_ring = 10;
@@ -34,7 +35,7 @@ ring_wall = 5;
 
 
 
-if (part == "roller")   { back_half() roller(); }
+if (part == "roller")   { roller(); }
 if (part == "handle")   { handle(); }
 if (part == "axle")     { axle(); }
 if (part == "ring")     { ring(); }
@@ -44,22 +45,20 @@ if (part == "test")     { test(); }
 
 module roller() {   
     diff() {
-        cyl(1, r = r + depth, anchor = BOT) {
-            attach(TOP) cyl(depth/2, r2 = r, r1 = r + depth, anchor = BOT);
-            position(TOP) cyl(h-depth, r, anchor = BOT) {
-            //cyl(h, r, texture = texture,  tex_reps = tex_reps, tex_depth = tex_depth, anchor = BOT) {
-                zrot_copies(n=3) attach(RIGHT) prismoid([2,h], [0.5,h], depth);
-                    attach(TOP) cyl(depth/2, r1 = r, r2 = r + depth, anchor = BOT);
-                       // position(TOP) #cyl(1, r = r + depth, anchor = BOT);
-            }
+        cyl(h2, r, anchor = BOT) {
+        //cyl(h2, r, texture = texture,  tex_reps = tex_reps, tex_depth = tex_depth, anchor = BOT) {
+            zrot_copies(n=3) attach(RIGHT) prismoid([2,h], [0.5,h], depth);
+            position(TOP) cyl(depth/2, r1 = r, r2 = r + depth, anchor = BOT)
+                position(TOP) cyl(1, r = r + depth, anchor = BOT);
+            position(BOT) cyl(depth/2, r1 = r + depth, r2 = r, anchor = TOP)
+                position(BOT) cyl(1, r = r + depth, anchor = TOP);
+        /*
+            } */
         }
         tag("remove") cyl(h, r_rod + 2 * $slop, anchor = BOT);
     }
 }
 
-module endcap () {
-
-}
 
 module handle() {
 
@@ -67,15 +66,15 @@ module handle() {
         cuboid(handle, rounding = h_round, teardrop = true, except = RIGHT, anchor = RIGHT)
             position(RIGHT) left(h_round) cuboid(forkA, rounding = h_round, teardrop = true, except = [FWD,BACK], anchor = LEFT) {
                 
-                    align([BACK+RIGHT]) left(h_size) fwd(h_round) cuboid(forkB, rounding = h_round, teardrop = true, except = RIGHT) 
+                    align([FWD+RIGHT]) left(h_size) fwd(h_round) cuboid(forkB, rounding = h_round, teardrop = true, except = RIGHT) 
                         position(RIGHT){
                             xscale(0.8) ycyl(d = h_size, h = h_size, rounding = h_round);
                             tag("remove") left(2) ycyl(r = r_rod + 2 * $slop, h = h_size*1.5);
                         }
-                    align([FWD+RIGHT]) left(h_size) back(h_round) cuboid(forkB, rounding = h_round, teardrop = true, except = RIGHT)
+                    align([BACK+RIGHT]) left(h_size) back(h_round) cuboid(forkB, rounding = h_round, teardrop = true, except = RIGHT)
                         position(RIGHT){
                             xscale(0.8) ycyl(d = h_size, h = h_size, rounding = h_round);
-                            tag("remove") back(2)left(2) acme_threaded_rod(
+                            tag("remove") fwd(2)left(2) acme_threaded_rod(
                                                     d=r_rod * 2, l= h_size-2, pitch=4, internal=true, bevel=true,
                                                     blunt_start=false, teardrop=false, orient=FWD );
                         }
@@ -107,16 +106,9 @@ module ring () {
 
 
 module test() {
-            diff(){
-            
-                     left(h_size) back(h_round) cuboid(forkB, rounding = h_round, teardrop = true, except = RIGHT)
-                        position(RIGHT){
-                            ycyl(d = h_size, h = h_size, rounding = h_round);
-                            tag("remove") left(1) acme_threaded_rod(
-                                                    d=r_rod * 2, l= h_size, pitch=4, $fn=72, internal=true, bevel=true,
-                                                    blunt_start=false, teardrop=false, orient=FWD );
-                        }
-                }
+            cyl(h2, r, anchor = BOT) 
+            //cyl(h2, r, texture = texture,  tex_reps = tex_reps, tex_depth = tex_depth, anchor = BOT) {
+                zrot_copies(n=3) attach(RIGHT) prismoid([2,h2], [0.5,h2], depth);
 
 }
 
