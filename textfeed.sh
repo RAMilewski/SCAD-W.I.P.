@@ -14,23 +14,17 @@ if [ ! -f "$1" ]; then
     exit 1
 fi
 
-# Read source file character by character and copy to destination file with a 1-second pause after each new line
-while IFS= read -n 1 char; do
-    echo -n "$char" >> "$2"
-    printf "$char"
-    printf "%d" "'$char" >> "$2"
-        sleep 0.1
-    if [ "$char" = "\n" ]; then
-        printf "backslash n"        
-        printf "\r\n" >> "$2"
-        sleep 1
-    fi
-    if [ "$char" = '\r' ]; then
-        printf "backslash r"
-        echo -e '\r\n' >> "$2"
-        sleep 1
-    fi
-    
+printf '%s' "" > "$2"
+
+while read -r line; do
+    #echo -e "$line" >> "$2"
+    # Print characters in the line
+    for (( i=0; i<${#line}; i++ )); do
+        printf '%s' "${line:$i:1}" >> "$2"
+        sleep 0.25
+    done
+    echo "" >> "$2"
+    sleep 1
 done < "$1"
 
-
+exit
