@@ -14,17 +14,23 @@ if [ ! -f "$1" ]; then
     exit 1
 fi
 
-printf '%s' "" > "$2"
+printf '%s' "" > "$2"   # Clear destination file
 
 while read -r line; do
     #echo -e "$line" >> "$2"
     # Print characters in the line
     for (( i=0; i<${#line}; i++ )); do
         printf '%s' "${line:$i:1}" >> "$2"
-        sleep 0.25
+    
+        if "${line:$i:1}" != " "; then
+           sleep 0.3
+        fi
+
     done
     echo "" >> "$2"
-    sleep 1
+    
+
+
 done < "$1"
 
 exit
