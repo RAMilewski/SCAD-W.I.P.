@@ -11,8 +11,9 @@ for line in test1:
     for char in line:
         test2 = open("test2.scad", "a")
         test2.write(char)
-        test2.close()
-        time.sleep(0.25)
+        print(char, ord(char))
+        time.sleep(0.15)
     time.sleep(0.7)
+    test2.close()
 test1.close()
 
