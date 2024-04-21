@@ -9,8 +9,8 @@ include <BOSL2/threading.scad>
 include <texture.data>
 $fn=72;
 
-part = "handle";            // roller, handle, axle, ring, test
-texturize = false; 
+part = "roller";            // roller, handle, axle, ring, test
+texturize = true; 
 debug = false;               // Show rulers  
 
 dough = 5;                  // Dough Thickness
