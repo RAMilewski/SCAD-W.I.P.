@@ -54,3 +54,5 @@ module test() { //textured cylinder
         cyl(h =40, d1 = 35, d2=48, rounding1 = 12, teardrop = 35, 
             texture = texture, tex_depth = 0.5, tex_reps = [8,1], anchor = BOT);
 }
+
+
