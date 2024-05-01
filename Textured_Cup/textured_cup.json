@@ -1,0 +1,33 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "base_d": "30",
+            "h": "40",
+            "ribs": "false",
+            "ruler": "false",
+            "td_ang": "54",
+            "top_d": "45",
+            "tx": "false",
+            "tx_depth": "0.5",
+            "tx_reps": "16",
+            "vm": "true",
+            "wall": "2",
+            "x_ray": "false"
+        },
+        "New set 2": {
+            "base_d": "30",
+            "h": "40",
+            "ribs": "false",
+            "ruler": "false",
+            "td_ang": "35",
+            "top_d": "45",
+            "tx": "false",
+            "tx_depth": "0.5",
+            "tx_reps": "16",
+            "vm": "true",
+            "wall": "2",
+            "x_ray": "false"
+        }
+    }
+}
