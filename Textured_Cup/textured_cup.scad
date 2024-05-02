@@ -25,7 +25,7 @@ x_ray = false;  // show half view
 $fn = 72;
 base_od = base_d + 2*wall;
 top_od = top_d + 2*wall;
-no_tex = "bricks"; //[[0,0,0,0]];
+
 
 
 // Main
