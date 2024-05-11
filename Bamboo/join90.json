@@ -1,0 +1,22 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "core_2nd": "19",
+            "core_prime": "21",
+            "gap": "0.5",
+            "screw_hole": "true",
+            "type": "2",
+            "wall": "4"
+        },
+        "New set 2": {
+            "core_2nd": "7",
+            "core_prime": "14",
+            "gap": "2",
+            "screw_hole": "false",
+            "ties": "true",
+            "type": "1",
+            "wall": "3"
+        }
+    }
+}

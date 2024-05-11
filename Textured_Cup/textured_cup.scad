@@ -1,6 +1,6 @@
  include <BOSL2/std.scad>
  include <texture.data>
- include <blank.data>
+ //include <blank.data>
 
 /* [Size] */
 base_d =40;
@@ -10,13 +10,13 @@ wall = 2;
 
 /* [Texture] */
 textured = true;
-tx_reps = 3;
+tx_reps = 8;
 tx_depth = 0.5; // [-1:0.25:1]
 
 /* [Options] */
 td_ang = 35;    // [35:60] 
-td_rad = 4;     // roudning radius
-vase = true;    // render for vase_mode
+td_rad = 14;     // roudning radius
+vase = false;    // render for vase_mode
 ribs = false;   // add ribs to indside bottom
 ruler = false;  // show ruler
 x_ray = false;  // show half view
