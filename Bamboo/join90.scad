@@ -2,17 +2,17 @@ include<BOSL2/std.scad>
 include<BOSL2/screws.scad>
 
 /* [Connector] */
-type = 5; // [1, 2, 3, 4, 5]
+type = 6; // [1, 2, 3, 4, 5, 6]
 
 /* [Bamboo Sizes] */
 
 // Diameter of Primary Bamboo  
-core_prime = 20;
+core_prime = 19.5;
 
 // Diameter of 2nd Bamboo
 core_2nd = 21;
 
-wall = 2.5;
+wall = 1;
 gap = 4;
 gap2 = 3;           // Only applies if screw_hole == false
 screw_hole = false;
@@ -49,6 +49,8 @@ if (type == 1) {
     type4(path4, core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, wall, shape, td_ang);
 } else if (type == 5) {
     type5(path, core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, wall, shape, td_ang);
+} else if (type == 6) {
+    type6(core_prime, wall, h_prime);
 }
 
 
@@ -151,6 +153,11 @@ module type3(core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, wall
         }
                      
     }
+}
+
+module type6(dia_prime, wall, h_prime) {
+    cyl(d = dia_prime, h = wall * 2, rounding1 = wall, anchor = BOT)
+        position(TOP) tube(od = dia_prime, wall = wall, h = 45, anchor = BOT);
 }
 
 module hole4screw(where) {
