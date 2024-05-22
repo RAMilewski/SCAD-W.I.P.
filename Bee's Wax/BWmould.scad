@@ -5,9 +5,6 @@ $fn = 72;
 dia = 35;                   // beeswax disk diameter
 base = [dia+5,dia+5,13];    // base size
 corner = 3;                 // corner radius
-floor = 2;                  // floor thickness
-
-
 
 base();
 
