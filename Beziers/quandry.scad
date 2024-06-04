@@ -1,13 +1,13 @@
 include <BOSL2/std.scad>
 include <BOSL2/beziers.scad>
-$fn = 64;
-bez = [[10,0], [25,45], [5,70], [12,100]];
-cpath = bezpath_close_to_axis(bez, axis = "Y");
-path = bezpath_curve(cpath, splinesteps = 64, N = len(bez)-1 );
 
-rotate_sweep(path,360, texture = "wave_ribs", tex_depth = 3, closed = true);
+bez = [[10,0], [20,10], [0,20], [10,30]];
+debug_bezier(bez);
 
-right(50)
+line = [[0,5],[20,5]];
+stroke(line);
 
-rotate_sweep(path,360, texture = "wave_ribs", tex_depth = 3, closed = false);
-
+u = bezier_line_intersection(bez, line);
+echo(u);   // returns [0.166667]
+pt = bezier_points(bez,u);
+echo(pt);  // returns []
