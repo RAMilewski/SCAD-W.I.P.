@@ -7,14 +7,14 @@ opp = 10.9;
 theta = hyp_opp_to_ang(hyp, opp);
 echo(theta);
 
-base = [35,10,50];
-ins = [25,8,50.1];
+base = [35,10,65];
+ins = [25,8,65.1];
 plate = [base.x, 1.5, ins.z];
 cham = ins.y * 0.75;
 
 
 
-*zrot(180) shoe();
+zrot(180) shoe();
 right(50) frontplate();
 
 
@@ -23,7 +23,7 @@ right(50) frontplate();
 module shoe() {
     diff() {
         cuboid(base, rounding = 2, anchor = BACK)
-            position(FWD) fwd(2) down(0.5) tag("remove") xrot(theta) xscale(1.03) #foot();
+            position(FWD) fwd(2) down(0.5) tag("remove") xrot(theta) xscale(1.03) foot();
     }
 }
 
@@ -35,5 +35,5 @@ module foot() {
 
 module frontplate() {
     cuboid(plate, rounding= 2, edges = "Y", anchor = FWD)
-        position(BACK) #foot();
+        position(BACK) foot();
 }

@@ -1,0 +1,13 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$fn": "64",
+            "floor": "1.5",
+            "half": "false",
+            "is2d": "false",
+            "offset": "[1, 0]",
+            "shape": "3"
+        }
+    }
+}

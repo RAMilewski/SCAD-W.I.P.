@@ -3,15 +3,17 @@
     "parameterSets": {
         "New set 1": {
             "$fn": "64",
-            "shape": "0"
+            "floor": "2",
+            "is2d": "false",
+            "offset": "[5, 0]",
+            "shape": "1"
         },
         "New set 2": {
             "$fn": "64",
             "floor": "2",
             "is2d": "false",
-            "shape": "1",
-            "ucut": "[0, 0.45, 0.78, 1]",
-            "wall": "1"
+            "offset": "[1.5, 0]",
+            "shape": "6"
         }
     }
 }

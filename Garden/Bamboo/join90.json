@@ -17,6 +17,16 @@
             "ties": "true",
             "type": "1",
             "wall": "3"
+        },
+        "New set 3": {
+            "core_2nd": "22",
+            "core_prime": "26",
+            "gap": "4",
+            "gap2": "3",
+            "screw_hole": "false",
+            "ties": "true",
+            "type": "3",
+            "wall": "2"
         }
     }
 }

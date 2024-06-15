@@ -2,21 +2,22 @@ include<BOSL2/std.scad>
 include<BOSL2/screws.scad>
 
 /* [Connector] */
-type = 2; // [1, 2, 3, 4, 5, 6, 7]
+type = 8; // [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
 /* [Bamboo Sizes] */
 
 // Diameter of Primary Bamboo  
-core_prime = 26;
-
+core_prime = 23;
 // Diameter of 2nd Bamboo
 core_2nd = 22;
 
-wall = 2;
+wall = 3;
 gap = 4;
 gap2 = 3;           // Only applies if screw_hole == false
 screw_hole = false;
 ties = true;
+
+ruler = true;
 
 /* [Hidden] */
 
@@ -24,7 +25,7 @@ dia_prime = core_prime + 2 * wall;
 dia_2nd = core_2nd + 2 * wall;
 
 h_prime = dia_2nd;
-h_2nd = min(max(core_prime, core_2nd), 20);
+h_2nd = min(max(core_prime, core_2nd), 30);
 
 $fn = 72;
 gap3 = screw_hole ? 0 : gap2;
@@ -38,26 +39,36 @@ path2 = [[0,h_prime + 10],   [0,-h_prime - 10]];
 path4 = [[0,h_prime/4], [0,-h_prime/4]];
 // Main
 
-if (type == 1) {
-    type1(path, core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, wall, shape, td_ang);
-} else if (type == 2) {
-    type2(path, core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, gap3, wall, shape, td_ang);
-} else if (type == 3) {
-    type3(core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, wall, shape, td_ang);
-} else if (type == 4) {
-    //grid_copies(n = [4,7], size = [80,110])
-    type4(path4, core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, wall, shape, td_ang);
-} else if (type == 5) {
-    type5(path, core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, wall, shape, td_ang);
-} else if (type == 6) {
-    type6(core_prime, wall, h_prime);
-} else if (type == 7) {
-    type7(core_prime, dia_prime, wall, h_prime);
+
+if (type == 0) { type0();
+} else if (type == 1) { type1();
+} else if (type == 2) { type2();
+} else if (type == 3) { type3();
+} else if (type == 4) { type4();
+} else if (type == 5) { type5();
+} else if (type == 6) { type6();
+} else if (type == 7) { type7();
+} else if (type == 8) { type8();
 }
 
 
 // Module Definitions
-module type1(path, core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, wall, shape, td_ang) {
+
+module type0() {
+    diff() {
+        span = 85;
+        wall = 1;
+        cuboid([span, wall*2, dia_2nd], rounding = dia_2nd/2, edges = "Y", anchor = BOT){
+            xcopies(l = span - dia_2nd, n = 4)
+                position(FWD) ycyl(d = dia_2nd, h = h_2nd, anchor = BACK)
+                    tag("remove") ycyl(d1 = core_2nd, d2 = core_2nd +1, h = h_2nd + 1, anchor = BACK);
+            tag("remove") align(BACK, overlap = wall *1.5) xcyl(d = dia_prime, h = span, anchor = FWD);
+        }
+                     
+    }
+}
+
+module type1() {
     diff() {
         path_sweep(shape, path){
             tag("remove") {
@@ -75,7 +86,7 @@ module type1(path, core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap
     }
 }
 
-module type2(path,core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, gap2, wall, shape, td_ang) {
+module type2() {
  
     diff() {
           path_sweep(shape, path){
@@ -97,22 +108,7 @@ module type2(path,core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap,
     }
 }
 
-    
-module type3(core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, wall, shape, td_ang) {
-    diff() {
-        span = 85;
-        wall = 1;
-        cuboid([span, wall*2, dia_2nd], rounding = dia_2nd/2, edges = "Y", anchor = BOT){
-            xcopies(l = span - dia_2nd, n = 4)
-                position(FWD) ycyl(d = dia_2nd, h = h_2nd, anchor = BACK)
-                    tag("remove") ycyl(d1 = core_2nd, d2 = core_2nd +1, h = h_2nd + 1, anchor = BACK);
-            tag("remove") align(BACK, overlap = wall *1.5) xcyl(d = dia_prime, h = span, anchor = FWD);
-        }
-                     
-    }
-}
-
-module type4(path, core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, wall, shape, td_ang) {
+module type3() {
     diff() {
         path_sweep(shape, path){
             tag("remove") {
@@ -130,8 +126,7 @@ module type4(path, core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap
     }
 }
 
-
-module type5(path, core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap, wall, shape, td_ang) {
+module type4() {
  
     diff() {
           top_half() path_sweep(shape, path){
@@ -156,27 +151,57 @@ module type5(path, core_prime, dia_prime, h_prime, core_2nd, dia_2nd, h_2nd, gap
         tag("remove") cuboid([dia_prime - 2* wall, h_prime + 1, dia_prime/2+1], anchor = TOP);
     }
 }
-    
 
-module type6(dia_prime, wall, h_prime) {
+module type5() {
     cyl(d = dia_prime, h = wall * 2, rounding1 = wall, anchor = BOT)
         position(TOP) tube(od = dia_prime, wall = wall, h = 45, anchor = BOT);
 }
 
-module type7(core_prime, dia_prime, wall, h_prime ) {
+module type6() {
     diff(){
         cuboid([dia_prime+3, dia_prime+3, wall], rounding = wall, edges = "Z") {
             attach(TOP,BOT) tube(id = core_prime, wall = wall, h = h_prime) {  
                 attach(TOP,BOT) down(wall) torus(d_maj = dia_prime - wall/2, d_min = wall);
                 tag("remove") prismoid([0, dia_prime + wall], [gap2, dia_prime + wall], h = h_prime/2);
                 hole4screw(RIGHT);
-                if($preview) position(TOP) ruler(anchor = BOT+BACK);
+                if($preview && ruler) position(TOP) ruler(anchor = BOT+BACK);
             }
             grid_copies(n = [2,2], spacing = core_prime + 1)
                 tag("remove") cyl(d = 3.5, h = wall *3);
         }
     }
 }
+
+module type7() {  //Post Mount
+    diff(){
+        cuboid([dia_prime+15, dia_prime+15, wall], rounding = wall, edges = "Z") {
+            attach(TOP,BOT) tube(od1 = core_prime + 7 * wall, od2 = core_prime + 2* wall, id = core_prime, h = h_prime * 1.2) {  
+                attach(TOP,BOT) down(wall) torus(d_maj = dia_prime - wall/2, d_min = wall);
+                tag("remove") position(TOP) #prismoid([0, dia_prime + 4 * wall], [gap2, dia_prime + 4 * wall], h = h_prime/1.5, anchor = TOP);
+                hole4screw(RIGHT);
+                if($preview && ruler) position(TOP) ruler(anchor = BOT+BACK);
+            }
+            grid_copies(n = [2,2], spacing = core_prime + 10)
+                tag("remove") cyl(d = 3.5, h = wall *3);
+        }
+    }
+}
+
+
+module type8() {  //Post Mount Washer
+    diff(){
+        cuboid([dia_prime+15, dia_prime+15, wall], rounding = wall, edges = "Z") {
+            position(BOT) tag("remove") 
+                cyl(d1 = core_prime + 7 * wall, h = h_prime * 1.2, rounding1 = -1, teardrop = true, anchor = BOT);
+            grid_copies(n = [2,2], spacing = core_prime + 10)
+                tag("remove") cyl(d = 3.5, h = wall *3);
+
+        }
+    }
+}
+
+
+
 
 module hole4screw(where) {
      if (screw_hole) {
