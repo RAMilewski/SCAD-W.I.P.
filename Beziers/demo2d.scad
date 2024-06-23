@@ -1,10 +1,26 @@
 include <BOSL2/std.scad>
 include <BOSL2/beziers.scad>
 
-bez = [[20,0], [55,40], [-10,40], [20,80]];  
-debug_bezier(bez);
+
+
+$fs = .2;
+$fa = 4;
+
+difference () {
+rotate ([45,0,0])
+linear_extrude (height=15, twist=360, convexity=10) translate ([.1,-20]) square ([20,40]);
+translate ([-50,-50,1]) cube (100);
+}
+
+
+
+
+
 
 /*
+bez = [[20,0], [55,10], [-10,20], [20,30],  ];  
+debug_bezier(bez);
+
 
 line = [[0,5],[50,5]];
 stroke(line);

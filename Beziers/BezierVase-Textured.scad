@@ -10,8 +10,8 @@ wall = 3;
 floor = 2;
 
 tex_range = [0.33,0.83];
-texreps = [12,2];
-texdepth = 0;
+texreps = [24,2];
+texdepth = 0.5;
 
 ulat = ((tex_range.y - tex_range.x)/2 + tex_range.x);
 toplat = bezier_points(bez,1).y;
@@ -29,7 +29,6 @@ echo("ulat, lat, toplat, r, side, apothem");
 echo(ulat, lat, toplat, r, side, apothem);
 echo("tanvec, tilt");
 echo(tanvec, tilt);
-
 
 
 object();
@@ -81,7 +80,5 @@ module tex_panel(tex_range) {
     up(lat) zrot_copies(n = $fn, r = apothem, sa = 0)
         color("blue") sphere(2, $fn = 64);
 }
- /*
- 
 
   */

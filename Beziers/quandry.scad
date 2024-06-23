@@ -1,23 +1,26 @@
-
 include<BOSL2/std.scad>
-include<Textures/test.data> 
-$fn = 32;
-diff() {
-    cuboid(100, rounding = 10){
-        attach(LEFT,BACK) texture_tile(texdata, [80,62.5], 1);
-        tag("remove") attach(FWD,BACK) texture_tile(texdata, [80,62.5] ,1);
-        attach(TOP,BACK) move([20,15,0]) texture_tile(texdata, [40,31], 2);
-        tag("remove") attach(TOP,BACK) move([-21,-15,0]) texture_tile(texdata, [40,31] ,2);
-        
+$fn = 144;
 
-    }
-}
+r1 = 10;
+r2 = 6;
+h = 38;
 
+u1 = 10;
+u2 = 25;
 
-module texture_tile(texture, size, depth){ 
-    region = rect([size.x,0.01]);
-    linear_sweep(region, h = size.y, texture = texture, tex_reps = [2,1], tex_depth = depth);
-}
+eps = 0.001;
+
+echo(ru(u1), ru(u2));
+echo((r2 - r1)/h, (r2 - r1)/h * h);
 
 
-/* */
+hyp = adj_opp_to_hyp(ru(u1)-ru(u2),(u2-u1) );
+echo(hyp);
+
+cyl(r1 = r1, r2 = r2, h = h, anchor = BOT);
+
+up(u1) color("red") cyl(r1 = ru(u1), r2 = ru(u2), h = u2 - u1, anchor = BOT);
+
+
+function ru(u) = r1 + (r2 - r1)/h * u;
+
