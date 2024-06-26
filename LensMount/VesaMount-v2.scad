@@ -14,7 +14,8 @@ Llen = 40;
 ellipse = ellipse([Llen/2 - 5, Llen], $fn = 164);
 clamp = Llen/2;
 
-ring();
+partition(cutpath = "flat", spread = 15, size = [150,200,200]) 
+xrot(90) ring();
 
 module Vmount() {
     join_prism( ellipse,base="plane",base_d=Lmaj, fillet=lift/2.1, length = lift/2) {
