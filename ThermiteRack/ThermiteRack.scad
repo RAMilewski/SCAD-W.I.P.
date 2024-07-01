@@ -8,15 +8,19 @@ h_cap = 12;
 h_layer = h_body + 5;
 leg = [d_body, d_body, h_layer];
 wall = 2;
-plate = [150,150,wall];
-grid = [5,5];
+c_box = true;           //dimensioned for cardboard box
+plate =     c_box ? [120,150,wall] : [150,150,wall];
+grid =      c_box ? [4,5] : [5,5];           
+grid_sp =   c_box ? [d_cap+2,d_cap+1] : [d_cap+3,d_cap+4]; 
+stagger = false;
 
 rack();
 
 module rack() {    
     diff() {
         cuboid(plate, rounding = d_cap/2, edges = "Z", anchor = BOT){
-            tag("remove") position(BOT) grid_copies(spacing = d_cap+3, n=grid) #cylinder(d=d_body, h=wall);
+            tag("remove") position(BOT) 
+                grid_copies(spacing = grid_sp, n=grid, stagger = stagger) down(0.1) #cylinder(d=d_body, h=wall+1);
             yflip_copy() { xflip_copy() align(TOP,LEFT+BACK) leg(); } 
         }
     }
