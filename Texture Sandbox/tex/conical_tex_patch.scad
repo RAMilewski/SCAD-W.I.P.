@@ -25,7 +25,8 @@ diff() {
 }
 
 
-/*  OpenSCAD 2024.06.16 (MacOS)
+/*  
+    OpenSCAD 2024.06.16 (MacOS)
 
     TEXTURE                 MANIFOLD    CGAL
 
@@ -36,7 +37,7 @@ diff() {
     cubes       †2          OK          OK
     diamonds    †4          OK          OK
     diamonds_vnf            OK          OK
-    dimples                 F6 Fails    F6 Fails
+    dimples     †5          F6 Fails    F6 Fails
     dots                    F6 Fails    OK †3 
     hex_grid                OK          OK
     hills                   OK †3       OK
@@ -54,11 +55,11 @@ diff() {
 
     Notes
 
-        1   Bevels top row of texture w/gap <0.14
-        2   Bevels top row of texture
-        3   Works but with NotManifold or Mesh Not Closed warning.
-        4   Top and bottom row different.
-
+        †1   Bevels top row of texture w/gap <0.14
+        †2   Bevels top row of texture
+        †3   Works but with NotManifold or Mesh Not Closed warning.
+        †4   Top and bottom row different.
+        †5   Dimples previews as Dots
 
 
 /* */

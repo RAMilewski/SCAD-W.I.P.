@@ -1,23 +1,23 @@
-
 include<BOSL2/std.scad>
 include<BOSL2/beziers.scad>
 
+bezpath = flatten([
+    bez_begin([0,0], 90, 5),
+    bez_joint([0,10],  270,0,   10,10),
+    bez_joint([10,10], 180,270, 10,10),
+    bez_joint([10,0],  90,180,  10,10),
+    bez_end  ([0,0], 0, 20)
+]);
 
-bez =  [[0,0], [10,30], [20,0], [30,-30], [40,0], [50,30],[60,0],
-       // [70,-30], [80,0], [90,30], [100,0], [110,-30], [120,0],
-       // [130,30], [140,0], [150,-30], [160,0]
-        ];
+debug_bezier(bezpath);
 
-N = 3;
-debug_bezier(bez, N = N);
 
-//stroke(bezpath_curve(bez,N=N,splinesteps = 64));
+
 
 
 /*
+rotate_sweep(path, 360);
 
-debug_bezier(bez[$t*4], N=$t*4+2);
-echo($t);
-move([60,30]) color("blue") text(str("N = ",($t*4+2)));
-
+path_sweep(sq, path);
+linear_sweep(path, h =20);
 */
