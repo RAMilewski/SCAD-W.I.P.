@@ -21,18 +21,12 @@ bezpath = flatten([
     bez_end  ([0,0], 0,20)
 ]);
 
-
-sq = square(6, center = true);
-path = path_merge_collinear(bezpath_curve(bezpath), closed = true);
-
-
-//color("blue") stroke(path,width = 1, closed = true);
+path = bezpath_curve(bezpath);
 
 inside = offset(path, delta = -5, closed = true);
 outside = offset(path, r = 5, closed = true);
 blade = offset(path, delta = -1.5, closed = true);
-//stroke(inside, closed = true);
-//stroke(outside, closed = true);
+
 
 
 difference() {
