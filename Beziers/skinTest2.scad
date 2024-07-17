@@ -18,10 +18,10 @@ toppath = flatten([
 ]);
 
 function scalefactor(z) =
-    let()
-    let()
+    let(x_base) = sidebez[0].x;
+    let(h) = last(sidebez).y;
     let (u = bezier_line_intersection(sidebez, [[0, z * step],[1, z * step]]))
-    flatten(bezier_points(sidebez,u)).x;
+    flatten(bezier_points(sidebez,u)).x/x_base;
 
 // function path_xy_offset() = 
 
