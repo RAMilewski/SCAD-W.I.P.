@@ -17,9 +17,10 @@ toppath = flatten([
     bez_end  ([-50,0,20],  FWD, 10)
 ]);
 
+echo(sidebez[0].x);
+
 function scalefactor(z) =
-    let(x_base) = sidebez[0].x;
-    let(h) = last(sidebez).y;
+    let(x_base = sidebez[0].x)
     let (u = bezier_line_intersection(sidebez, [[0, z * step],[1, z * step]]))
     flatten(bezier_points(sidebez,u)).x/x_base;
 
@@ -28,12 +29,12 @@ function scalefactor(z) =
 echo(scalefactor(3));
 
 
-
-
-
-
-
 /*
+
+
+
+
+
 
 
 top = bezpath_curve(toppath);
