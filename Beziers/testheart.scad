@@ -2,13 +2,16 @@ include<BOSL2/std.scad>
 include<BOSL2/beziers.scad>
 
 bezpath = flatten([
-    bez_begin([20,30], 45,  50),
-    bez_joint([20,0],  45, 135, 50,50),
-    bez_end  ([20,30], 135,  50),
+    bez_begin([0,15], 35,  30),
+    bez_joint([0,-15],  45, 135, 30,30),
+    bez_end  ([0,15], 145,  30),
 ]);
 
-debug_bezier(bezpath);
+inside = bezpath_curve(bezpath);
+stroke(inside, closed = true);
 
+outside = offset(inside, delta = 4, closed = true);
+stroke(outside, closed = true);
 
 /*
 

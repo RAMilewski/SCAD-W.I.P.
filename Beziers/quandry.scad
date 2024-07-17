@@ -22,12 +22,13 @@ bez2 = flatten([
 ]);
 
 
-
+$fn = 128;
 height = 45;
-sub_base = octagon(d=71, rounding=2, $fn=128);
-base = octagon(d=75, rounding=2, $fn=128);
-interior = regular_ngon(n=len(base), d=60);
-
+sub_base = octagon(d=71, rounding=2);
+base = octagon(d=75, rounding=2);
+echo(len(base));
+//interior = regular_ngon(n=$fn, d=60);
+interior = circle(d=60);
   skin([ sub_base, base, base, sub_base, interior], z=[0,2,height, height, 2], slices=0, refine=1, method="reindex");
 
 

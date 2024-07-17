@@ -22,7 +22,7 @@ bezpath = flatten([
 ]);
 
 path = bezpath_curve(bezpath, splinesteps = 32); 
-stroke(path);
+stroke(path, closed = true);
 //debug_bezier(bezpath);
 
 
