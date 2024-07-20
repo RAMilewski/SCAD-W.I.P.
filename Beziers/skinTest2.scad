@@ -1,50 +1,56 @@
 include<BOSL2/std.scad>
 include<BOSL2/beziers.scad>
+include<BOSL2/rounding.scad>
 
-wall = -2;
-wallScale = [0.95,0.95,1];
-steps = 16; 
-sidebez = [[15,0], [40,40], [-20,50], [20,80]];
+
+
+sidebez = [[15,0], [40,40], [-20,50], [10,80]];
+side = bezpath_curve(sidebez);
+h = last(side).y;
 sidebase = sidebez[0].x;
-h = sidebez[len(sidebez)-1].y;
+steps = len(side)-1;
 step = h/steps;
+size = 30;
+wall = 2;
+scale = 1-(2 * wall / size);
+wallscale = [scale,scale,1];
 
-toppath = flatten([
-    bez_begin([-50,0,20],  BACK, 10),
-    bez_joint([0,50,20],  LEFT+UP, RIGHT+UP, 20,20),
-    bez_tang ([50,0,20],   FWD, 20),
-    bez_joint([0,-50,30], RIGHT+DOWN, LEFT+DOWN, 20,20),
-    bez_end  ([-50,0,20],  FWD, 10)
+echo(scale);
+
+topbez = flatten([
+    bez_begin([-size,0,0], BACK, 10),
+    bez_joint([0,size,-3],  180,0, 5,5, 10,10),
+    bez_tang ([size,0,0],  FWD, 20),
+    bez_joint([0,-size,0], 0,180, 8,8, 120,120),
+    bez_end  ([-size,0,0], FWD, 10)
 ]);
 
-echo(sidebez[0].x);
-
-function scalefactor(z) =
-    let(x_base = sidebez[0].x)
+function layerscale(z) =
     let (u = bezier_line_intersection(sidebez, [[0, z * step],[1, z * step]]))
-    flatten(bezier_points(sidebez,u)).x/x_base;
+    flatten(bezier_points(sidebez,u)).x / sidebase;
 
-// function path_xy_offset() = 
+top = bezpath_curve(topbez);
+base = path3d(path2d(top));
+floor = scale(wallscale, base);
 
-echo(scalefactor(3));
+rescaled = [for(i=[0:len(side)-1]) scale(layerscale(i),path3d(top))];
+xyoffset = [for(i=[0:len(side)-1]) 
+               [for(j=[0:len(rescaled)-1]) 
+                    [rescaled[i][j].x - wall, rescaled[i][j].y - wall, rescaled[i][j].z]
+                ]
+            ];
 
+echo(xyoffset[0]);
+echo("**********************");
+echo(rescaled[0]);
+
+
+for(i = [1:2:len(side)-1]) stroke(rescaled[i], closed = true);
+for(i = [1:2:len(side)-1]) color("blue") stroke(xyoffset[i], closed = true);
 
 /*
 
-
-
-
-
-
-
-top = bezpath_curve(toppath);
-base = path3d(path2d(top));
-top2 = scale(wallScale, top);
-
-temp = offset(path2d(base), delta = wall, closed = true);
-floor = up(2,path3d(offset(path2d(base), delta = wall, closed = true)));
-
-//left_half() 
-skin([base, top, top2, floor], slices=0, refine=1, method="reindex");
-
-/* */
+skin([ base, rescaled[2], rescaled[4] rescaled[6],
+    rescaled2[6], rescaled[4], rescaled[2], floor], 
+    z=[0,5,10,15,15,10,5,2], slices=0, refine=1, method="reindex");
+/* */   

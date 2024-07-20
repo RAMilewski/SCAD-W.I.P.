@@ -1,20 +1,23 @@
 include<BOSL2/std.scad>
 include<BOSL2/beziers.scad>
+include<BOSL2/rounding.scad>
 
-$fn = 72;
 
+r = 50;  // radius of the circle
+n = 4;   //bezier segments to complete circle
+d = r * (4/3) * tan(180/(2*n)); //control point distance
 
-toppath = flatten([
-    bez_begin([-50,0,20],  BACK, 27.625),
-    bez_joint([0,50,30],  LEFT+UP, RIGHT+UP, 27.625,27.625),
-    bez_tang ([50,0,20],   FWD, 27.625),
-    bez_joint([0,-50,30], RIGHT+DOWN, LEFT+DOWN, 27.625,27.625),
-    bez_end  ([-50,0,20],  FWD, 27.625)
+bez = flatten([
+    bez_begin([-r,0],  90, d),
+    bez_tang ([0,r],    0, d/2),
+    bez_tang ([r,0],  -90, d),
+    bez_tang ([0,-r], 180, d * 3),
+    bez_end  ([-r,0], -90, d)
 ]);
 
+path = bezpath_curve(bez);
 
-top = bezpath_curve(toppath);
-
-path_sweep(circle(1),top, closed = true);
-
-
+stroke(path, closed = true);
+//stroke(path, closed = true);
+color("blue") stroke(offset(path, -5), closed = true);
+/* */
