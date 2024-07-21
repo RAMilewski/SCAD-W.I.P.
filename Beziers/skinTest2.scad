@@ -34,19 +34,16 @@ base = path3d(path2d(top));
 floor = scale(wallscale, base);
 
 rescaled = [for(i=[0:len(side)-1]) scale(layerscale(i),path3d(top))];
-xyoffset = [for(i=[0:len(side)-1]) 
-               [for(j=[0:len(rescaled)-1]) 
-                    [rescaled[i][j].x - wall, rescaled[i][j].y - wall, rescaled[i][j].z]
-                ]
-            ];
+
+xyoffset = [for (curve = rescaled) hstack(offset(path2d(curve), delta = 12, same_length = true), column(curve,2))];
 
 echo(xyoffset[0]);
 echo("**********************");
 echo(rescaled[0]);
 
 
-for(i = [1:2:len(side)-1]) stroke(rescaled[i], closed = true);
-for(i = [1:2:len(side)-1]) color("blue") stroke(xyoffset[i], closed = true);
+for(i = [1:4:len(side)-1]) stroke(rescaled[i], width = 0.4, closed = true);
+for(i = [1:4:len(side)-1]) color("blue") stroke(xyoffset[i], width = 0.4, closed = true);
 
 /*
 
