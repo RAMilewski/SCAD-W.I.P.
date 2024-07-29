@@ -1,33 +1,21 @@
 
 include<BOSL2/std.scad>
 include<BOSL2/beziers.scad>
+include<BOSL2/rounding.scad>
 
-bezpath = flatten([
-    bez_begin([0,0], BACK, 15),
-    bez_joint([0,9], FWD, RIGHT, 10,10),
-    bez_joint([5,9], LEFT, 70, 9,20),
-    bez_tang([80,65], 3, 35, 20),
-    bez_joint([130,60], 160, -60, 10, 30),
-    bez_joint([140,42], 120, 0, 20,55),
-    bez_joint([208,9], BACK, RIGHT, 10,6),
-    bez_joint([214,9], LEFT, FWD, 10,10),
-    bez_joint([214,0], BACK, LEFT, 10,10),
-    bez_joint([189,0], RIGHT, -95, 10,10),
-    bez_tang([170,-17], LEFT, 10),
-    bez_joint([152,0], -85, LEFT, 10,10),
-    bez_joint([52,0], RIGHT, -95, 10,10),
-    bez_tang([33,-17], LEFT, 10),
-    bez_joint([16,0], -85,LEFT, 10,10),
-    bez_end  ([0,0], RIGHT,10)
-]);
+$fn = 72;
 
-path = bezpath_curve(bezpath, splinesteps = 32); 
-stroke(path, closed = true);
-//debug_bezier(bezpath);
+bez = [[40,0], [110,40], [-60,50], [45,80]];
 
+bez2 = bezpath_offset([5,0], bez);
+closed= bezpath_curve(bez2, splinesteps = 32);
+color("blue") stroke(closed);
 
+path2 = bezier_curve(bez, splinesteps = 32);
+closed2 = concat(path2,reverse(offset(path2,delta=5)),[bez[0]]);
+right(30) color("red") stroke(closed2);
 
-//linear_sweep(path_merge_collinear(path, closed = true),h = 20);
-
-//sq = square(1);
-//path_sweep(sq,path_merge_collinear(path, closed = true)); 
+path = bezier_curve(bez, splinesteps = 32);
+path3 = offset_stroke(path, [0,-2.5], start=os_flat(abs_angle=0), end=os_flat(abs_angle=0));
+right(60) color("green") up(2.5) stroke(path3, closed = true);
+*back_half(s = 200) rotate_sweep(path3,360);

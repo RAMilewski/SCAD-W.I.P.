@@ -1,0 +1,11 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "part": "assemble"
+        },
+        "New set 2": {
+            "part": "plungers"
+        }
+    }
+}
