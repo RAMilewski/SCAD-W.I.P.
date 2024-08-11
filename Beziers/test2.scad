@@ -3,19 +3,28 @@ include<BOSL2/std.scad>
 include<BOSL2/beziers.scad>
 include<BOSL2/rounding.scad>
 
-$fn = 72;
+side_bez = [[20,0], [40,40], [-10,70], [20,100]];
+side = bezpath_curve(side_bez, splinesteps = 32);
 
-bez = [[40,0], [110,40], [-60,50], [45,80]];
+//stroke(side);
 
-bez2 = bezpath_offset([5,0], bez);
-closed= bezpath_curve(bez2, splinesteps = 32);
-color("blue") stroke(closed);
+$fn = 32;
+cyl(h=10, d=10, rounding1 = 2, texture = "bricks", teardrop = 30, anchor = BOT); //show_anchors();
 
-path2 = bezier_curve(bez, splinesteps = 32);
-closed2 = concat(path2,reverse(offset(path2,delta=5)),[bez[0]]);
-right(30) color("red") stroke(closed2);
 
-path = bezier_curve(bez, splinesteps = 32);
-path3 = offset_stroke(path, [0,-2.5], start=os_flat(abs_angle=0), end=os_flat(abs_angle=0));
-right(60) color("green") up(2.5) stroke(path3, closed = true);
-*back_half(s = 200) rotate_sweep(path3,360);
+/*
+//
+msize = side_bez[0].x; // size of the base
+d = size * 0.8;       // intermediate control point distance
+theta = 65;           // adjusts layer "wavyness".
+bz = 5*cos(theta);    // offset to raise layer curve minima above z = 0;
+                 
+layer_bez = flatten([
+    bez_begin ([-size,0,bz],  90, d, p=theta),
+    bez_tang  ([0, size,bz],   0, d, p=theta),
+    bez_tang  ([size, 0,bz], -90, d, p=theta),
+    bez_tang  ([0,-size,bz], 180, d, p=theta),    
+    bez_end   ([-size,0,bz], -90, d, p=180 - theta)
+]);
+
+*/
