@@ -1,16 +1,11 @@
 include<BOSL2/std.scad>
 include<BOSL2/threading.scad>
 
-part = "body"; // [all,body,top,plunger,assembly]
+batt_idx = 1; // [0:CR2477, 1:CR2032, 2:CR2025, 3:CR2016, 4:LR44] 
+part = "top"; // [all,body,top,plunger,assembly]
 
 /* [Hidden] */
 $fn = 72;
-
-// Batteries  [xdim, undef, zdim, spring]
-CR2477 = [24.5, undef, 7.7, 0];  
-CR2032 = [20.5, undef, 3.2, 0];
-CR2016 = [20.5, undef, 1.6, 0];
-LR44   = [11.6, undef, 5.5, 1];
 
 // Springs  [od, id, length, compressed, McMaster's part#]
 springs = [ 
@@ -18,55 +13,73 @@ springs = [
     [0.360 * INCH, 0.258 * INCH, 3 * INCH, 1.132 * INCH, "9657K427"],
 ];
 
+// Batteries  [xdim, undef, zdim, spring, label]
+batts = [
+    [24.5, undef, 7.7, 0, "CR2477"],
+    [20.5, undef, 3.2, 0, "CR2032"],
+    [20.5, undef, 2.5, 0, "CR2025"],
+    [20.5, undef, 1.6, 0, "CR2016"],
+    [11.6, undef, 5.5, 1, "LR44"]
+];
+
+batt = batts[batt_idx];
+echo (batt);
+
+
 // Dimensions
-batt = CR2032;  //Define type of battery here
 wall = 6;
 body = [batt.x + (wall * 2), undef, 3 * INCH];
-top = [body.x, undef, 6];
+top = [body.x, undef, body.z/6 + 10];
+slotZ = 4;
 floor = 3;
 bevel = 2;
-key = [20, undef, 4];
-key_slop = 1;
 batt_slop = 0.5;
-spring_slop = 1; 
+spring_slop = 0.25; 
 
 if (part == "top")  { top(); } 
-if (part == "body") {back_half(s= 200) body(); } 
-if (part == "plunger") { plunger(false); }
-if (part == "all")  { left(50) body(); right(50) top(); fwd(80) plungers(); }
+if (part == "body") { body(); } 
+if (part == "plunger") { back_half() plunger(); }
+if (part == "all")  { left(body.x) body(); right(body.x) top(); plunger(); }
 if (part == "assembly") {
-        body(); 
+        back_half(s=200) body(); 
+        up(body.z) yrot(180) color("skyblue") back_half(s = 200) top();
         up(10) color("blue") springs(); 
-        up(body.z - 15) color("green") plungers(true);
-        up(body.z) color("skyblue") top();
+        up(body.z - 5) color("green") yrot(180) plunger();
 }
 
 module top() {
     diff(){
-        cyl(h = top.z, d = top.x, rounding2 = 5, anchor = BOT) {
-                left(0) {
-                    tag("remove") position(BOT) xscale(1.5) cyl(h = top.z+0.01, d = batt.x - 3, rounding2 = -4, teardrop = true, anchor = BOT);
-                }
-            tag("remove") position(BOT) cyl(h = key.z, d = key.x + key_slop, $fn = 6, anchor = BOT);
-            tag("remove") position(BOT) cyl(h = 10, d = 4, anchor = BOT); // clearance hole for screw
+        cyl(h = top.z, d = top.x, rounding1 = 4, teardrop = true, anchor = BOT) {
+            tag("remove") position(TOP) {
+                zrot(140) acme_threaded_rod(d=body.x - wall, l = top.z/2, pitch=1/8*INCH, 
+                    internal = true, $fn=64, $slop = 0.4, anchor = TOP);
             }
+            tag("remove") position(BOT) { 
+                cyl(h = top.z+0.01, d = batt.x - 3, rounding1 = -3 , teardrop = true, anchor = BOT);
+                up(slotZ) cyl(h = top.z - 3, d = batt.x + batt_slop, anchor = BOT);
+                fwd(batt.x/2) up(slotZ) cuboid([batt.x, batt.x*2, batt.z + batt_slop], 
+                    rounding = batt.x/2, edges = "Z", except = FWD, anchor = BOT);
+            }
+            path = path3d(arc(100, r=body.x/2, angle=[210, 360]));
+            tag("Keep") position(TOP) down (2.5) yrot(180)
+                path_text(path, batt[4], font="Impact", size=6, lettersize = 6);    
         }
     }
+}
 
 
 module body() {
     diff() {
-        cyl(h = body.z, d = body.x, anchor = BOT) {
-            tag("remove")  position(TOP) {
-                // batt compartment
-                cyl(h = body.z - floor, d = batt.x + batt_slop, anchor = TOP);
-                // slide-out space
-                //cuboid([1.9 * batt.x, batt.x+batt_slop, batt.z + batt_slop], rounding = batt.x/2, edges = "Z", anchor = TOP);
-                // thin the wall for threads
-                up(0.1) tube( h = body.z/4, od = body.x, id = body.x - wall * 1.5, anchor = TOP);
+        cyl(h = body.z * 0.75, d = body.x, anchor = BOT) {
+            tag("remove")  position(BOT) up(floor) 
+                cyl(h = body.z * 0.75 - floor, d = batt.x + batt_slop, anchor = BOT);  
+            //path = path3d(arc(100, r=body.x/2 + 0.25, angle=[210, 360]));
+            //tag("remove") position(TOP) down (10)
+            //    path_text(path, batt[4], font="Impact", size=6, lettersize = 6);            
+            difference() {
+                position(TOP) acme_threaded_rod(d=body.x - wall, l=top.z/2, pitch=1/8*INCH, $fn=64, anchor = BOT);
+                position(TOP) cyl(d = batt.x + batt_slop, l = body.z/4, anchor = BOT);
             }
-            position(TOP) tag("keep") #thread_helix(d=body.x - wall * 1.5, pitch=2, 
-                thread_depth=0.75, flank_angle=15, turns=2.5, lead_in=1, $fn=72, anchor = TOP);
             spring = springs[batt[3]];
             tag("keep") position(BOT) up(floor)  //spring post
                 cyl(h = spring[3]/4, d1 = spring.y - spring_slop, d2 = spring.y*0.7, rounding2 = 2, anchor = BOT);
@@ -74,17 +87,11 @@ module body() {
     }
 }
 
-module plunger(flip) {
+module plunger() {
         spring = springs[batt[3]];
-        if (!flip) {
-            diff()
-                cyl(h = 15, d = batt.x, chamfer1 = bevel, anchor = BOT)
-                    position(TOP) up(floor) tag("remove") cyl(h = 15, d = spring.y + spring_slop);
-        } else { 
-            diff()
-                cyl(h = 15, d = batt.x, chamfer2 = bevel, anchor = BOT)
-                    position(BOT) tag("remove") cyl(h = 15 - floor, d = spring.y + spring_slop);
-        }
+        diff()
+            cyl(h = 15, d = batt.x - batt_slop, rounding = bevel, teardrop = true, anchor = BOT)
+                position(BOT) up(floor) tag("remove") cyl(h = 15, d = spring.x + 2 * spring_slop, anchor = BOT);
     }
 
 

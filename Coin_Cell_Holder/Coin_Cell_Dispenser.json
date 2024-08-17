@@ -1,0 +1,29 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "part": "top"
+        },
+        "New set 2": {
+            "part": "top"
+        },
+        "New set 3": {
+            "part": "assembly"
+        },
+        "New set 4": {
+            "part": "assembly"
+        },
+        "New set 5": {
+            "part": "top"
+        },
+        "New set 6": {
+            "part": "top"
+        },
+        "New set 7": {
+            "part": "top"
+        },
+        "New set 8": {
+            "part": "top"
+        }
+    }
+}
