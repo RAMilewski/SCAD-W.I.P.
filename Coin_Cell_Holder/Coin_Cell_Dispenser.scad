@@ -1,8 +1,8 @@
 include<BOSL2/std.scad>
 include<BOSL2/threading.scad>
 
-batt_idx = 1; // [0:CR2477, 1:CR2032, 2:CR2025, 3:CR2016, 4:LR44] 
-part = "top"; // [all,body,top,plunger,assembly]
+batt_idx = 5; // [0:CR2477, 1:CR2032, 2:CR2025, 3:CR2016, 4:LR44, 5:TCap] 
+part = "all"; // [all,body,top,plunger,assembly]
 
 /* [Hidden] */
 $fn = 72;
@@ -13,13 +13,14 @@ springs = [
     [0.360 * INCH, 0.258 * INCH, 3 * INCH, 1.132 * INCH, "9657K427"],
 ];
 
-// Batteries  [xdim, undef, zdim, spring, label]
+// Batteries  [xdim, undef, zdim, spring, slotZ, label]
 batts = [
-    [24.5, undef, 7.7, 0, "CR2477"],
-    [20.5, undef, 3.2, 0, "CR2032"],
-    [20.5, undef, 2.5, 0, "CR2025"],
-    [20.5, undef, 1.6, 0, "CR2016"],
-    [11.6, undef, 5.5, 1, "LR44"]
+    [24.5, undef, 7.7, 0, 4, "CR2477"],
+    [20.5, undef, 3.2, 0, 4, "CR2032"],
+    [20.5, undef, 2.5, 0, 4, "CR2025"],
+    [20.5, undef, 1.6, 0, 4, "CR2016"],
+    [11.6, undef, 5.5, 1, 4, "LR44"],
+    [19.5, undef, 2.5, 0, 0, "Chris"]
 ];
 
 batt = batts[batt_idx];
@@ -30,7 +31,6 @@ echo (batt);
 wall = 6;
 body = [batt.x + (wall * 2), undef, 3 * INCH];
 top = [body.x, undef, body.z/6 + 10];
-slotZ = 4;
 floor = 3;
 bevel = 2;
 batt_slop = 0.5;
@@ -56,13 +56,13 @@ module top() {
             }
             tag("remove") position(BOT) { 
                 cyl(h = top.z+0.01, d = batt.x - 3, rounding1 = -3 , teardrop = true, anchor = BOT);
-                up(slotZ) cyl(h = top.z - 3, d = batt.x + batt_slop, anchor = BOT);
-                fwd(batt.x/2) up(slotZ) cuboid([batt.x, batt.x*2, batt.z + batt_slop], 
+                up(batt[4]) cyl(h = top.z - 3, d = batt.x + batt_slop, anchor = BOT);
+                fwd(batt.x/2) up(batt[4]) #cuboid([batt.x, batt.x*2, batt.z + batt_slop], 
                     rounding = batt.x/2, edges = "Z", except = FWD, anchor = BOT);
             }
             path = path3d(arc(100, r=body.x/2, angle=[210, 360]));
             tag("Keep") position(TOP) down (2.5) yrot(180)
-                path_text(path, batt[4], font="Impact", size=6, lettersize = 6);    
+                path_text(path, batt[5], font="Impact", size=6, lettersize = 6);    
         }
     }
 }
