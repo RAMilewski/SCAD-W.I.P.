@@ -1,8 +1,8 @@
 include<BOSL2/std.scad>
 include<BOSL2/threading.scad>
 
-batt_idx = 5; // [0:CR2477, 1:CR2032, 2:CR2025, 3:CR2016, 4:LR44, 5:TCap] 
 part = "all"; // [all,body,top,plunger,assembly]
+batt_idx = 5; // [0:CR2477, 1:CR2032, 2:CR2025, 3:CR2016, 4:LR44, 5:TCap] 
 
 /* [Hidden] */
 $fn = 72;
@@ -20,7 +20,7 @@ batts = [
     [20.5, undef, 2.5, 0, 4, "CR2025"],
     [20.5, undef, 1.6, 0, 4, "CR2016"],
     [11.6, undef, 5.5, 1, 4, "LR44"],
-    [19.5, undef, 2.5, 0, 0, "Chris"]
+    [19.5, undef, 2.5, 0, 2, "Chris"]
 ];
 
 batt = batts[batt_idx];
@@ -55,10 +55,11 @@ module top() {
                     internal = true, $fn=64, $slop = 0.4, anchor = TOP);
             }
             tag("remove") position(BOT) { 
-                cyl(h = top.z+0.01, d = batt.x - 3, rounding1 = -3 , teardrop = true, anchor = BOT);
+                #cyl(h = top.z+0.01, d = batt.x - 3, rounding1 = -3 , teardrop = true, anchor = BOT);
                 up(batt[4]) cyl(h = top.z - 3, d = batt.x + batt_slop, anchor = BOT);
-                fwd(batt.x/2) up(batt[4]) #cuboid([batt.x, batt.x*2, batt.z + batt_slop], 
+                fwd(batt.x/2) up(batt[4]) cuboid([batt.x, batt.x*2, batt.z + batt_slop], 
                     rounding = batt.x/2, edges = "Z", except = FWD, anchor = BOT);
+                if (batt_idx == 5) {fwd(body.x/4 + 3) cuboid([batt.x,body.x/2,4], rounding = -3, edges = BOT, anchor = BOT); }
             }
             path = path3d(arc(100, r=body.x/2, angle=[210, 360]));
             tag("Keep") position(TOP) down (2.5) yrot(180)

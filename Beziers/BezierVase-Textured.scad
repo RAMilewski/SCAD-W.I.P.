@@ -3,7 +3,7 @@ include <BOSL2/beziers.scad>
 include <shapeset.scad>
 include <TEX/VSC-4weave.data>
 $fn = 72;
-shape = 2;  // 0,1,2,3,4,5,6,7,
+shape = 2;  // 0,1,2,3,4,5,6,7
 bez = shapeset[shape];
 
 wall = 3;

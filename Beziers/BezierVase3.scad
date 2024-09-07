@@ -13,7 +13,7 @@ wall = 2;
 size = side_bez[0].x; // size of the base
 d = size * 0.8;       // intermediate control point distance
 theta = 65;           // adjusts layer "wavyness".
-bz = 5*cos(theta);    // offset to raise layer curve minima above z = 0;
+bz = 5 * cos(theta);  // offset to raise layer curve minima above z = 0;
                  
 layer_bez = flatten([
     bez_begin ([-size,0,bz],  90, d, p=theta),
