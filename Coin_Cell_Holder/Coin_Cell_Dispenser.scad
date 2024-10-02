@@ -10,7 +10,7 @@ $fn = 72;
 // Springs  [od, id, length, compressed, McMaster's part#]
 springs = [ 
     [0.688 * INCH, 0.529 * INCH, 3 * INCH, 1.129 * INCH, "9657K124"],
-    [0.360 * INCH, 0.258 * INCH, 3 * INCH, 1.132 * INCH, "9657K427"],
+    [0.360 * INCH, 0.258 * INCH, 3 * INCH, 1.132 * INCH, "9657K427"],  //This spring is too stiff
 ];
 
 // Batteries  [xdim, undef, zdim, spring, slotZ, label]
@@ -20,7 +20,7 @@ batts = [
     [20.5, undef, 2.5, 0, 4, "CR2025"],
     [20.5, undef, 1.6, 0, 4, "CR2016"],
     [11.6, undef, 5.5, 1, 4, "LR44"],
-    [19.5, undef, 2.5, 0, 2, "Chris"]
+    [19.5, undef, 2.5, 0, 2, "TCap"]   //EXPERIMENTAL for thermite welding charge starters.
 ];
 
 batt = batts[batt_idx];
@@ -55,7 +55,7 @@ module top() {
                     internal = true, $fn=64, $slop = 0.4, anchor = TOP);
             }
             tag("remove") position(BOT) { 
-                #cyl(h = top.z+0.01, d = batt.x - 3, rounding1 = -3 , teardrop = true, anchor = BOT);
+                cyl(h = top.z+0.01, d = batt.x - 3, rounding1 = -3 , teardrop = true, anchor = BOT);
                 up(batt[4]) cyl(h = top.z - 3, d = batt.x + batt_slop, anchor = BOT);
                 fwd(batt.x/2) up(batt[4]) cuboid([batt.x, batt.x*2, batt.z + batt_slop], 
                     rounding = batt.x/2, edges = "Z", except = FWD, anchor = BOT);

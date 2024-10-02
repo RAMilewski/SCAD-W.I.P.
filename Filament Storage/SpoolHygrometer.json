@@ -1,0 +1,11 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "brand": "3"
+        },
+        "New set 2": {
+            "brand": "4"
+        }
+    }
+}

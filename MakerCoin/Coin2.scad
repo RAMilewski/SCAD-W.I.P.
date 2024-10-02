@@ -1,12 +1,13 @@
 include<BOSL2/std.scad>
 include<BOSL2/beziers.scad>
+include<BOSL2/rounding.scad>
 
 $fn = 144;
 
 function cpd(r) = r * (4/3) * tan(180/8); // Control pt distance for quarter round.
 
 
-r1 = 25;    // Major radius of the coin
+r1 = 25;    // Major radius of the disc
 r2 = 5;     // radius of the edge
 cz = 1;     // center z max
 
@@ -20,7 +21,7 @@ body = bezpath_curve(flatten([
 
 edgefit = 9.5;
 
-edge = bezpath_curve(flatten([
+edgepath = bezpath_curve(flatten([
         bez_begin(cylindrical_to_xyz(r1+r2-edgefit,0,r2),FWD,4),
         bez_tang (cylindrical_to_xyz(r1,-14.5,0),DOWN,4.1),
         bez_tang (cylindrical_to_xyz(r1+r2-edgefit,0,-r2),BACK,4),
@@ -28,41 +29,41 @@ edge = bezpath_curve(flatten([
         bez_end  (cylindrical_to_xyz(r1+r2-edgefit,0,r2),BACK,4)
 ]));
 
-//debug_bezier(edge, width = 0.2);
 
-
-mask =  zrot(0,mask2d_roundover(2, mask_angle = 90, inset = 0));
-
-norm = [-.15,.6,0];
-
-right(r1) anchor_arrow(s = 5, color = [1,.5,.5], orient = norm, flag = false);
 
 module test() {
-    attachable(){
-        diff(){
-            rotate_sweep(body,360);
-                *tag("remove") text3d("OS", font = "Arial:bold", size = 14, h = r2, anchor = CENTER+BOT, atype = "ycenter");
-                zrot_copies(n = 8) {
-                    tag("remove") right(27.5) cyl(h = r2*2, r = 7);
-                    tag("remove") path_sweep(mask, edge, method = "manual", normal=-edge,  closed = true);
-                }
+    diff(){
+        rotate_sweep(body,360);
+            zrot_copies(n = 8) {
+                //tag("remove") right(27.5) cyl(h = r2*2, r = 7);
+                tag("remove") right(27.5) join_prism(circle(r=7),base="cyl",base_r=-25, n=15,
+                aux="cyl",prism_end_T=fwd(0),aux_r=-5,fillet=7, overlap=17);
             }
-        children();
     }
 }
+
+/*difference(){
+     xcyl(r=30,l=100,circum=true);
+     join_prism(circle(r=15),base="cyl",base_r=-30, n=15,
+                aux="cyl",prism_end_T=fwd(9),aux_r=-30,fillet=7, overlap=17);
+   }
+*/
+
+
+//back_half(s = 200) 
+test();
+
+
+
+
+/*
 
 pts = bezier_points(edge, [ for (i = [0 : 1/16 : 1]) i ]);
 rainbow(pts) move($item) echo($item) sphere(0.2, $fn=36);
 
-
-
-//right(30) zrot(-45) stroke(path3d(mask), width = .2);
-
 arc1 = right(r1-r2,yrot(0,xrot(90,path3d(arc(d = 10, angle = [-90,90])))));
 color("blue") stroke(arc1, width = 0.1);
 
-//back_half(s = 200) 
-test();
 
 //debug_bezier(edge, width = 0.2);
 
@@ -79,5 +80,4 @@ color("purple")
 
 
 
-/*
  */

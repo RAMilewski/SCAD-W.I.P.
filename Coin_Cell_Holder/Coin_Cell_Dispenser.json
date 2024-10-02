@@ -24,6 +24,14 @@
         },
         "New set 8": {
             "part": "top"
+        },
+        "New set 9": {
+            "batt_idx": "0",
+            "part": "assembly"
+        },
+        "New set 10": {
+            "batt_idx": "2",
+            "part": "top"
         }
     }
 }

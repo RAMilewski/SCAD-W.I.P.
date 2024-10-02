@@ -7,12 +7,13 @@ id = 62;
 wall = 2;
 h = 13 - wall;
 od = id + 2 * wall;
-gasket = [5, undef, wall/2];
+gasket = [3, undef, wall/2];
 grip = 3;
 
-//back_half()
-//gasket();
+#gasket();
+back_half(){
 lid();
+}
 
 
 module lid () {
@@ -26,11 +27,11 @@ module lid () {
             attach(BOT,TOP) cyl(h = wall, d = od)
             //gasket ditch
             tag("remove") attach(TOP,TOP, inside = true)
-                tube(h = gasket.z, od = id, wall = wall, anchor = BOT);
+                tube(h = gasket.z, od = id, wall = gasket.x, anchor = BOT);
         }
     }
 }
 
 module gasket() {
-        tube(h = gasket.z, od = id, wall = wall);
+        tube(h = gasket.z, od = id, wall = gasket.x);
 }
