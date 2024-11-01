@@ -1,0 +1,18 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$fn": "72",
+            "jar_type": "1",
+            "mix": "true",
+            "part": "gasket"
+        },
+        "New set 2": {
+            "$fn": "72",
+            "isNylon": "false",
+            "jar_type": "0",
+            "mix": "true",
+            "part": "gasket"
+        }
+    }
+}

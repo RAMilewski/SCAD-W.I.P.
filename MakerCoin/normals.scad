@@ -19,10 +19,8 @@ echo("edgepath: ",len(edgepath));
 sampled = resample_path(edgepath, n=8, closed = true);
 color("blue" )move_copies(sampled) sphere(0.2,$fn=16);
 
-
 mask =  mask2d_roundover(2, mask_angle = 90, inset = 0, $fn = 64);
  *path_sweep(mask, edgepath, method = "manual", normal = FWD, relaxed = true, closed = true);
-
 
 normals = path_normals(edgepath,closed=true);
 color("purple")
