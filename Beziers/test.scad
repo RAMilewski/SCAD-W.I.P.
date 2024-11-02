@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 include<BOSL2/std.scad>
 
 $fn=72;
@@ -33,3 +34,9 @@ intersection() {
   scale([1,1,3]) roof(convexity=6) text("Wow", font = "Arial Black");
 }
 }
+=======
+include <BOSL2/std.scad>
+include <BOSL2/screws.scad>
+$fn = 72;
+screw("M6", head="flat", drive="hex", length=20, thread_len=10, orient=DOWN);
+>>>>>>> Stashed changes
