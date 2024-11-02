@@ -11,40 +11,45 @@ cup = [23,22,35]; //[d1,d2,h]
 
 
 
-
 base()
-   position(TOP) disc(0);
-        attach(TOP,BOT) egg();
+   position(TOP) up(10) disc(0)
+        position(TOP) down(6) egg()
+            position(TOP) up(7) disc(1)
+                position(TOP) disc(2)
+                    position(TOP) down(7) cup();
 
-//cup();
+
 
 function cpd(dia) = dia * (4/3) * tan(180/8); //control point distance for a quarter-round to fit dia
 
 
-module base() {
+module base(anchor = BOT) {
     bez = [[44,0],[20,10],[core,30],[core,40]];
     path = bezpath_curve(bezpath_close_to_axis(bez,"Y"));
-    cyl(d1 = 90, d2 = 88, h = 4)
-        attach(TOP,BOT) rotate_sweep(path,360);
-}
-
-
-module disc(idx) {
-    attachable(BOT, 0, UP) {
-        radius = discs[idx]/2;
-        height = discs[idx] * aspect;
-        bezpath = flatten([
-                bez_begin([core,0], 90, cpd(height*.7)),
-                bez_tang([radius,height/2], 90, height/8),
-                bez_end([core,height], -90, cpd(height))
-        ]);
-    path = bezpath_curve(bezpath_close_to_axis(bezpath,"Y"),splinesteps = 64);
-    rotate_sweep(path,360);
-    children();
+    attachable(anchor, h = bez[3][1], r = bez[0][0]) {
+        cyl(d1 = 90, d2 = 88, h = 4, anchor = BOT)
+        position(TOP) rotate_sweep(path,360);
+        children();
     }
 }
 
-module egg() {
+
+module disc(idx, anchor = BOT) {
+    radius = discs[idx]/2;
+    height = discs[idx] * aspect;
+    bezpath = flatten([
+            bez_begin([core,0], 90, cpd(height*.7)),
+            bez_tang([radius,height/2], 90, height/8),
+            bez_end([core,height], -90, cpd(height))
+    ]);
+    path = bezpath_curve(bezpath_close_to_axis(bezpath,"Y"),splinesteps = 64);
+    attachable(anchor, h = height, r = radius) {
+        rotate_sweep(path,360);
+        children();
+    }
+}
+
+module egg(anchor = BOT) {
 
     bezpath = flatten([
             bez_begin([core,0], 85, egg.z/4),
@@ -53,10 +58,13 @@ module egg() {
     ]);
 
     path = bezpath_curve(bezpath_close_to_axis(bezpath,"Y"),splinesteps = 64);
-    rotate_sweep(path,360);
+    attachable(anchor, d = egg.x, h = egg.z) {
+        rotate_sweep(path,360);
+        children();
+    }
 }
 
-module cup() {
+module cup(anchor = BOT) {
     bezpath = flatten ([
         bez_begin([core,0], 85, cup.z/4),
         bez_tang([cup.x/2,cup.z/2.5], 90, cup.z/8),
@@ -67,5 +75,8 @@ module cup() {
     ]);
     //debug_bezier(bezpath, width = 0.2);
     path = bezpath_curve(bezpath_close_to_axis(bezpath,"Y"),splinesteps = 64);
-    rotate_sweep(path,360);
+    attachable(anchor, d = cup.x, h = cup.z) {
+        rotate_sweep(path,360);
+        children();
+    }
 }
