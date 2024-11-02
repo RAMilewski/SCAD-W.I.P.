@@ -11,14 +11,14 @@ cup = [23,22,35]; //[d1,d2,h]
 
 
 
-base()
-   position(TOP) up(10) disc(0)
+base() 
+   position(TOP) up(10) disc(0);  /*
         position(TOP) down(6) egg()
             position(TOP) up(7) disc(1)
                 position(TOP) disc(2)
                     position(TOP) down(7) cup();
 
-
+/* */
 
 function cpd(dia) = dia * (4/3) * tan(180/8); //control point distance for a quarter-round to fit dia
 
@@ -26,9 +26,9 @@ function cpd(dia) = dia * (4/3) * tan(180/8); //control point distance for a qua
 module base(anchor = BOT) {
     bez = [[44,0],[20,10],[core,30],[core,40]];
     path = bezpath_curve(bezpath_close_to_axis(bez,"Y"));
-    attachable(anchor, h = bez[3][1], r = bez[0][0]) {
-        cyl(d1 = 90, d2 = 88, h = 4, anchor = BOT)
-        position(TOP) rotate_sweep(path,360);
+    cyl(d1 = 90, d2 = 88, h = 4, anchor = anchor)
+    attachable(anchor, h = bez[1][1], r = bez[0][0]) {
+        position(TOP) rotate_sweep(path, 360, anchor = anchor);
         children();
     }
 }
