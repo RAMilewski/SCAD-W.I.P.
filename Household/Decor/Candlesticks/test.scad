@@ -3,19 +3,16 @@ include<BOSL2/beziers.scad>
 
 $fn = 72;
 core = 7.5;
-base() show_anchors();
-cyldim = [90, 88, 4];
+cup = [23,20,35]; //[d,undef,h]
 
-module base(anchor = BOT) {
-    bez = [[44,0],[20,10],[core,30],[core,40]];
-    path = bezpath_curve(bezpath_close_to_axis(bez,"Y"));
 
-    h = bez[3][1] + cyldim.z;
-    echo(h=h);
-    attachable(anchor, h = h, d1 = cyldim[0], r2 = core) {
-        down(h/2)
-            cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT)
-                position(TOP) rotate_sweep(path, 360);
-        children();
-    }
-}
+ bezpath = flatten ([
+        bez_begin([core,0], 85, cup.z/4),
+        bez_tang([cup.x/2,cup.z/2.5], 90, cup.z/8),
+        bez_joint([cup.y/2,cup.z], -86, 180, 10, 10),
+        bez_joint([cup.y/2 - 1, cup.z], 0, -93, 10, 20),
+        bez_end([0,cup.z/2], 0, cup.x/4),
+        
+    ]);
+
+    debug_bezier(bezpath, width = .1);

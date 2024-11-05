@@ -11,7 +11,10 @@ egg = [24,7,40]; //[dia,tang_cpd,height]
 cup = [23,20,35]; //[od1,od2,h]
 
 
+back_half() base();
+base_cover();
 
+/*
 base() 
    position(TOP) disc(0)
         position(TOP) egg()
@@ -23,16 +26,22 @@ base()
 
 function cpd(dia) = dia * (4/3) * tan(180/8); //control point distance for a quarter-round to fit dia
 
+
 module base(anchor = BOT) {
     bez = [[44,0],[20,10],[core,30],[core,40]];
     path = bezpath_curve(bezpath_close_to_axis(bez,"Y"));
-
     h = bez[3][1] + cyldim.z;
-    echo(h=h);
     attachable(anchor, h = h, d1 = cyldim[0], r2 = core) {
         down(h/2)
-            cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT)
-                position(TOP) rotate_sweep(path, 360);
+        diff() {
+            cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT) {
+                position(TOP) rotate_sweep(path,360)
+                down(cyldim.z) scale(0.85) {
+                    tag("remove") position(BOT) cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT)
+                        tag("remove") position(TOP) rotate_sweep(path,360);    
+                }
+            }
+        }
         children();
     }
 }
@@ -84,4 +93,8 @@ module cup(anchor = BOT) {
         rotate_sweep(path,360);
         children();
     }
+}
+
+module base_cover(){
+    scale(0.8) cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT);
 }
