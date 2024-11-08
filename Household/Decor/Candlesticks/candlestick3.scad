@@ -5,29 +5,30 @@ include <BOSL2/threading.scad>
 $fn = 144;
 
 core = 7.5;
-cyldim = [90, 88, 4];
+cyldim = [88, 88, 6];
 discs = [38,33,30];  // disc diameters
 aspect = 28/38;
 egg = [24,7,40]; //[dia,tang_cpd,height]
 cup = [23,20,35]; //[od1,od2,h]
 
 
-
-ballast_plate();
-
 /*
-back_half() base()
+
+base() 
     position(TOP) disc(0);
 ballast_plate();
 /* */
 
+ base();
+
 /*
-base() 
    position(TOP) disc(0)
         position(TOP) egg()
             position(TOP) disc(1)
                 position(TOP) disc(2)
                     position(TOP) cup();
+*/
+right(cyldim.x) ballast_plate();
 
 /* */
 
@@ -47,6 +48,9 @@ module base(anchor = BOT) {
                     tag("remove") position(BOT) cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT)
                         tag("remove") position(TOP) rotate_sweep(path,360);    
                 }
+                position(BOT) tag("remove") threaded_rod(d = cyldim[0] * 0.9, height = cyldim.z * 0.85, 
+                    lead_in_shape = "smooth", pitch = 3, starts = 4, $slop = 0.1, 
+                    internal = true, anchor = BOT);
             }
         }
         children();
@@ -102,8 +106,18 @@ module cup(anchor = BOT) {
     }
 }
 
-module ballast_plate(){
+module ballast_plate2() {
     scale(0.85) cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT);
     up(cyldim.z * 0.85) threaded_rod(d=INCH/4, height=30, pitch=INCH/20, 
             lead_in_shape = "smooth", bevel1 = -2, bevel2 = true, $fa=1, $fs=1, anchor = BOT);
+}
+
+module ballast_plate() {
+    diff() {
+        threaded_rod(d = cyldim[0] * 0.9, height = cyldim.z * 0.85, lead_in_shape = "smooth",
+        pitch = 3, starts = 4, anchor = BOT);
+        tag("remove") cuboid([30,5,cyldim.z/2], rounding = 2.5, edges = TOP, anchor = BOT);
     }
+    up(cyldim.z * 0.85) threaded_rod(d=INCH/4, height=30, pitch=INCH/20, 
+            lead_in_shape = "smooth", bevel1 = -2, bevel2 = true, $fa=1, $fs=1, anchor = BOT);
+}
