@@ -1,5 +1,6 @@
 include<BOSL2/std.scad>
 include<BOSL2/beziers.scad>
+include <BOSL2/threading.scad>
 
 $fn = 144;
 
@@ -11,8 +12,14 @@ egg = [24,7,40]; //[dia,tang_cpd,height]
 cup = [23,20,35]; //[od1,od2,h]
 
 
-back_half() base();
-base_cover();
+
+ballast_plate();
+
+/*
+back_half() base()
+    position(TOP) disc(0);
+ballast_plate();
+/* */
 
 /*
 base() 
@@ -24,8 +31,8 @@ base()
 
 /* */
 
-function cpd(dia) = dia * (4/3) * tan(180/8); //control point distance for a quarter-round to fit dia
 
+function cpd(dia) = dia * (4/3) * tan(180/8); //control point distance for a quarter-round to fit dia
 
 module base(anchor = BOT) {
     bez = [[44,0],[20,10],[core,30],[core,40]];
@@ -55,9 +62,9 @@ module disc(idx, anchor = BOT) {
             bez_end([core,height], -90, cpd(height))
     ]);
     path = bezpath_curve(bezpath_close_to_axis(bezpath,"Y"),splinesteps = 64);
-    attachable(anchor, h = height, r = radius) {
+    attachable(anchor = anchor, h = height, r = radius) {
         down(height/2)
-        rotate_sweep(path,360, anchor = anchor);
+        rotate_sweep(path,360);
         children();
     }
 }
@@ -95,6 +102,14 @@ module cup(anchor = BOT) {
     }
 }
 
+<<<<<<< Updated upstream
 module base_cover(){
     scale(0.85) cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT);
 }
+=======
+module ballast_plate(){
+    scale(0.85) cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT);
+    up(cyldim.z * 0.85) threaded_rod(d=INCH/4, height=30, pitch=INCH/20, 
+            lead_in_shape = "smooth", bevel1 = -2, bevel2 = true, $fa=1, $fs=1, anchor = BOT);
+    }
+>>>>>>> Stashed changes
