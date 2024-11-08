@@ -102,14 +102,8 @@ module cup(anchor = BOT) {
     }
 }
 
-<<<<<<< Updated upstream
-module base_cover(){
-    scale(0.85) cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT);
-}
-=======
 module ballast_plate(){
     scale(0.85) cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT);
     up(cyldim.z * 0.85) threaded_rod(d=INCH/4, height=30, pitch=INCH/20, 
             lead_in_shape = "smooth", bevel1 = -2, bevel2 = true, $fa=1, $fs=1, anchor = BOT);
     }
->>>>>>> Stashed changes
