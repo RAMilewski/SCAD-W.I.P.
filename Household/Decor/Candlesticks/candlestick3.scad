@@ -96,5 +96,5 @@ module cup(anchor = BOT) {
 }
 
 module base_cover(){
-    scale(0.8) cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT);
+    scale(0.85) cyl(d1 = cyldim[0], d2 = cyldim[1], h = cyldim.z, anchor=BOT);
 }
