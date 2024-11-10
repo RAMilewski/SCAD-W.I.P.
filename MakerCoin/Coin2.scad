@@ -6,7 +6,6 @@ $fn = 144;
 
 function cpd(r) = r * (4/3) * tan(180/8); // Control pt distance for quarter round.
 
-
 r1 = 25;    // Major radius of the disc
 r2 = 5;     // radius of the edge
 cz = 1;     // center z max
@@ -28,7 +27,6 @@ edgepath = bezpath_curve(flatten([
         bez_tang (cylindrical_to_xyz(r1,14.5,0),UP,4.1),
         bez_end  (cylindrical_to_xyz(r1+r2-edgefit,0,r2),BACK,4)
 ]));
-
 
 
 module test() {
