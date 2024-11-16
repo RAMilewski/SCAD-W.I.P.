@@ -2,7 +2,7 @@ include<BOSL2/std.scad>
 include<BOSL2/beziers.scad>
 include <BOSL2/threading.scad>
 
-part = "ballast";  // ["ballast", "bottom", "top", test]
+part = "ballast";  // ["ballast", "bottom", "top", test, test2]
 
 if (part == "ballast") ballast_plate();
 if (part == "bottom")  bottom(); 
@@ -12,6 +12,7 @@ if (part == "test") {
     back_half(s = 200) ballast_plate();
     move([-INCH,0,50]) yrot(90) xrot(90) ruler();
 }
+if (part == "test2") test2();
 
 
 /* [Hidden] */
@@ -49,8 +50,6 @@ module base(anchor = BOT) {
                     tag("remove") position(BOT) cyl(d1 = cyldim2[0], d2 = cyldim2[1], h = cyldim2.z, anchor=BOT)
                         tag("remove") position(TOP) rotate_sweep(path2,360)   
                             tag("remove") position(TOP) cyl(r1 = core, r2 = core * .7, h = 10);
-                            //tag("remove") position(TOP) threaded_rod(d=INCH/4, height=20, pitch=INCH/20, 
-                            //    lead_in_shape = "smooth", bevel1 = -3, bevel2 = true, $slop = .15, $fa=1, $fs=1, anchor = BOT);  
                 }
                 
             }
@@ -73,7 +72,7 @@ module disc(idx, anchor = BOT) {
         diff() {
             rotate_sweep(path,360);
             tag("remove") threaded_rod(d=INCH/4, height=20, pitch=INCH/20, 
-                            lead_in_shape = "smooth", bevel1 = -3, bevel2 = true, $slop = .2, $fa=1, $fs=1, anchor = BOT);  
+                lead_in_shape = "smooth", bevel1 = 3, internal = true, $slop = .12, $fa=1, $fs=1, anchor = BOT);  
             }
         children();
     }
@@ -125,19 +124,26 @@ module ballast_plate() {
 module bottom() {
     base()
         position(TOP) disc(0)   
-            position(TOP) threaded_rod(d=INCH/4, height=20, pitch=INCH/20, 
+            position(TOP) threaded_rod(d=INCH/4, height=10, pitch=INCH/20, 
                 lead_in_shape = "smooth", bevel1 = -2, bevel2 = true, $fa=1, $fs=1, anchor = BOT);
 }
 
 module top() {
     diff() {
         egg() {
-        position(BOT) tag("remove") threaded_rod(d=INCH/4, height=22, pitch=INCH/20, 
-                lead_in_shape = "smooth", bevel2 = -2, bevel1 = true, internal = true, $fa=1, $fs=1, anchor = BOT);
+        position(BOT) tag("remove") threaded_rod(d=INCH/4, height=15, pitch=INCH/20, 
+                lead_in_shape = "smooth", bevel1 = 2, internal = true, $slop = .12, $fa=1, $fs=1, anchor = BOT);
         position(TOP) disc(1)
                 position(TOP) disc(2)
                     position(TOP) cup();
         }
-        
+    }
+}
+
+module test2() {
+    diff() {
+        cyl(h = 6, d = 20, $fn = 6)
+            tag("remove") position(BOT) threaded_rod(d=INCH/4, height=20, pitch=INCH/20, 
+                lead_in_shape = "smooth", bevel2 = -3, bevel1 = true, internal = true, $slop = .1, $fn = 72, $fa=1, $fs=1, anchor = BOT);  
     }
 }
