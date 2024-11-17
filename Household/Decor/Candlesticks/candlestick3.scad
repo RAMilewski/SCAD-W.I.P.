@@ -28,12 +28,8 @@ egg = [24,7,40]; //[dia,tang_cpd,height]
 cup = [23,20,35]; //[od1,od2,h]
 
 
-
 function cpd(dia) = dia * (4/3) * tan(180/8); //control point distance for a quarter-round to fit dia
 
-
-
- 
 
 module base(anchor = BOT) {
     bez = [[44,0],[20,10],[core,30],[core,40]];
