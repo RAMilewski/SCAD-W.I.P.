@@ -6,8 +6,7 @@ part = "ballast";  // ["ballast", "bottom", "top", test, test2]
 
 if (part == "ballast") ballast_plate();
 if (part == "bottom")  bottom(); 
-if (part == "top")    // back_half(s=300) 
-                        zrot(-120) cup();
+if (part == "top")     zrot(180) top();  //zrot to align seam with bottom
 if (part == "test") {
     back_half(s = 200) 
         bottom(); 
@@ -16,14 +15,7 @@ if (part == "test") {
     //move([-INCH,0,50]) yrot(90) xrot(90) ruler();
 }
 if (part == "test2") { 
-     bezpath = flatten ([
-        bez_begin([core,0], 85, cup.z/3),
-        bez_tang([cup.x/2,cup.z/2.5], 90, cup.z/8),
-        bez_joint([cup.y/2,cup.z], -86, 180, 10, 10),
-        bez_joint([cup.y/2 - 2, cup.z], 0, -93, 10, 20),
-        bez_end([0,cup.z/2], 0, cup.x/2.5),
-    ]);
-    debug_bezier(bezpath);
+    
 }
 
 
@@ -37,7 +29,7 @@ basewall = 4;
 discs = [38,33,30];  // disc diameters
 aspect = 28/38;
 egg = [24,7,40]; //[dia,tang_cpd,height]
-cup = [32,30,35]; //[od1,od2,h]
+cup = [30,26,35]; //[od1,od2,h]
 
 
 function cpd(dia) = dia * (4/3) * tan(180/8); //control point distance for a quarter-round to fit dia
