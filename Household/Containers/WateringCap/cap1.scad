@@ -3,7 +3,7 @@ include <BOSL2/bottlecaps.scad>
 
 $fn = 72;
 
-od = 11;
+od = 13;
 id = 7;
 extension = 40;
 bend = 30;

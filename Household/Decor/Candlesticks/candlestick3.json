@@ -3,6 +3,12 @@
     "parameterSets": {
         "New set 1": {
             "part": "test2"
+        },
+        "New set 2": {
+            "part": "bottom"
+        },
+        "New set 3": {
+            "part": "test"
         }
     }
 }

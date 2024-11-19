@@ -28,7 +28,7 @@ edgepath = bezpath_curve(flatten([
         bez_end  (cylindrical_to_xyz(r1+r2-edgefit,0,r2),BACK,4)
 ]));
 
-
+/*
 module test() {
     diff(){
         rotate_sweep(body,360);
@@ -49,7 +49,7 @@ module test() {
 
 
 //back_half(s = 200) 
-test();
+
 
 
 
