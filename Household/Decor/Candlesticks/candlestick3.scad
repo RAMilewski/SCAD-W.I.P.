@@ -6,7 +6,7 @@ part = "ballast";  // ["ballast", "bottom", "top", test, test2]
 
 if (part == "ballast") ballast_plate();
 if (part == "bottom")  bottom(); 
-if (part == "top")     zrot(180) top();  //zrot to align seam with bottom
+if (part == "top")     zrot(175) top();  //zrot to align seam with bottom
 if (part == "test") {
     back_half(s = 200) 
         bottom(); 
