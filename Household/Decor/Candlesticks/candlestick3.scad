@@ -8,10 +8,8 @@ if (part == "ballast") ballast_plate();
 if (part == "bottom")  bottom(); 
 if (part == "top")     zrot(175) top();  //zrot to align seam with bottom
 if (part == "test") {
-    back_half(s = 200) 
-        bottom(); 
-    //back_half(s = 200) 
-        ballast_plate();
+        ghost_this() bottom() 
+            ballast_plate();
     //move([-INCH,0,50]) yrot(90) xrot(90) ruler();
 }
 if (part == "test2") { 
@@ -123,7 +121,7 @@ module ballast_plate() {
 
 module bottom() {
     base()
-        position(TOP) down(1) disc(0)   
+        position(TOP) down(1) ghost() disc(0)   
             position(TOP) threaded_rod(d=10, height=10, pitch=2.5, 
                 lead_in_shape = "smooth", bevel1 = -1, bevel2 = true, $fa=1, $fs=1, anchor = BOT);
 }
