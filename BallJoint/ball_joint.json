@@ -1,0 +1,12 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$fn": "64",
+            "$slop": "0.25",
+            "ball_dia": "20",
+            "part": "ball",
+            "thread_len": "15"
+        }
+    }
+}

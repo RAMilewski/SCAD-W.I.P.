@@ -9,7 +9,7 @@ span = 55;
 corner = 4;
 
 dim = [50,75];  //Plate dimensions when corner = 0
-plate = [dim.x/1.414, dim.y/1.414,3];
+plate = [dim.x/1.414, dim.y/1.414,2];
 logoZ = plate.z + 0.75;
 
 
