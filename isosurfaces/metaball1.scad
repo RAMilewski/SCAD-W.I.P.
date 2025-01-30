@@ -1,12 +1,15 @@
 include <BOSL2/std.scad>
 include <BOSL2/isosurface.scad>
-centers = [[-10,-10,10], 
-            [10,10,10] ];
-charges = [14, 15];
+xpos = -15 + $t * 30;
+zpos =  15 - $t * 30;
+centers = [[0,0,0], 
+           [xpos,0,zpos] ];
+charges = [25, 15];
 type = MB_SPHERE;
-isovalue = 3;
+isovalue = 5;
 voxelsize = 1
 ;
-boundingbox = [[-20,-20,-10], [20,20,22]];
+boundingbox = [[-30,-30,-30], [30,30,30]];
 metaballs(voxelsize, boundingbox, isovalue=isovalue,
     ball_centers=centers, charge=charges, ball_type=type);
+

@@ -1,0 +1,13 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "font": "Righteous",
+            "text_height": "0.20000000000000001"
+        },
+        "New set 2": {
+            "font": "Phosphate:style=solid",
+            "text_height": "0.20000000000000001"
+        }
+    }
+}
