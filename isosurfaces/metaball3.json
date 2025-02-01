@@ -1,0 +1,10 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "charges": "[15, 10]",
+            "isovalue": "3",
+            "voxelsize": "1"
+        }
+    }
+}

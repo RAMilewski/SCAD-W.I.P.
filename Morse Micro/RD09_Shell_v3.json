@@ -1,0 +1,11 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "font": "Phosphate:style=solid",
+            "label_depth": "0.20000000000000004",
+            "label_fill": "false",
+            "test": "false"
+        }
+    }
+}
