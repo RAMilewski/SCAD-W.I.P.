@@ -1,18 +1,16 @@
-include<BOSL2/std.scad>
-include<BOSL2/rounding.scad>
+include <BOSL2/std.scad>
+include <isosurface.scad>
 
+frames = 30;
+position = [-15 + $t * frames, 0 , 15 - $t * frames];
 
-text1 = "";
-font = "Phosphate:style=solid";  // ["Phosphate:style=solid","Righteous","Arial Black","Impact"]
-font_size = 6.8;
-label_fill = false;
-label_depth = 0.2;
-$fn = 72;
+bounding_box = [[-20,-10,-15],[20,10,15]];
+isovalue = 5;
+voxelsize = 1;
 
-thickness = 2;
+funcs = [
+    IDENT, mb_sphere(25),
+    move[position], mb_sphere(15),  
+];
 
-rounded_prism(rect([30,30]),h = thickness, joint_top = thickness/2, joint_bot = thickness/2, joint_sides = 5);
-
-module label() {
-    color("red") text3d(label_text, font = font, size = font_size, h = label_depth, center = true, atype = "ycenter");
-}
+metaballs(funcs = funcs, isovalue=isovalue, bounding_box = bounding_box, voxel_size = voxel_size);
