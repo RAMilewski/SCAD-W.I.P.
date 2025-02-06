@@ -22,4 +22,9 @@ funcs = [
 *metaballs(funcs = funcs, isovalue=isovalue, bounding_box = bounding_box, voxel_size = voxel_size, show_stats = true);
 echo (position);
 
-ellipse([5,15]);
+path1 = ellipse([5,15], zrot(45));
+stroke(path1);
+path2 = ellipse([14,6]);
+stroke(path2);
+path3 = ellipse([20,2]);
+stroke(path3);
