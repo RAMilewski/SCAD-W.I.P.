@@ -11,19 +11,20 @@ path3 = resample_path(ellipse([20,2]),100);
 
 stroke(path1, width = 0.1);
 
-
+echo($t, 100 - 100* $t);
 
 bounding_box = [[-25, -25, 0], [25, 25, 10]];
 isovalue = 1;
-voxel_size = 0.6;
+voxel_size = 0.5;
 
-echo(move(path1[0]));
+retro = 99 - 99 * $t;
+echo(len(path2));
 
 funcs = [
-    scale([4,4,0.2]) * up(5), mb_roundcube(10),
-    move(path1[100 * $t]), sphere(1),
-    //move(path2[100 - (100 * $t)]), sphere(1),
-    //move(path3[100 * $t]), sphere(1),  
+    scale([5,5,0.2]) * up(5), mb_cuboid(11),
+    move(path1[100 * $t]) * up(4), mb_sphere(2),
+    move(path2[retro]), mb_sphere(2),
+    move(path3[100 * $t]) * up(4), mb_sphere(2),  
 ];
 
 metaballs(funcs = funcs, isovalue=isovalue, bounding_box = bounding_box, voxel_size = voxel_size, show_stats = true);
