@@ -2,10 +2,12 @@ include <BOSL2/std.scad>
 include <BOSL2/isosurface.scad>
 
 funcs = [
-      IDENT, mb_cyl(h = 0.0001, r=28) 
+      left(10), mb_sphere(3),
+      right(10), mb_sphere(3),
+      fwd(20), mb_sphere(0.5, influence = 4), 
    ];
    voxelsize = 1;
-   boundingbox = [[-30,-19,-20], [30,19,20]];
+   boundingbox = [[-20,-15, -10], [20, 20, 15]];
    metaballs(funcs, voxelsize, boundingbox, isovalue=1);
 
 

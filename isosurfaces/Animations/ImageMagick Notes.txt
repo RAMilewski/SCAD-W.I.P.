@@ -1,0 +1,9 @@
+Making animated GIFs and PNGs from OpenSCAD frameshots:
+
+    -delay sets the framerate,
+    -loop sets the number of loops. 0 for continuious, -1 for once, n for n-1 loops.  
+    frame names are in the .txt file.
+    -resize because OpenSCAD seems to double the image size. 
+
+    magick -delay 7 -loop 0 @200-frames.txt -resize 640x480 metaball3.gif
+    magick -delay 7 -loop 0 @200-frames.txt -resize 640x480 APNG:metaball3.png

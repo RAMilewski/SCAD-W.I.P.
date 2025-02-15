@@ -1,15 +1,27 @@
- include<BOSL2/std.scad>
- include <BOSL2/isosurface.scad>
-
- stats = false; // [true,false]
+include <BOSL2/std.scad>
+include <BOSL2/isosurface.scad> 
 
 isovalue = 1;
-voxel_size = 1;
-bounding_box = [[-10,-10,-10],[10,10,10]];
- 
-funcs = [ up(5), mb_sphere(5) ];
+voxel_size = .5;
 
-top_half()
-metaballs(funcs = funcs, isovalue=isovalue, bounding_box = bounding_box, voxel_size = voxel_size, show_stats = stats);
+h = 10;
+r1 = 25;
+r2 = 5;
+r3 = 7;
+c = r2+4;
+
+//infl = EPSILON + 1 - $t;
 
 
+vnf = metaballs([
+    IDENT, mb_disk(h,r1),
+    //left(r1), mb_sphere(r2,influence = EPSILON, negative = true, cutoff = r2),
+    left(r1), mb_sphere(r2,influence = 5, negative = true, cutoff = c),
+    ], 
+    voxel_size, [[-r1,-r1,-h], [r1,r1,h]], isovalue);
+
+diff() {
+    //left_half(x = -12) 
+    vnf_polyhedron(vnf);
+        tag("remove") left(r1) yscale(1.1) cyl(h,r3, $fn = 32);
+}
