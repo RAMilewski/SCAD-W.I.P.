@@ -7,10 +7,8 @@ b_box = [[-35,-20,-25], [35,22,40]];
 headZ = 23;
 
 
-//back_half() 
 metaballs([
     scale([1.5,1,1]),    mb_disk(18,16),                //body
-    //left(10)* up(14),    mb_sphere(3,5, influence = .5),  //neck shim
     left(10)* up(14),    mb_disk(3,5, influence = .5),  //neck shim
     left(10) * up(headZ),   mb_sphere(10, cutoff=11),   //head
     left(26) * up(30),   mb_sphere(5, negative = true, cutoff = 8),
@@ -27,6 +25,3 @@ metaballs([
     ], 
     v_size, b_box, show_box = false, show_stats = true);
 
-//ghost() left(5) cuboid([50,40,30]);
-
-//left(22) up(30)   color("red") sphere(1, $fn = 32);
