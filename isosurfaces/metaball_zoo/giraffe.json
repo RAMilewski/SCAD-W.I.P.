@@ -1,0 +1,13 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "a": "[10, 6]",
+            "femur": "12",
+            "head": "[-35, 0, 78]",
+            "legD": "1",
+            "tibia": "14",
+            "voxel_size": "1"
+        }
+    }
+}

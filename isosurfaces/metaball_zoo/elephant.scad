@@ -24,4 +24,4 @@ echo(vol);
 auto = log(vol/5000);
 echo(auto);
 //#translate(bb[0]) cube(bb[1]-bb[0]);
-metaballs(spec, voxel_size=auto, bb,show_stats = true);
+metaballs(spec, voxel_size=1, bb,show_stats = true);
