@@ -4,19 +4,18 @@ include <BOSL2/isosurface.scad>
 h1  = 10;
 r1 = 25;
 r2 = 5;
-d1 = r1 * 2;
-
-isovalue = 1;
-voxel_size = 01;
-
-infl = 0.2;
-cut  = 10;
+v_size = 0.75;
 N=7;
-metaballs([
-    IDENT, mb_disk(h1,r1),
-    up(r1-2),  mb_sphere(r1*4, influence = 1,  negative = true, cutoff = r1+2),
-    for(M=zrot_copies(n=N))
-      each [M*right(r1),   mb_sphere(r2, influence = infl, negative = true, cutoff = cut)]
-    ]
-  ,voxel_size, [[-d1,-d1,-h1], [d1,d1,h1]], isovalue);
+difference() {
+    metaballs([
+        IDENT, mb_disk(h1,r1),
+        up(r1-2),  mb_sphere(r1*4,  negative = true, cutoff = r1+2),
+        for(M=zrot_copies(n=N))
+          each [M*right(r1),   mb_sphere(r2, influence = 0.2, negative = true, cutoff = 10)]
+        ]
+      ,[[-r1,-r1,-h1/2], [r1,r1,h1/2]], v_size, show_stats = true);
+
+   text3d(h = h1/2, "BOSL2", size = 4, center = true);  
+} 
+
 

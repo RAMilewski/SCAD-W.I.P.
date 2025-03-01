@@ -8,7 +8,7 @@ box = repeat(box_size,3);
 framecount = 200;
 
 //bounding_box = [-0.5*box, 0.5*box];
-bounding_box = [[-40,-40,-20],[40,40,40]];
+bb = [[-40,-40,-20],[40,40,40]];
 
 bez = flatten([
     bez_begin ([-25,25,25], -90, 35, p=90),

@@ -3,9 +3,8 @@ include <BOSL2/isosurface.scad>
 
 stats = false; // [true,false]
 
-isovalue = 1;
 voxel_size = 1;
-b_box = [[-25,-25,0],[25,25,81]];
+b_box = [[-22,-24,0],[20,20,78]];
 
 body = [
     up(20) * scale([1,1.2,2]), mb_sphere(10), 
@@ -16,6 +15,7 @@ body = [
     move([-5,-10,54]), mb_sphere(0.5, negative = true),
     move([0,15,6]), mb_sphere(2, cutoff = 5),
 ];
+
 
 // eyes
 xflip_copy() move([5,-8,54]) color("skyblue") sphere(2, $fn = 32);
@@ -34,25 +34,17 @@ front_leg = [
 ];
 
 ear = [
-    yrot(10) * move([0,0,65]) * scale([3,1,7]) , mb_sphere(2),
-    yrot(10) * move([0,-5,65]) * scale([2,2,5]) , mb_sphere(2, cutoff = 3, influence =2, negative = true),
+    yrot(10) * move([0,0,65]) * scale([4,1,7]) , mb_sphere(2),
+    yrot(10) * move([0,-3,65]) * scale([3,2,6]) , mb_sphere(2, cutoff = 2, influence =2, negative = true),
 ];
 
 
 color("BurlyWood") {
-    metaballs(body, voxel_size, b_box, isovalue, show_stats = true);
+    metaballs(body, b_box, voxel_size, show_stats = true);
     xflip_copy() {
-        metaballs(hind_leg, voxel_size, b_box, isovalue, show_stats = true);
-        metaballs(front_leg, voxel_size, b_box, isovalue, show_stats = true);
-        metaballs(ear, voxel_size, b_box, isovalue, show_stats = true);
+        metaballs(hind_leg, b_box, voxel_size, show_stats = true);
+        metaballs(front_leg, b_box, voxel_size,  show_stats = true);
+        metaballs(ear,  b_box, voxel_size,show_stats = true);
     }
 }
 
-
-
-/*
-up(20) left(50) ruler();
-move([-15,5,3]) color("red") zcyl(10,0.2);
-move([-15,10,3]) color("red") zcyl(10,0.2);
-
-/* */
