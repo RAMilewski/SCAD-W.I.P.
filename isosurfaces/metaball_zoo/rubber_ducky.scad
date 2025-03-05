@@ -1,8 +1,15 @@
 include <BOSL2/std.scad>
 include <BOSL2/isosurface.scad> 
 
-v_size = 0.75;
+stats = false; // [true,false]
+debug = false; // [true,false]
+box =   false; // [true,false]
+
+v_size = 1;
+i_value = 1;
 b_box =   [[-30, -20, -11], [35, 20, 35]];
+
+/* [Hidden] */
 headZ = 21;
 
 spec =[
@@ -25,7 +32,7 @@ spec =[
     right(20) * up(8) * yscale(1.7) * yrot(35), mb_cyl(h = 15, r1 = 4, r2 = 0.5), 
     ];
 
-    metaballs(spec, b_box, v_size, show_box = false, show_stats = true);
+    metaballs(spec, b_box, v_size, isovalue = i_value, show_box = box, debug = debug, show_stats = stats);
     //eyes
     yflip_copy() left(16.5) up(headZ+3) fwd(4.5) sphere(1.2, $fn = 32);
 

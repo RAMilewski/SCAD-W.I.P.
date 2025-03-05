@@ -2,7 +2,10 @@ include <BOSL2/std.scad>
 include <BOSL2/isosurface.scad>
 
 stats = false; // [true,false]
+debug = false; // [true,false]
+v_size = 1;
 
+/* Hidden */
 bb = [[-60,-50,-5],[35,50,21]];
 
 vol = (-bb[0].x+bb[1].x) * (-bb[0].y+bb[1].y) * (-bb[0].z+bb[1].z);
@@ -19,7 +22,7 @@ spec = [
 ];  
 
 
-metaballs(spec, 1, bb, show_stats = stats);
+metaballs(spec, bb, v_size, debug = debug, show_stats = stats);
 
 
 /* */

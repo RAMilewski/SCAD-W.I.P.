@@ -7,7 +7,8 @@ femur = 12;
 head = [-35,0,78];  //head position
 stance = [12,6];    //leg position offsets
 vsize = 0.85;
-bbox =  [[-45.5, -11.5, 0], [23, 11.5, 87.55]];
+//bbox =  [[-45.5, -11.5, 0], [23, 11.5, 87.55]];
+bbox =  [[-45.5, -11.5, 60], [23, 11.5, 87.55]];
 
 spec = [
     // Legs
@@ -43,14 +44,14 @@ spec = [
     move(head), mb_cuboid(2),    
     
     // Horns
-    move(head), mb_connector([0,-2,5],[0,-2.5,8],0.1, cutoff = 1),
-    move(head + [0,-2.5,8]), mb_sphere(0.75, cutoff = 1),
-    move(head), mb_connector([0,2,5],[0,2.5,8],0.1, cutoff = 1),
-    move(head + [0,2.5,8]), mb_sphere(0.75, cutoff = 1),
+    move(head), mb_connector([0,-2,5],[0,-2.5,8],0.15, cutoff = 1.5),
+    move(head + [0,-2.5,8]), mb_sphere(0.5, cutoff = 1),
+    move(head), mb_connector([0,2,5],[0,2.5,8],0.15, cutoff = 1.5),
+    move(head + [0,2.5,8]), mb_sphere(0.5, cutoff = 1),
     
     // Ears
     move(head + [2,-8,4])* xrot(60) * scale([0.5,1,3]) , mb_sphere(d = 2, cutoff = 2),
     move(head + [2,8,4])* xrot(-60) * scale([0.5,1,3]) , mb_sphere(d = 2, cutoff = 2),
 ];
 
-metaballs(spec, bbox, voxel_size=vsize, show_stats = true);
+metaballs(spec, bbox, voxel_size=vsize, debug = true, show_stats = true);

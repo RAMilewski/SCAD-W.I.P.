@@ -1,12 +1,20 @@
 include <BOSL2/std.scad>
-include <BOSL2/isosurface.scad>
+include <BOSL2/isosurface.scad> 
+
+stats = false; // [true,false]
+debug = false; // [true,false]
+box  = false; // [true,false]
+
 vsize = 1;
-bbox =  [[-10,-10,-10], [30,10,20]];
+ival = 1;
+bbox =   [[-20, -20, -20], [20, 20, 20]];
+
+/* [Hidden] */
 
 spec = [
-    
-    IDENT, mb_octahedron(h = 5, d1 = 3, d2 = 3, negative = true, influence = 12, cutoff = 10),
+    IDENT, mb_sphere(10),
 ];
-metaballs(spec, vsize, bbox,  show_stats = true);
+
+metaballs(spec, bbox, vsize, isovalue = ival, show_box = box, debug = debug, show_stats = stats);
 
     /* */
