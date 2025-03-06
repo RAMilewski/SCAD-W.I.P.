@@ -1,0 +1,15 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "box": "false",
+            "cutoff1": "10",
+            "cutoff2": "210",
+            "db": "false",
+            "influence1": "1",
+            "influence2": "1",
+            "spacing": "20",
+            "voxel_size": "1"
+        }
+    }
+}

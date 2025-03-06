@@ -1,0 +1,11 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "c": "0",
+            "db": "true",
+            "sp": "20",
+            "voxel_size": "1"
+        }
+    }
+}
