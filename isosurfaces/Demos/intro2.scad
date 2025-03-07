@@ -20,3 +20,4 @@ spec = [
 ];
 boundingbox = [[-35,-5,-5], [35,25,5]];
 metaballs(spec, boundingbox, voxel_size, debug =  db, show_box = box, show_stats = true);
+

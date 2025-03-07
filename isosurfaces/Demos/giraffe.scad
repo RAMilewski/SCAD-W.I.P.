@@ -7,7 +7,7 @@ box    = false; // [true,false]
 stats  = false; // [true,false]
 
 /* [Voxel Size] */
-vsize  = .85;   // [0.5:0.05:1]
+vsize  = .6;   // [0.5:0.05:1]
 
 /* [Hidden] */
 legD = 1;
@@ -63,5 +63,6 @@ spec = [
 bbox =  [[-45.5, -11.5, 0], [23, 11.5, 87.55]];
 
 metaballs(spec, bbox, vsize, debug = debug, show_box = box, show_stats = true);
-
+left(30) back(30)
+metaballs(spec, bbox, 1, debug =  true, show_box = box, show_stats = true);
     /* */
