@@ -30,6 +30,6 @@ funcs =[
     ];
 isovalue = 1;
 voxelsize = 1;
-metaballs(funcs = funcs, isovalue=isovalue, bounding_box = bounding_box, voxel_size = voxelsize, show_stats = true);
+metaballs(funcs, bb, voxelsize, show_stats = true);
 
 /*. */

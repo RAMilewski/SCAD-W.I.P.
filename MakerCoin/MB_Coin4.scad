@@ -21,7 +21,7 @@ difference() {
         for (ang = [0:45:315])
             each [tmat(ang),   mb_sphere(r2, influence = infl, negative = false, cutoff = cut)]
     ], 
-        voxel_size, [[-d1,-d1,-h1], [d1,d1,h1]], isovalue);
+         [[-d1,-d1,-h1], [d1,d1,h1]], 1,);
 
     text3d(h = h1/2, "BOSL2", size = 4, center = true);  
 } 
