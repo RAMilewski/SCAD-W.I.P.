@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta charset="UTF-8">
+  <title>CodePen - Typewriter Effect in pure CSS</title>
+  <link rel="stylesheet" href="CodePen%20-%20Typewriter%20Effect%20in%20pure%20CSS_files/style.css">
+
+<style>:is([id*='google_ads_iframe'],[id*='taboola-'],.taboolaHeight,.taboola-placeholder,#top-ad,#credential_picker_container,#credentials-picker-container,#credential_picker_iframe,[id*='google-one-tap-iframe'],#google-one-tap-popup-container,.google-one-tap__module,.google-one-tap-modal-div,#amp_floatingAdDiv,#ez-content-blocker-container) {display:none!important;min-height:0!important;height:0!important;}</style><style>
+    #cyberwell-text_selection_popup {
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAFxmlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgOS4wLWMwMDAgNzkuZGE0YTdlNWVmLCAyMDIyLzExLzIyLTEzOjUwOjA3ICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdFJlZj0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlUmVmIyIgeG1sbnM6c3RFdnQ9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZUV2ZW50IyIgeG1sbnM6ZGM9Imh0dHA6Ly9wdXJsLm9yZy9kYy9lbGVtZW50cy8xLjEvIiB4bWxuczpwaG90b3Nob3A9Imh0dHA6Ly9ucy5hZG9iZS5jb20vcGhvdG9zaG9wLzEuMC8iIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIDI0LjEgKE1hY2ludG9zaCkiIHhtcDpDcmVhdGVEYXRlPSIyMDIzLTA0LTA0VDE1OjM0OjQ4LTAzOjAwIiB4bXA6TW9kaWZ5RGF0ZT0iMjAyMy0wNC0wNVQxMzowOToxMS0wMzowMCIgeG1wOk1ldGFkYXRhRGF0ZT0iMjAyMy0wNC0wNVQxMzowOToxMS0wMzowMCIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDo4MmVhYjIzMy0xZTQ1LTQ0NGMtYjRjYS1mYzNiNjdmNDgzNjUiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6NEZCNTEwNjlBNUJFMTFFREE0NjU4QzQ5MzFCMDE1RjQiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDo0RkI1MTA2OUE1QkUxMUVEQTQ2NThDNDkzMUIwMTVGNCIgZGM6Zm9ybWF0PSJpbWFnZS9wbmciIHBob3Rvc2hvcDpDb2xvck1vZGU9IjMiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDo0RkI1MTA2NkE1QkUxMUVEQTQ2NThDNDkzMUIwMTVGNCIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDo0RkI1MTA2N0E1QkUxMUVEQTQ2NThDNDkzMUIwMTVGNCIvPiA8eG1wTU06SGlzdG9yeT4gPHJkZjpTZXE+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJzYXZlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDo4MmVhYjIzMy0xZTQ1LTQ0NGMtYjRjYS1mYzNiNjdmNDgzNjUiIHN0RXZ0OndoZW49IjIwMjMtMDQtMDVUMTM6MDk6MTEtMDM6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCAyNC4xIChNYWNpbnRvc2gpIiBzdEV2dDpjaGFuZ2VkPSIvIi8+IDwvcmRmOlNlcT4gPC94bXBNTTpIaXN0b3J5PiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/Plf6m/EAAAJ/SURBVDiNXZNLq5V1FMZ/z/pfXvfZBgVdBk6igQMnGmXBwZo4i6KhDZL6AGoiCA26EmhE4aCCKDDoAzixK0pw/ALS2CCxEDymxd7vu/d73st/NTiXDi5YrLXgeVjPgmfp0Af3Tzh+DugARxA6Uc2MXItcm+fabufG1qpan+fafs91YLowBETHPwMyD4TLQcIFiMfAD7rrlIvLwDFgCRCBGfAo8A1wFahUQC5wkCvJOYzzGvAwhVfc/YbDfmARdy29BPyM75ax013EOWPOeTlvqbBvHP1KkI7YLvgTOzzbzAfmpXqdtiF8LICe1Tjn2f9homxVVu4FVu4b2lKQlmLyj7FyNxAX/o4GX7cRkvNulIOKsB65QW6Mh25H8obwCNM7kOcBukAchI2MuM7jXBCsxlybNIKNGl0wvZt2ZMde5MXWGcHxZMQleGEtjCIKs1yb58ZIrcLkXyMtbeKhfIJ42iU8AOJxxAWPPFJMhE59BBIUy3Ot59rYM9NzkzloGN+LjZ21WlfVoOJGgWthyelSxh8kx5zDedMDwapGv+ZapNpeT51Sbsev45JbcQhfuSVXlwiL+GFq9WfVho+qFhK8nYHk/KZXj9ZPUuwPFfCQvohtOWlDwUMkNZHpOpRQyAtnbxNIHceD+G4FmDgvx1zHmwz8KHhJ43gi9prFNr6fWg3V3LENkBt5gFg4LvHtHmAi/sL5RW8cdMAn3nY3GG2fRrBBd1KnT+OGrVlLHzo9nwqnsjgw2STPQuEp4J7ePOSA4/UwTXP9pKIXbIDQC3Ui9qLa+rZqk3wrFJ4B/t5+pm0nNnK9mBdaDZ3O2KAjyUlJeAbPcD04X5rzPTBu0/4Dm3MV50xF4b4AAAAASUVORK5CYII=');
+        background-repeat: no-repeat;
+        background-position: center;
+        cursor: pointer;
+        user-select: none;
+        z-index: 2147483635;
+        transition: left 0.2s ease-in-out, top 0.2s ease-in-out;
+    }</style></head>
+<body>
+<!-- partial:index.partial.html -->
+<p class="cursor typewriter-animation">include &lt;BOSL2/std.scad&gt;</p>
+
+<p class="cursor typewriter-animation">cyl(h=10, r = 3);</p>
+<!-- partial -->
+  
+
+
+</body></html>

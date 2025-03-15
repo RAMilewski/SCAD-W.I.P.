@@ -22,5 +22,4 @@ spec = [
 
 metaballs(spec, bbox, v_size, debug = debug, show_box = box, show_stats = stats);
 
-
 /* */

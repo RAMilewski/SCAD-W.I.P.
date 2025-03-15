@@ -2,7 +2,7 @@ include <BOSL2/std.scad>
 include <BOSL2/isosurface.scad>
 
 /* [Flags] */
-debug  = false; // [true,false]
+debug  = true; // [true,false]
 box    = false; // [true,false]
 stats  = false; // [true,false]
 
@@ -32,4 +32,8 @@ spec = [
 ];
 bbox = [[-21,-17,-9], [31,17,38]];
 metaballs(spec, bounding_box=bbox, voxel_size=vsize, isovalue=isoval, 
-    debug=debug, show_box=box, show_stats=stats);
+    debug=debug, show_box=box, show_stats=stats)
+        fwd(55) color("gold") vnf_polyhedron($metaball_vnf);
+
+
+        

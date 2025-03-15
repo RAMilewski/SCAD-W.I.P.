@@ -7,3 +7,8 @@ Making animated GIFs and PNGs from OpenSCAD frameshots:
 
     magick -delay 7 -loop 0 @200-frames.txt -resize 640x480 metaball3.gif
     magick -delay 7 -loop 0 @200-frames.txt -resize 640x480 APNG:metaball3.png
+
+
+Resizing an animated PNG
+
+    magick APNG:animation.png -coalesce -resize 500x500 -layers optimize -loop 0 APNG:new_animation.png
