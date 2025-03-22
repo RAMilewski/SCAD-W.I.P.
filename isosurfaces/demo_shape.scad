@@ -17,7 +17,7 @@ spec = [
     //move([-15,0,0]) * scale([6,45,0.5]), mb_sphere(1),      
 ]; 
 
-metaballs(spec, auto, bb, show_stats = stats);
+metaballs(spec, bb, show_stats = stats);
 
 
 /* */
