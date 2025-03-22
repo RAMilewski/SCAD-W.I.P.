@@ -1,16 +1,12 @@
 include <BOSL2/std.scad>
 include <BOSL2/isosurface.scad>
-
-
-
-centers = [[0, 0, 0], [3, 0, 0]];
-charges = [25, 4];
-type = MB_SPHERE;
-isovalue = 5;
-voxelsize = 0.25;
-boundingbox = [[-6,-6,-6], [7,6,6]];
-move([10,10,10])
-
-metaballs(voxelsize, boundingbox, isovalue=isovalue,
-    ball_centers=centers, charge=charges, ball_type=type, show_stats = true);
-
+centers = [[-1,0,0], [1.25,0,0]];
+spec = [
+    move(centers[0]) * xscale(0.8), mb_sphere(8),
+    move(centers[1]), mb_sphere(3, influence = 1.5, negative=true)
+    
+];
+voxel_size = 0.25;
+boundingbox = [[-7,-6,-6], [3,6,6]];
+%metaballs(spec, boundingbox, voxel_size);
+color("green") move_copies(centers) sphere(d=1, $fn=16);
