@@ -3,6 +3,11 @@
     "parameterSets": {
         "New set 1": {
             "debug": "false"
+        },
+        "New set 2": {
+            "box": "false",
+            "debug": "false",
+            "stats": "true"
         }
     }
 }
