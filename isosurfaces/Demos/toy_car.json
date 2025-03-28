@@ -1,0 +1,11 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "box": "false",
+            "debug": "false",
+            "part": "body",
+            "stats": "true"
+        }
+    }
+}
