@@ -1,1 +1,13 @@
-include <BOSL2/std.scad>include <BOSL2/isosurface.scad>h1 = 10;r1 = 25;r2 = 5;v_size = 0.75;N=7;difference() {    metaballs([         IDENT, mb_disk(h1,r1),         up(r1-2), mb_sphere(r1*4, negative = true, cutoff = r1+2),        for(M=zrot_copies(n=N))              each [M*right(r1), mb_sphere(r2, influence = 0.2, negative = true, cutoff = 10)]        ],        [[-r1,-r1,-h1/2], [r1,r1,h1/2]], v_size, show_stats = true);  text3d(h = h1/2, "BOSL2", size = 4, center = true); }
+include <BOSL2/std.scad>
+include <BOSL2/isosurface.scad>
+spec = [
+    left(9), mb_sphere(5),
+    right(12), mb_sphere(5),
+    right(25), mb_sphere(5, influence = 3, cutoff = 15, negative = true),
+];
+
+bbox = [[-20,-20,-20],[20,20,20]];
+
+metaballs(spec, voxel_size=1, bounding_box=bbox, debug = false, show_box = false);
+
+
