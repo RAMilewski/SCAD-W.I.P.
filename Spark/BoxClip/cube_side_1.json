@@ -1,0 +1,17 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "cutout": "124",
+            "fudge": "7",
+            "logo_rot": "45",
+            "logo_size": "45"
+        },
+        "New set 2": {
+            "cutout": "62",
+            "fudge": "0",
+            "logo_rot": "40",
+            "logo_size": "30"
+        }
+    }
+}

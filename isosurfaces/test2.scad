@@ -1,13 +1,13 @@
-include <BOSL2/std.scad>
-include <BOSL2/isosurface.scad>
-spec = [
-    left(9), mb_sphere(5),
-    right(12), mb_sphere(5),
-    right(25), mb_sphere(5, influence = 3, cutoff = 15, negative = true),
-];
+include<BOSL2/std.scad>
 
-bbox = [[-20,-20,-20],[20,20,20]];
+$fn = 72;
 
-metaballs(spec, voxel_size=1, bounding_box=bbox, debug = false, show_box = false);
+bez = [[15,0], [40,40], [-20,50], [20,80]];
+closed = bezpath_offset([2,0], bez);
+path = bezpath_curve(closed, splinesteps = 64); 
+
+rotate_sweep(path,360, $fn = 72);
+right(60) rotate_sweep(path,360, $fn = 12);
+right(120) rotate_sweep(path,360, $fn = 3);
 
 
