@@ -4,16 +4,16 @@ include <BOSL2/screws.scad>
 $fn = 64;
 $align_msg = false;
 
-slot = [25, 12, 75];
+slot = [25, 11.5, 75];
 d_grip = 42;
 shoe = [d_grip, slot.y + 8, 85];
-remote = [34,50.5,12];
-corner = 5;
-window = [19,5,67.5];
+remote = [33.25,50.5,12];
+corner = 10;
+window = [22,5,67.5];
 
 
 
-//right_half(s=200) 
+//front_half(s=200) 
 grip();
 
 module grip() {

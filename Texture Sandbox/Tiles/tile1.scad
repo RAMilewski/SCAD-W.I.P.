@@ -1,7 +1,8 @@
 include <BOSL2/std.scad>
-include <texture.data>
+include <star.data>
 
+*diff()
+    cuboid(35) attach([TOP,LEFT,FWD],BOT)
+        textured_tile(star, 30, tex_reps=[1,1], tex_depth = 0.5, tex_inset = false, diff = false, style="quincunx");
 
-diff()
-    cuboid(35) attach([TOP,LEFT,FWD,BACK,RIGHT,BOT],BOT)
-        textured_tile(texture, 30, tex_reps=[5,3], tex_depth = 0.75, tex_inset = true, diff = true, style="convex");
+import("SVG/Flower-Icons/SVG/Icon 19.svg");
