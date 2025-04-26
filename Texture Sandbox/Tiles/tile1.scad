@@ -1,8 +1,9 @@
 include <BOSL2/std.scad>
-include <star.data>
+include <netfool_200x200.scad>
 
-*diff()
-    cuboid(35) attach([TOP,LEFT,FWD],BOT)
-        textured_tile(star, 30, tex_reps=[1,1], tex_depth = 0.5, tex_inset = false, diff = false, style="quincunx");
 
-import("SVG/Flower-Icons/SVG/Icon 19.svg");
+diff()
+    cuboid(35, rounding = 3, $fn = 72) 
+    attach([TOP,LEFT,FWD],BOT)
+        textured_tile(netfool, 30, tex_reps=[1,1], tex_depth = 1, tex_inset = true, diff = true, style="quincunx");
+        

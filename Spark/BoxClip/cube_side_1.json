@@ -12,6 +12,18 @@
             "fudge": "0",
             "logo_rot": "40",
             "logo_size": "30"
+        },
+        "New set 3": {
+            "cutout": "60",
+            "fudge": "0",
+            "logo_rot": "45",
+            "logo_size": "42"
+        },
+        "New set 4": {
+            "cutout": "63",
+            "fudge": "9",
+            "logo_rot": "45",
+            "logo_size": "46"
         }
     }
 }

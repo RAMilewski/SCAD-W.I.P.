@@ -24,7 +24,6 @@ arc_tail2 = 0;   // [0:1:180]
 /* [Hidden] */
 $fn = 72;
 
-
 shape = is_round ? circle(d=width) : rect([width,height],rounding = rounding);
 
 path1 = turtle(["setdir", 90, "ymove",stem/2, "arcleft",r1+width/2,arc1, "move",stem1, "arcright",r_tail1,arc_tail1]);
