@@ -1,11 +1,14 @@
 include<BOSL2/std.scad>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 include<pathbuilder.scad>
 
  import("flower.svg", center = true);
 
 
 =======
+=======
+>>>>>>> Stashed changes
 
    img = [
       [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -26,4 +29,7 @@ include<pathbuilder.scad>
    ang = len(img[0])/len(img)*h/(2*PI*r)*360;
    rotate_sweep([[15,-10],[15,10]], texture=img,
               tex_reps=1,angle=ang, closed=false);
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
