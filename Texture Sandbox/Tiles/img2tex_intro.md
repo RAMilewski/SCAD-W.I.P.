@@ -1,5 +1,12 @@
 # Images as Textures
 
+
+The BOSL2 Library supports adding surface textures to many of the of the geometries the library can generate.
+
+
+
+
+
 There is a Python script named [img2tex.py](https://github.com/BelfrySCAD/BOSL2/blob/master/scripts/img2tex.py) in the BOSL2 scripts folder that can process `.jpg`, `.gif`, or `.png` image files into data arrays suitable for use as textures.
 
 While the script can process color images, the best results are generally obtained with line art or grayscale images.  
