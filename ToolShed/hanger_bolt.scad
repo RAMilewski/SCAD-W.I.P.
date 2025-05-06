@@ -3,9 +3,9 @@ include <BOSL2/screws.scad>
 
 $fn = 144;
 
-part = "Nut";  //[Nut,Bolt]
+part = "Bolt";  //[Nut,Bolt,Tool]
 
-newpitch = 2.1;
+newpitch = 2.2;
 
 
 if (part == "Bolt") {
@@ -31,6 +31,10 @@ if (part == "Nut") {
     nut(newspec, $slop = 0.2);
 }
 
+if (part == "Tool") {
+    xrot(360/16) xcyl(d1 = 9.1, d2= 9.25, l = 50, $fn = 6, rounding = 1.5, circum = true);
+
+}
 
 /* */
 

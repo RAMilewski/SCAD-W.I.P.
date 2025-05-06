@@ -1,80 +1,20 @@
 include <BOSL2/std.scad>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-include <woodgrain_200x200.scad>
-=======
-include <star.data>
->>>>>>> Stashed changes
-=======
-include <star.data>
->>>>>>> Stashed changes
-=======
-include <star.data>
->>>>>>> Stashed changes
-=======
-include <star.data>
->>>>>>> Stashed changes
-=======
-include <star.data>
->>>>>>> Stashed changes
-=======
-include <star.data>
->>>>>>> Stashed changes
-=======
-include <star.data>
->>>>>>> Stashed changes
+include <Netfool_1b3_230x230.scad>
+include <Netfool_2b3_230x230.scad>
+include <Netfool_3b3_230x230.scad>
+include <netfoolDM_230x230.scad>
+include <netfoolAS_200x200.scad>
 
-*diff()
-    cuboid(35) attach([TOP,LEFT,FWD],BOT)
-        textured_tile(star, 30, tex_reps=[1,1], tex_depth = 0.5, tex_inset = false, diff = false, style="quincunx");
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
+
 $fn = 64;
-//diff()
-  //cuboid(35, rounding = 2) attach([TOP,LEFT,FWD],BOT)
-        textured_tile(woodgrain, [30,30], tex_reps=[1,1], tex_depth = 1.5, tex_inset = false, diff = false, style="quincunx");
-=======
-include <star.data>
->>>>>>> Stashed changes
 
-*diff()
-    cuboid(35) attach([TOP,LEFT,FWD],BOT)
-        textured_tile(star, 30, tex_reps=[1,1], tex_depth = 0.5, tex_inset = false, diff = false, style="quincunx");
+left(25)  textured_tile(Netfool_3, [40,40], tex_reps=[1,1], tex_depth = 3, tex_inset = false, diff = false, style="quincunx");  
+right(25) textured_tile(netfoolAS, [40,40], tex_reps=[1,1], tex_depth = 3, tex_inset = false, diff = false, style="quincunx");  
 
-<<<<<<< Updated upstream
-=======
-import("SVG/Flower-Icons/SVG/Icon 19.svg");
->>>>>>> Stashed changes
-=======
-import("SVG/Flower-Icons/SVG/Icon 19.svg");
->>>>>>> Stashed changes
-=======
-import("SVG/Flower-Icons/SVG/Icon 19.svg");
->>>>>>> Stashed changes
-=======
-import("SVG/Flower-Icons/SVG/Icon 19.svg");
->>>>>>> Stashed changes
-=======
-import("SVG/Flower-Icons/SVG/Icon 19.svg");
->>>>>>> Stashed changes
-=======
-import("SVG/Flower-Icons/SVG/Icon 19.svg");
->>>>>>> Stashed changes
-=======
-import("SVG/Flower-Icons/SVG/Icon 19.svg");
->>>>>>> Stashed changes
-=======
-import("SVG/Flower-Icons/SVG/Icon 19.svg");
->>>>>>> Stashed changes
+*diff() {
+  cuboid(45, rounding = 2) {
+  attach([TOP,LEFT,RIGHT,FWD,BACK],BOT)
+        textured_tile(netfoolAS, [40,40], tex_reps=[1,1], tex_depth = 3, tex_inset = false, diff = false, style="quincunx");  
+  };
+}
