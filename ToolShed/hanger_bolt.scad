@@ -8,6 +8,8 @@ part = "Bolt";  //[Nut,Bolt,Tool]
 newpitch = 2.2;
 
 
+right(40) screw("9/16,1/2", head = "socket" );
+
 if (part == "Bolt") {
     spec = screw_info("9/16,3/4", head="socket", drive = "hex");
     newspec = struct_set(spec,["head_size",32,"head_height", 8, "drive_size", 9.5,"pitch",newpitch]);
