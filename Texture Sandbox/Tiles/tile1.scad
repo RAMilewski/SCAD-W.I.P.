@@ -1,7 +1,7 @@
 include <BOSL2/std.scad>
 include <terrain.scad>
 
-textured_tile(elevation_data, [50,50], tex_reps=[1,1], tex_depth = 20,         tex_inset = false, diff = false);  
+textured_tile(elevation_data, [50,50,5], tex_reps=[1,1], tex_depth = 5, tex_inset = false, diff = false);  
 
 
 
