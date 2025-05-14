@@ -30,14 +30,23 @@ module fin() {skin([path2,path1,path2], z=[0,2.5,5], slices = 2);}
 
 
 
+module base() {
+    diff() {
+        cuboid([108.5,14.9,4.75], chamfer = -5, edges = RIGHT+BOT, anchor = BOT) {
+            position(TOP) cuboid([105,5,5], chamfer = 2, edges = "Z", anchor = BOT);
+            tag("remove") position(BOT) down(.01) left(50) back(2.5) xrot(90) fin();
+        }
+    }
+}
 
-cuboid([108.5,14.9,4.75], chamfer = -5, edges = RIGHT+BOT, anchor = BOT)
-    position(TOP) cuboid([105,5,5], chamfer = 2, edges = "Z", anchor = BOT)
-        position(TOP) left(50) back(2.5) xrot(90) fin();
 
+module uni_fin() { 
+    cuboid([108.5,14.9,4.75], chamfer = -5, edges = RIGHT+BOT, anchor = BOT)
+        position(TOP) cuboid([105,5,5], chamfer = 2, edges = "Z", anchor = BOT)
+            position(TOP) left(50) back(2.5) xrot(90) fin();
+}
 
-
-
+uni_fin();
 
 //up(10) debug_bezier(bezpath);
 /* */
