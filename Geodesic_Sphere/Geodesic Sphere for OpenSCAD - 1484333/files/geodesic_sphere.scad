@@ -4,8 +4,8 @@ $fn = 8;
 
 geodesic_sphere(20);
 
-translate([40, 0, 0])
-spheroid(20);
+right(40)
+spheroid(20, $fn = 8, style = "icosa");
 
 // same syntax and semantics as built-in sphere, so should be a drop-in replacement
 // it's a bit slow for large numbers of facets
