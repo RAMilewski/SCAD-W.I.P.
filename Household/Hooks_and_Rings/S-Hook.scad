@@ -3,7 +3,7 @@ include <BOSL2/std.scad>
 /* [Config] */
 stem  =  35;        // [1:1:200]
 width =  4;         // width/dia of hook cross section
-height = 8;         // height of hook cross section
+height = 4;         // height of hook cross section
 rounding =  0.5;    // edge rounding radius
 is_round = false;   // true make a round cross section hook
 
