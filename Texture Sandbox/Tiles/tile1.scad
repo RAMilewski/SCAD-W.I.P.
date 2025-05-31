@@ -1,12 +1,12 @@
 include <BOSL2/std.scad>
-include <bunny_200x239.scad>
+include <NetFoolED1_200x200.scad>
 
 
-aspect = image_array_size.y/image_array_size.x;
+aspect = image_size.y/image_size.x;
 width = 50;
 
 
-textured_tile(image_array, [width,width*aspect], tex_reps=[1,1], tex_depth = -1, tex_inset = false, style = "min_area", diff = false);  
+textured_tile(image, [width,width*aspect], tex_reps=[1,1], tex_depth = 1, tex_inset = false, style = "min_area", diff = false);  
 
 
 
