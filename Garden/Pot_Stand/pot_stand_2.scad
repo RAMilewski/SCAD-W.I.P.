@@ -1,7 +1,7 @@
 include<BOSL2/std.scad>
 $fn = 144;
 
-style = "gargoyle"; // [gargoyle, onion, sphere, crystal, blank]
+style = "sphere"; // [onion, sphere, crystal, gargoyle, blank]
 
 /* [Gargoyle Settngs] */
 gargoyle = 14;   // [1:23]

@@ -1,0 +1,19 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$fn": "3",
+            "anchor": "[0, 0, 0]",
+            "base": "[50, 50, 20]",
+            "dia": "30",
+            "position": "[0, 0, 0]"
+        },
+        "New set 2": {
+            "$fn": "39",
+            "anchor": "[0, 0, 0]",
+            "base": "[50, 50, 20]",
+            "dia": "30",
+            "position": "[0, 0, 0]"
+        }
+    }
+}
