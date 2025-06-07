@@ -1,0 +1,13 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$fn": "288",
+            "dia": "60",
+            "h": "150",
+            "shaper": "30",
+            "top_dia": "67",
+            "top_h": "13"
+        }
+    }
+}
