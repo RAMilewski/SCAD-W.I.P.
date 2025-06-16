@@ -1,0 +1,11 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$fn": "144",
+            "fill_trim": "13",
+            "gargoyle": "17",
+            "size": "0.90000000000000002"
+        }
+    }
+}

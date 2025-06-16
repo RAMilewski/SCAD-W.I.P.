@@ -1,6 +1,6 @@
 include <BOSL2/std.scad>
 
-part = "shell";  //[shell,cap]
+part = "shell";  //[shell,cap,base]
 $fn = 288;      //[10:288]
 
 /* [Mason Jar Ring] */
@@ -20,8 +20,6 @@ r1 = top_id/2;
 h1 = top_h;
 h2 = height;
 
-
-
 if (part == "shell") {
     bez = flatten([
         bez_begin([0,0], 0, 10),
@@ -32,15 +30,15 @@ if (part == "shell") {
         bez_joint([r1,h1+h2], -90,180, 10,10),
         bez_end([0,h1+h2], 0, 10),
     ]);
-
     path = bezpath_curve(bez, splinesteps = 64); 
     rotate_sweep(path,360);
 }
 
-if (part == "cap") {
+if (part == "cap" || part ==  "base") {
+    fit = (part == "cap") ? 2 : 1;
     diff() {
-        cyl(d = top_od + 2, h = 1, anchor = BOT){
-            position(TOP) tube(id = top_od, wall = 1, h = top_h, anchor = BOT);
+        cyl(d = top_od + fit, h = 1, anchor = BOT){
+            position(TOP) tube(od = top_od + fit, wall = 1, h = top_h, anchor = BOT);
             position(BOT) tag("remove") cyl(d = top_hole, anchor = BOT);
         }
     }
