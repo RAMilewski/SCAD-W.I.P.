@@ -1,33 +1,33 @@
 include<BOSL2/std.scad>
 $fn = 144;
 
-/*
-    rounded_prism(rect([125,50]), apply(left(12.5),rect([100,50])), h = 25, 
-        joint_top = 5, joint_bot = 0, joint_sides = 5, anchor = BOT)
-            position([TOP]) right(30) down(5) onion(r = 15, ang = 50, anchor = BOT);
+style = "sphere"; // [onion, sphere, crystal, elephant, gargoyle, blank]
+
+/* [Gargoyle Settngs] */
+gargoyle = 14;   // [1:23]
+size = 0.4;  //[.1:.05:1]
+spin = 0;    //[-90:90]
+offset = 5;  //[-5:10]
+sink = 3;    //[0:15]
 
 
-    back(60)            
-    diff() {
-        prismoid([125,50],[100,50], shift = [-12.5,0], rounding = 5, h = 25)
-         edge_profile([TOP,"Z"], except = TOP+RIGHT)
-             mask2d_roundover(r=5);
+stl = (style == "elephant") ? "animals/Elephant.stl"
+    : str("animals/Gargoyle_",format2(gargoyle),".stl");
+
+echo();
+echo (style, stl);
+echo();
+
+rounded_prism(rect([125,50]), apply(left(12.5),rect([100,50])), h = 25, 
+    joint_top = 5, joint_bot = 0, joint_sides = 5, anchor = BOT) {
+        if (style == "gargoyle" || style == "elephant") 
+            { position([TOP]) down(sink) right(25 + offset) scale(size) zrot(90-spin) import(stl); }
+        if (style == "onion") { position([TOP]) right(35) down(5) onion(r = 15, ang = 50, anchor = BOT); }
+        if (style == "crystal") { position([TOP]) right(35) down(5) zrot(180/8) onion(r = 15, ang = 50, $fn = 8, anchor = BOT); }
+        if (style == "sphere") { position([TOP]) right(35) down(5) spheroid(r = 15, anchor = BOT); }        
     }
-*/
-    
-    tex = texture("rough");
-    fwd(80) 
-    linear_sweep(
-        rect([125,50]), texture=tex, h=30, tex_depth=0.2,
-        tex_size=[10,10], style="min_edge");
 
- /*
+function format2(n) = str(n < 10 ? "0" : "", n);
 
- include <BOSL2/std.scad>
-tex = texture("rough");
-linear_sweep(
-    rect(30), texture=tex, h=30, tex_depth=0.2,
-    tex_size=[10,10], style="min_edge"
-);
 
- /* */
+
