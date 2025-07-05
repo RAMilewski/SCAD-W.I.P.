@@ -2,7 +2,7 @@ include<BOSL2/std.scad>
 
 $fn = 72;
 
- core(); dish();
+ core(); right(20) dish();
 
 module dish() {
     diff() {
