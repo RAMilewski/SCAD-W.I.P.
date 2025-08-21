@@ -1,16 +1,31 @@
-include <BOSL2/std.scad>
-include <isosurface.scad>
+include<BOSL2/std.scad>
 
-frames = 30;
-position = [-15 + $t * frames, 0 , 15 - $t * frames];
 
-bounding_box = [[-20,-10,-15],[20,10,15]];
-isovalue = 5;
-voxelsize = 1;
+function octa_sphere(r) =
+    let(
+        subdivs = quantup(segs(r),4)/4,
+        pts = [
+            for (p = [0:1:subdivs])
+            let(
+                phi = p * 90/subdivs,
+                row = [
+                    for (t = [0:1:p])
+                    let(theta = t * 90/(p?p:1))
+                    spherical_to_xyz(r, theta, phi)
+                ],
+                vec = p? last(row) - row[0] : BACK,
+                rot_row = rot(a=-90+phi, v=vec, cp=row[0], p=row),
+                row_out = [for (pt = rot_row) let(sph = xyz_to_spherical(pt)) spherical_to_xyz(r,sph[1],sph[2])]
+            ) row_out
+        ],
+        octant_vnf = vnf_tri_array(pts),
+        top_vnf = vnf_join([
+            for (a=[0:90:359])
+            zrot(a, p=octant_vnf)
+        ]),
+        bot_vnf = zflip(p=top_vnf),
+        full_vnf = vnf_join([top_vnf, bot_vnf])
+    ) full_vnf;
 
-funcs = [
-    IDENT, mb_sphere(25),
-    move[position], mb_sphere(15),  
-];
+vnf_polyhedron(octa_sphere(100, $fn=8));
 
-metaballs(funcs = funcs, isovalue=isovalue, bounding_box = bounding_box, voxel_size = voxel_size);
