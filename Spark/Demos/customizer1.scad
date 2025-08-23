@@ -10,7 +10,8 @@ position = [0,0,0];  //[-1:1:1]
 anchor =  [0,0,0];   //[-1:1:1]
 
 
-ghost_this() cuboid(base)
-    position(position) spheroid(d = dia, anchor = anchor);
+//ghost_this()
+ cuboid(base)
+    position(position) up(0) cuboid(dia, anchor = anchor);
 
 
