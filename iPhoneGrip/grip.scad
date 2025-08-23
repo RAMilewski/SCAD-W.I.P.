@@ -10,10 +10,11 @@ shoe = [d_grip, slot.y + 8, 85];
 remote = [33.25,50.5,12];
 corner = 10;
 window = [22,5,67.5];
+insert = true;
 
 
 
-//front_half(s=200) 
+//left_half(s=200) 
 grip();
 
 module grip() {
@@ -32,8 +33,12 @@ module grip() {
             position(BACK+RIGHT) back_half(s = 100) 
                 cyl(h = shoe.z, d = d_grip, rounding = corner, teardrop = true, anchor = RIGHT)
             //tripod thread
-                attach(BOT,TOP,inside=true) screw_hole("1/4-20,1", thread = true, bevel1 = -3);
-
+            if (insert) {
+                attach(BOT,TOP,inside=true) cyl(h = 1, d = 8.15); // ZWMSSL insert
+                attach(BOT,TOP,inside=true) cyl(h = 15, d = 7.15); // ZWMSSL insert
+            } else {
+                attach(BOT,TOP,inside=true) screw_hole("1/4-20,1", thread = true, bevel1 = -3);  // printed thread
+            }
         }
     }
 }
