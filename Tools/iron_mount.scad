@@ -1,14 +1,25 @@
-include <BOSL2/std.scad>
+// Written in OpenSCAD - Use the most recent snapshot (https://openscad.org/downloads.html#snapshots)
+// Do not use the release version. (2021.01)
+// OpenSCAD mailing list archive: https://lists.openscad.org/empathy/list/discuss.lists.openscad.org
 
-$fn = 72;
-dia = 19;
-z_dim = 30;
-w_dia = 31.75;
-l_arm = 66;
-p_bolt = 5;
-d_bolt = 9.86;
+include <BOSL2/std.scad>  // https://github.com/BelfrySCAD/BOSL2
+// Use the wiki docs, the PDF is 2000+ pages.
+// For the terminally befuddled, the BOSL2 devs hang out at: 
+// https://app.gitter.im/#/room/#revarbat_BOSL2:gitter.im they're nice folks and like to help.
 
-iron_clamp(); arm();
+// You can adjust the parameters below using the OpenSCAD Customizer. 
+
+$fn = 72;       //Trust me.
+dia = 19;       //Diameter of the soldering iron handle (the cool segment).
+z_dim = 30;     //Height of the clamp holding the iron. (Use M3 hardware to secure the clamp).
+w_dia = 31.75;  //Diameter of the washer at the other end of the arm.
+l_arm = 66;     //Distance from the center of the iron to the center of the drill press chuck.
+p_bolt = 5;     //Height of the square part of the carriage bolt. From ASME B18.5, Table 2
+d_bolt = 9.86;  //Diameter of the threaded shaft of the 3/8 inch carriage bolt.
+
+iron_clamp(); arm();    // This could be done as one continuous bit of code instead of two modules, but
+                        // multiply nesting tag scopes leaves you in a twisty little maze of code
+                        // passages all the same.  It could be done with tag_scope(), but not by me.
 
 module iron_clamp() {
     partition([50,50,50], spread = 5, cutsize = 50, cutpath = "flat"){
