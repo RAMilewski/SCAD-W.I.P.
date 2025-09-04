@@ -1,7 +1,8 @@
 include <BOSL2/std.scad>
-include <BOSL2/hooks.scad>
+include <BOSL2/polyhedra.scad>
+
+$fn = 11;
 
 
 
-s_hook();
-
+spheroid(d = 40, style = "octa");
