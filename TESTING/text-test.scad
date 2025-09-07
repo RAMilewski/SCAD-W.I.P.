@@ -1,26 +1,24 @@
 include<BOSL2/std.scad>
 
-label_text = "Test";
+label_text = "Text";
 font = "Phosphate:style=solid";  // ["Phosphate:style=solid","Righteous","Arial Black","Impact"]
 font_size = 14;
-label_fill = false;
-label_depth = 0.2;
-test = false;   
+layer = 0.2;
+  
 $fn = 72;
 
-block2(); 
+block(); 
+//label(layer);
+
 
 module block() {
     difference(){
         cuboid([40,20,5], rounding = 1, anchor = BOT);
-        label();
+        label(layer * 1.5);
     }
 }
 
-module block2() {
-        cuboid([40,20,5], rounding = 1, anchor = BOT);
-}
 
-module label() {
+module label(label_depth) {
     xscale(-1) text3d(label_text, font = font, size = font_size, h = label_depth, center = true, atype = "ycenter", anchor = BOT);
 }
