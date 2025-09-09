@@ -14,3 +14,5 @@ weights = [ for (i=[0:n-1]) 1 ];             // all weights = 1
 
 // Draw with adaptive tolerance:
 draw_nurbs(ctrl, p, knots, w=weights, tol=0.25, max_depth=12, width=0.7);
+
+
