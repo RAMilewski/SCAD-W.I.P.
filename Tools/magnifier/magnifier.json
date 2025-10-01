@@ -1,0 +1,15 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "angle": "-70",
+            "chamfang": "11",
+            "d_lens": "128",
+            "droop": "0.69999999999999996",
+            "is_top": "true",
+            "lip": "3",
+            "part": "base",
+            "stance": "1.6000000000000001"
+        }
+    }
+}
