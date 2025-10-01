@@ -10,6 +10,19 @@
             "lip": "3",
             "part": "base",
             "stance": "1.6000000000000001"
+        },
+        "New set 2": {
+            "angle": "70",
+            "arc": "50",
+            "chamfang": "11",
+            "d_lens": "128",
+            "droop": "0.60000000000000009",
+            "is_top": "true",
+            "lift": "50",
+            "lip": "3",
+            "part": "base",
+            "reach": "0",
+            "stance": "1.3"
         }
     }
 }

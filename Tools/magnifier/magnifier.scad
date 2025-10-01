@@ -14,8 +14,8 @@ lip = 3;
 chamfang = 11;
 
 /* [Foot] */
-droop = 0.6;
-stance = 1.3;
+droop = 0.6;    // [0.2:.05:1.2]
+stance = 1.3;   // [1:0.1:2]
 base = [d_lens * stance,10];
 
 /* [Base] */
