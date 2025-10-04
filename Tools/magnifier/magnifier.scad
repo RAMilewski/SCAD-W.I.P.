@@ -19,10 +19,10 @@ stance = 1.3;   // [1:0.1:2]
 base = [d_lens * stance,10];
 
 /* [Base] */
-lift = 50;
-arc = 50;
-angle = 70;
-reach = 0;
+lift = 50;   // [10:5:100]
+arc = 50;    // [20:5:90]
+angle = 70;  // [10:5:90]
+reach = 0;   // [0:5:50]
 
 /* [Hidden] */ 
 $fn = 72;
