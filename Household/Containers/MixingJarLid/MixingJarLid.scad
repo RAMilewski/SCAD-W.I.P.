@@ -3,10 +3,6 @@ include <BOSL2/beziers.scad>
 
 
 $fn = 72;
-//move([40,40]) color("grey", 0.2) import ("Mixing Jar Lid (TkC).stl");
-//up(25) ruler();
-
-
 part = "lid";   //[lid, gasket]
 jar_type = 0;   //[0:SpiceWorld, 1:Artichoke]
 mix = true;     //[true, false]
