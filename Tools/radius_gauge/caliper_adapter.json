@@ -1,0 +1,25 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$fn": "72",
+            "arm": "[40, 16, 8]",
+            "edge": "1",
+            "gap": "[4, 4, 4]",
+            "groove": "[50, 18, 4]",
+            "mount": "[50, 30, 8]",
+            "multiplier": "2",
+            "well": "[12, 16, 6]"
+        },
+        "New set 2": {
+            "$fn": "72",
+            "arm": "[40, 17, 8]",
+            "edge": "1",
+            "gap": "[4, 4, 5]",
+            "groove": "[60, 16, 4]",
+            "mount": "[60, 27, 8]",
+            "multiplier": "2",
+            "well": "[12, 16, 6]"
+        }
+    }
+}
