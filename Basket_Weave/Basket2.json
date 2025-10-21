@@ -1,0 +1,16 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$fn": "64",
+            "bulge": "20",
+            "floor": "2",
+            "offset": "[3, 0]",
+            "r_base": "50",
+            "r_top": "80",
+            "show_profile": "true",
+            "tex_reps": "[20, 4]",
+            "z_top": "80"
+        }
+    }
+}
