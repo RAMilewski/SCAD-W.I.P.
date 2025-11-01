@@ -5,7 +5,7 @@ include<BOSL2/screws.scad>
 $fn = 72;
 
 cuboid([160,30,15], rounding = 15, edges = "Z", except = RIGHT) { //arm
-    position(TOP+LEFT) right(15) cyl(h = 75, d = 20, rounding1 = -5, anchor = BOT)  //post
+    position(TOP+LEFT) right(15) cyl(h = 100, d = 20, rounding1 = -5, anchor = BOT)  //post
         position(TOP) cyl(h = 9, d = 30, rounding1 = 7.5, teardrop = true, rounding2 = 1, anchor = BOT);
     diff(){
         position(RIGHT+BOT) cuboid([10,70,25], anchor = LEFT+BOT, rounding = 7.5, edges = "X")
