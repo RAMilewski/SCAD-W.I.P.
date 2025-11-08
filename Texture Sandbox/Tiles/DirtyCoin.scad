@@ -9,7 +9,7 @@ echo (size*tilemult);
 $fn = (72);
 
 difference() {
-        textured_tile(BJ1, tilesize, tex_reps = [1,1], tex_depth = 2)
+        textured_tile(BJ1, tilesize, tex_reps = [1,1], tex_depth = 1)
             position(BOT) rot([0,180,180]) up(tilesize.z) right(0.25) textured_tile(Greek1, tilesize, tex_reps = [1,1], tex_depth = 2);    
         cutter();
 };
