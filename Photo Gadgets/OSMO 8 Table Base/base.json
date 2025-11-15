@@ -1,0 +1,11 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "end_ratio": "0.30000000000000004",
+            "leg_length": "125",
+            "r_top": "12",
+            "theta": "35"
+        }
+    }
+}
