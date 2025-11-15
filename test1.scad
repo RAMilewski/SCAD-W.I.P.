@@ -1,10 +1,24 @@
-    include <BOSL2/std.scad>
-    include <BOSL2/hooks.scad>
+include <BOSL2/std.scad>
+diff() {
+//  linear_extrude(10)
+//    polygon(points=[[1, 1], [-1, 1], [-1, -1], [1, -1]]);
+  path =[[1, 1], [-1, 1], [-1, -1], [1, -1]];  
+  linear_sweep(path,10);
+  tag("remove")
+  cube(2);
+}
 
-    $fn = 72;
-   
-    left(35)
-    ring_hook(base_size = [60,20], hole_z = 10, hole = rect([30,10], rounding = [4,4,0,0]), od = 60, rounding = 3, hole_rounding = 5, fillet = 5, outside_segments = 72);
-    right(35)
-    ring_hook(base_size = [60,20], hole_z = 20, hole = rect([30,10], rounding = [4,4,0,0]), od = 60, rounding = 3, hole_rounding = 5, fillet = 5, outside_segments = 72);
+left(5)
+diff() {
+  linear_extrude(10)
+    square(2, center=true) show_anchors();
+  tag("remove")
+  cube(2);
+}
 
+left(10)
+diff() {
+  cube([2, 2, 10], anchor=BOTTOM);
+  tag("remove")
+  cube(2);
+}

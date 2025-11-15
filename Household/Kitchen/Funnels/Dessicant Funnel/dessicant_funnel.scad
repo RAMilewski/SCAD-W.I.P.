@@ -1,8 +1,8 @@
 include<BOSL2/std.scad>
 
 mouth = 80;
-spout = 15;
-wall = 1;
+spout = 20;
+wall = 2;
 height = 40;
 $fn = 72;
 
