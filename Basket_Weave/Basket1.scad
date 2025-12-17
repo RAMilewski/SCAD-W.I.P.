@@ -5,7 +5,7 @@ show_profile = false;  //[true,false]
 
 /* [Profile] */
 r_base = 50;
-shape = [1.6,0.4,1.6];
+shape = [1.2,0.8,1.2];
 tex_size = [20,20];
 
 r_top = shape.x * r_base;
