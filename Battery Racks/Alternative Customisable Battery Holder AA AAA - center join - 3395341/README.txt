@@ -1,0 +1,4 @@
+Alternative Customisable Battery Holder AA AAA - center join by tlovatt on Thingiverse: https://www.thingiverse.com/thing:3395341
+
+Summary:
+Alternative version of the customisable battery holder, as it has a center join this version does not require supports but do note that care is needed gluing the 2 halves together or the batteries will not roll down properly.There is an alternative customisable version of this design that is easier to stick together with the joint at one end but requires supports to print.There are some pre-configured versions rendered with a high faces count for nice smooth curves:https://www.thingiverse.com/thing:3398780
