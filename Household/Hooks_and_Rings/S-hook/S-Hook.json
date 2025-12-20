@@ -3,18 +3,19 @@
     "parameterSets": {
         "New set 1": {
             "angle1": "180",
-            "angle2": "180",
+            "angle2": "200",
             "angle_curl1": "0",
             "angle_curl2": "0",
-            "l_shaft": "35",
-            "l_stem1": "4",
+            "l_shaft": "41",
+            "l_stem1": "10",
             "l_stem2": "4",
             "or": "2",
             "r_curl1": "0",
             "r_curl2": "0",
-            "r_loop1": "5",
-            "r_loop2": "5",
-            "sides": "8"
+            "r_loop1": "3",
+            "r_loop2": "3",
+            "sides": "64",
+            "z_scale": "4"
         }
     }
 }

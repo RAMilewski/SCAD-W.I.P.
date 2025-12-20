@@ -1,7 +1,8 @@
 include <BOSL2/std.scad>
 
 /* [Config] */
-or =  2;         // dia of hook cross section
+cs =  2;         // width of hook cross section
+z_scale = 1;      // z-axis scale factor 
 sides = 6;       // shape of hook cross section     
 l_shaft  =  35;    // length of straight segment
 
@@ -21,10 +22,14 @@ angle_curl2 = 0;   // tail curve angle
 
 /* [Hidden] */
 
-s_hook(or,sides,l_shaft,16,r_loop1,angle1,l_stem1,r_curl1,angle_curl1,
+$fn = 72;
+
+
+//back_half()
+s_hook(cs,z_scale,sides,l_shaft,r_loop1,angle1,l_stem1,r_curl1,angle_curl1,
     r_loop2,angle2,l_stem2,r_curl2,angle_curl2);
 
-module s_hook(or = 2, sides = 6, l_shaft = 25, $fn = 32,
+module s_hook(cs = 2, z_scale = 1, sides = 6, l_shaft = 25, 
     r_loop1 = 5, angle1 = 180, l_stem1 = 0, r_curl1 = 0,  angle_curl1 = 0,
     r_loop2 = 5, angle2 = 180, l_stem2 = 0, r_curl2 = 0,  angle_curl2 = 0) {
 
@@ -34,7 +39,7 @@ module s_hook(or = 2, sides = 6, l_shaft = 25, $fn = 32,
     stem1 = l_stem1 <= 0 ? 1e-10 : l_stem1;
     stem2 = l_stem2 <= 0 ? 1e-10 : l_stem2;
 
-    shape = sides > 2 ? regular_ngon(sides, or, align_side = FWD) : circle(or);     
+    shape = sides > 2 ? yscale(z_scale, regular_ngon(sides, cs, align_side = FWD)) : yscale(z_scale, circle(cs));     
 
     path1 = turtle(["setdir", 90, "ymove",l_shaft/2, "arcleft",r_loop1,angle1, "move",stem1, "arcright",r_curl1,angle_curl1]);
     path_sweep(shape,path1);
