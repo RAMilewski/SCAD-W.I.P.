@@ -9,13 +9,26 @@
             "l_shaft": "41",
             "l_stem1": "10",
             "l_stem2": "4",
-            "or": "2",
             "r_curl1": "0",
             "r_curl2": "0",
-            "r_loop1": "3",
-            "r_loop2": "3",
             "sides": "64",
             "z_scale": "4"
+        },
+        "New set 2": {
+            "angle1": "190",
+            "angle2": "-270",
+            "angle_curl1": "0",
+            "angle_curl2": "0",
+            "cs": "2",
+            "ir_loop1": "12",
+            "ir_loop2": "10",
+            "l_shaft": "51",
+            "l_stem1": "4",
+            "l_stem2": "2",
+            "r_curl1": "0",
+            "r_curl2": "0",
+            "sides": "4",
+            "z_scale": "2"
         }
     }
 }

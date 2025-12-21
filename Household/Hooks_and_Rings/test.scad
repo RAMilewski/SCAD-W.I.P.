@@ -1,4 +1,4 @@
 include<BOSL2/std.scad>
 
 
-xscale(2) circle(6);
+cuboid(50);

@@ -5,25 +5,19 @@ include <BOSL2/std.scad>
 cs =  2;         // [0.5:0.5:10]
 // Z scale 
 z_scale = 1;    // [1:1:12] 
-// Cross Section Sides
-sides = 6;       // [1:1:12]
-//Shaft Length     
-l_shaft  =  35;    // [1:1:200]
-//
+sides = 6;       // [1:1:12]     
+l_shaft  =  35;    // length of straight segment
+
 /* [Top Loop] */
-//
-//Loop Radius
-ir_loop1  =  5;     // [1:1:100]
-angle1   =  180;    // [0:1:270]
+r_loop1  =  5;     // hook curve radius
+angle1   =  180;    // hook curve angle
 l_stem1 = 4;        // tail stem length 
 r_curl1 = 0;        // tail curve radius
 angle_curl1 = 0;   // tail curve angle
 
 /* [Bottom Loop] */
-//Loop Radius
-ir_loop2  =   5;     // [1:1:100]
-//Loop Angle
-angle2   =  180;    // [-270:1:270]
+r_loop2  =   5;     // hook curve radius
+angle2   =  180;    // hook curve angle
 l_stem2 = 4;        // tail stem length 
 r_curl2 = 0;        // tail curve radius
 angle_curl2 = 0;   // tail curve angle
@@ -34,18 +28,18 @@ $fn = 72;
 
 
 //back_half()
-s_hook(cs,z_scale,sides,l_shaft,ir_loop1,angle1,l_stem1,r_curl1,angle_curl1,
-    ir_loop2,angle2,l_stem2,r_curl2,angle_curl2);
+s_hook(cs,z_scale,sides,l_shaft,r_loop1,angle1,l_stem1,r_curl1,angle_curl1,
+    r_loop2,angle2,l_stem2,r_curl2,angle_curl2);
 
 module s_hook(cs = 2, z_scale = 1, sides = 6, l_shaft = 25, 
-    ir_loop1 = 5, angle1 = 180, l_stem1 = 0, r_curl1 = 0,  angle_curl1 = 0,
-    ir_loop2 = 5, angle2 = 180, l_stem2 = 0, r_curl2 = 0,  angle_curl2 = 0) {
+    r_loop1 = 5, angle1 = 180, l_stem1 = 0, r_curl1 = 0,  angle_curl1 = 0,
+    r_loop2 = 5, angle2 = 180, l_stem2 = 0, r_curl2 = 0,  angle_curl2 = 0) {
 
-    r_loop1 = ir_loop1 + cs/2;
-    r_loop2 = ir_loop2 + cs/2;
+
 
     assert(l_shaft>0,  "l_shaft must be > 0");
     assert(is_int(sides), "Number of sides must be an integer.");
+
     stem1 = l_stem1 <= 0 ? 1e-10 : l_stem1;
     stem2 = l_stem2 <= 0 ? 1e-10 : l_stem2;
 
@@ -60,7 +54,5 @@ module s_hook(cs = 2, z_scale = 1, sides = 6, l_shaft = 25,
     move(path1[len(path1)-1]) rotate_sweep(endcap);
     move(path2[len(path2)-1]) rotate_sweep(endcap);
 }
-
-//fwd(25) left(50) up(4) ruler();
 
 /* */
