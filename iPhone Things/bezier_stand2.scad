@@ -8,7 +8,9 @@ bez = flatten([
 ]);
 
 shape = rect([3,50], rounding = 0.5 );
-//stroke(shape);
 
-bezier_sweep(shape,bez,splinesteps = 32);
+path = bezpath_curve(bez, splinesteps = 32);
+
+path_sweep(shape,path);
+//bezier_sweep(shape,bez,splinesteps = 32);
 
