@@ -21,18 +21,21 @@ hingepin = 3.1;
 
 //left_half() 
 //center();
+//locknut(w = 0, h = 3);
 //locknut();
 //leg();
-mount_rod(25);
-//complete();
+//mount_rod(25);
+complete();
 
 
 
 module complete(){
-    xrot(180) zrot(90) down(core.x) center();
-    right(r_top*3) up(leg.x/2) back(leg.z/2) rot([90,90,0]) leg();
-    right(r_top*3+leg.y) up(leg.x/2)  fwd(leg.z/2) rot([90,90,180]) leg();
-    right(r_top*3+leg.y*2) up(leg.x/2) back(leg.z/2) rot([90,90,0]) leg();
+    xrot(180) zrot(0) down(core.x) center();
+    right(r_top*2) up(leg.x/2) back(leg.z/2) rot([90,90,0]) leg();
+    right(r_top*2+leg.y) up(leg.x/2)  fwd(leg.z/2) rot([90,90,180]) leg();
+    right(r_top*2+leg.y*2) up(leg.x/2) back(leg.z/2) rot([90,90,0]) leg();
+    back(r_top*3) locknut();
+    fwd(r_top*3) locknut(w = 0, h = 3);
 }
 
 
@@ -68,22 +71,21 @@ module leg() {
     }
 }
 
-/*
-module locknut() {
-    r = 20;   //radius to lobe midpoint
-    n = 18;     //number of lobes
-    depth = 0.5;  //lobe depth
-    z = 5;     //height of extrusion
+
+module locknut(r=r_top, n = 18, w = 0.5, h = 5) {
+    //r = r_top; //radius to lobe midpoint
+    //n = 18;    //number of lobes
+    //w = 0.5;   //wave depth
+    //h = 5;     //height of extrusion
 
     diff() {
-        
-        flower = [for(theta=lerpn(0,360,360,endpoint=false)) (r+depth*sin(n*theta))*[cos(theta),sin(theta)]];
-        linear_sweep(flower,z);
-        tag("remove") threaded_rod(l = z, pitch = 1/20*INCH, d = 1/4*INCH, end_len = 1, internal = true, anchor = BOT);
+        flower = [for(theta=lerpn(0,360,360,endpoint=false)) (r+w*sin(n*theta))*[cos(theta),sin(theta)]];
+        linear_sweep(flower,h);
+        tag("remove") threaded_rod(l = h, pitch = 1/20*INCH, d = 1/4*INCH, end_len = h/10, bevel = h/10, internal = true, anchor = BOT);
     }
 }
 
-*/
+
 
 module mount_rod(length) {
     threaded_rod(l = length, pitch = 1/20*INCH, d = 1/4*INCH, end_len = 1, anchor = BOT);
