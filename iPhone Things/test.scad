@@ -1,23 +1,17 @@
 include<BOSL2/std.scad>
 
-bez1 = flatten([
-    bez_begin([-20,0], 45,20),
-    bez_tang ([0.,50],  0,10),
-    bez_end  ([20, 0],  135,20),
+bez = flatten([
+    bez_begin([-20,0],   0,30),
+    bez_tang ([0.,50],   0,30),
+    bez_end  ([20, 0], 180,30),
 ]);
 
-bez2 = flatten([
-    bez_begin([-23,0], 45,20),
-    bez_tang ([  0,53],  0,13),
-    bez_end  ([23, 0], 135,20),
-]); 
+shape = rect([3,30], rounding = 1, $fn = 32);
 
-path1 = bezpath_curve(bez1);
-path2 = bezpath_curve(bez2);
-path = concat(path1,reverse(path2));
+//bezier_sweep(shape,bez, splinesteps = 32);
 
-stroke(path, width = 0.25);
 
-polygon(path);
+path = bezier_curve(bez, splinesteps = 64);
+path_sweep(shape, path);
 
-linear_sweep(path, 10);
+/* */

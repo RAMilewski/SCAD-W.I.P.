@@ -21,11 +21,11 @@ hingepin = 3.1;
 
 //left_half() 
 //center();
-//locknut(w = 0, h = 3);
+locknut(w = 0, h = 3);
 //locknut();
 //leg();
 //mount_rod(25);
-complete();
+//complete();
 
 
 
@@ -73,10 +73,10 @@ module leg() {
 
 
 module locknut(r=r_top, n = 18, w = 0.5, h = 5) {
-    //r = r_top; //radius to lobe midpoint
-    //n = 18;    //number of lobes
-    //w = 0.5;   //wave depth
-    //h = 5;     //height of extrusion
+    //r = radius to lobe midpoint
+    //n = number of lobes
+    //w = wave depth
+    //h = height of extrusion
 
     diff() {
         flower = [for(theta=lerpn(0,360,360,endpoint=false)) (r+w*sin(n*theta))*[cos(theta),sin(theta)]];

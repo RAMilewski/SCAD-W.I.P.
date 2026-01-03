@@ -1,0 +1,15 @@
+I've been thinking a bit about how we can optimally organize the new space after the move.  I'd like to propose that we employ some of our under-used assets to that end.
+
+We have 5 working 3d printers that are idle 95% of the time, and Rick is in the process of bringing 2 more on line.  We also have a small mountain of donated filament.  So the solution that comes to mind is **MULTIBOARD**.
+
+https://multiboard.io
+
+It's a 3d-printer super-pegboard replacement with .STLs available for more than 3000 hooks, brackets, shelves and bins.
+
+I'm currently printing some to re-organize my home printer workspace and garage, and I'm quite pleased with the system.  The designers have come up with some 3d-printing tricks for printing very strong parts (some hooks are rated at 20Kg),
+and a way to stack parts along the z-axis.   Both of these clever tricks can be applied to other 3d print projects, and will be topics for the January 7th meeting of the 3d-printing group at Spark next Wednesday at 7pm.
+
+If you have a printer at home and can donate some print time that would be most welcome too.
+
+Come join us for the meeting and let's see if we can get this project off the ground!
+

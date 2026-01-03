@@ -1,0 +1,4 @@
+name,major_diameter,minor_diameter,crest_weight,root_weight,pitch,chamfer,chamfer_length
+big_thread,22.5,21,0.2,0.2,2.5,0.785398,1.2
+mid_thread,14.3,12.5,0.2,0.2,3.125,0.785398,1.2
+small_thread,7,6,0.2,0.2,3.125,0.785398,1.2

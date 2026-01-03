@@ -1,0 +1,28 @@
+<!DOCTYPE FilterScript>
+<FilterScript>
+  <!-- Cleanup -->
+  <filter name="Remove Duplicate Vertices"/>
+  <filter name="Remove Unreferenced Vertices"/>
+  <filter name="Remove Zero Area Faces"/>
+
+  <!-- Simplify (CAD-friendly) -->
+  <filter name="Simplification: Quadric Edge Collapse Decimation">
+    <!-- Target face count -->
+    <Param type="RichInt"   name="TargetFaceNum"            value="4500"/>
+    <!-- Alternative mode (leave false since we're using TargetFaceNum) -->
+    <Param type="RichFloat" name="TargetPerc"               value="0"/>
+    <Param type="RichBool"  name="PreserveBoundary"         value="true"/>
+    <Param type="RichBool"  name="PreserveNormal"           value="true"/>
+    <Param type="RichBool"  name="PreserveTopology"         value="true"/>
+    <Param type="RichBool"  name="OptimalPlacement"         value="true"/>
+    <Param type="RichBool"  name="PlanarQuadric"            value="true"/>
+    <Param type="RichFloat" name="QualityThr"               value="1"/>
+    <Param type="RichFloat" name="BoundaryWeight"           value="1"/>
+    <!-- Extra safety options -->
+    <Param type="RichBool"  name="AutoClean"                value="true"/>
+    <Param type="RichBool"  name="Selected"                 value="false"/>
+  </filter>
+
+  <!-- Normals -->
+  <filter name="Normals, Curvatures and Orientation: Recompute Normals for Faces"/>
+</FilterScript>
