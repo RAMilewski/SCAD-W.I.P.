@@ -1,2 +1,0 @@
-name,is_bolt,head_type,thread_type,hole_type,thread_lengh,shank_length,tolerance,thread_resolution,is_tbolt,is_tbol_cap,is_folded
-Large Thread - Push-Fit Head & Hole,True,standard_head_push_fit_mid,big_thread,push_fit_hole,15.0,0.0,0.25,32,False,False,False

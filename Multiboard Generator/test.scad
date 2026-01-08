@@ -1,7 +1,28 @@
 
 include<BOSL2/std.scad>
 
-back(100) right(50) ruler();
+$fn = 120;
 
-//import("Remixing_STLs/Small Thread Hole (Positive)2.stl");
-import("Remixing_STLs/Small Thread Hole with side bumps (Positive)2.stl");
+bw = 60;
+bd = 100;
+
+ds = 5;
+dw = bw + 2*ds;
+dd = bd + 20;
+dh = 25;
+
+sc = 0.5;
+
+function DishShape2D() =
+hull_region(concat(
+yscale(sc, circle(d = dw)),
+rect([dw, dd - sc*dw/2],anchor=FWD)
+)
+);
+
+inside = offset(offset(DishShape2D(),-ds*2),r=ds);
+
+difference() {
+linear_sweep(DishShape2D(),height=dh);
+offset_sweep(inside, height=dh, top=os_circle(r=-3),extra=1);
+}
