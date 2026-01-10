@@ -11,6 +11,9 @@
 .stl
 *.stl
 
+# .zip archives
+.zip
+
 
 # Icon must end with two \r
 Icon
