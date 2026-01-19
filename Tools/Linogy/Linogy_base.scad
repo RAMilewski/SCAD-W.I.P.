@@ -2,6 +2,7 @@ include<BOSL2/std.scad>
 
 box = [212,92];
 base = [180,108,6];
+reach = 106;
 width = 8;
 corner = 1;
 $fn = 64;
@@ -18,6 +19,8 @@ cuboid([base.x,width,base.z]){
 
 
 module arm() {
-    cuboid([width,box.y+4,base.z], rounding = corner, edges = "Z")
-       align(TOP,[FWD,BACK]) cuboid([width,2,2], rounding = corner, edges = "Z");
+    cuboid([width,reach,base.z], rounding = corner, edges = "Z"){
+       align(TOP,FWD) cuboid([width,2,2], rounding = corner, edges = "Z");
+       align(TOP,BACK) cuboid([width,12,2], rounding = corner, edges = "Z");
+    };
 }

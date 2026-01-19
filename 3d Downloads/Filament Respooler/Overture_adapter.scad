@@ -17,7 +17,7 @@ tube(or = ring.x, ir =ring.y, h = ring.z) {
     position(TOP) {
         tube(od1 = 55, od2 = 52, wall = 3, h = 9.7, $fn = 64, anchor = BOT);
         left(38) prismoid(key, key-[0.5,0.5], h = 3, rounding1 = 4, rounding2 = 3.75, $fn = 64, anchor = BOT);
-    }
+    }f
 }
 
 //back(11) left(1.3) ruler();
