@@ -26,6 +26,19 @@
             "top": "1",
             "top_left": "0",
             "top_right": "0"
+        },
+        "New set 3": {
+            "bottom": "0",
+            "bottom_left": "0",
+            "bottom_right": "0",
+            "cols": "2",
+            "left": "0",
+            "right": "0",
+            "rows": "2",
+            "stack": "2",
+            "top": "0",
+            "top_left": "0",
+            "top_right": "0"
         }
     }
 }
