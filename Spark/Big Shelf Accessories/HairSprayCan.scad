@@ -47,7 +47,7 @@ module post() {
     diff() {
         hull() { zcopies(n = 2, spacing = B/2) ycyl(d = B, h = C, anchor = BACK); }
         position(FWD) fwd(1) top_half(z = -A/2.5) ycyl(d = A, h = D+2, rounding = 0.5, anchor = BACK);
-        tag("remove") #hull() { zcopies(n = 2, spacing = B) #ycyl(d = 0.2, h = C+D+2, anchor = BACK); }
+        //tag("remove") #hull() { zcopies(n = 2, spacing = B) #ycyl(d = 0.2, h = C+D+2, anchor = BACK); }
     }
 }
 
