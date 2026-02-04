@@ -1,0 +1,83 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "angle": "90",
+            "insert_wall": "2",
+            "neck_h": "20",
+            "tube_id": "16.850000000000001",
+            "tube_wall": "2.6000000000000001"
+        },
+        "New set 2": {
+            "angle": "60",
+            "card": "1",
+            "hole": "4",
+            "insert_h": "10",
+            "insert_wall": "2",
+            "neck_h": "7",
+            "part": "all",
+            "pin_d": "2",
+            "tube_id": "36.850000000000001",
+            "tube_wall": "2.6000000000000001"
+        },
+        "New set 3": {
+            "angle": "90",
+            "card": "1.5",
+            "elbow_r": "0",
+            "flat": "true",
+            "hole": "4",
+            "insert_h": "10",
+            "insert_wall": "2",
+            "neck_h": "7",
+            "part": "mount",
+            "pin_d": "2",
+            "tube_id": "16.850000000000001",
+            "tube_wall": "2.6000000000000001"
+        },
+        "New set 4": {
+            "angle": "90",
+            "card": "1.5",
+            "elbow_r": "0",
+            "flat": "true",
+            "hole": "4",
+            "insert_h": "10",
+            "insert_wall": "2",
+            "neck_h": "7",
+            "pin_d": "2",
+            "slice_y": "0",
+            "tube_id": "16.850000000000001",
+            "tube_wall": "2.6000000000000001"
+        },
+        "New set 5": {
+            "angle": "30",
+            "card": "1.5",
+            "elbow_r": "0",
+            "flat": "true",
+            "hole": "4",
+            "insert_h": "10",
+            "insert_wall": "2",
+            "neck_h": "7",
+            "part": "all",
+            "pin_d": "2",
+            "slice_y": "0",
+            "tube_id": "16.850000000000001",
+            "tube_wall": "2.6000000000000001"
+        },
+        "New set 6": {
+            "add_tab": "false",
+            "angle": "90",
+            "card": "1.5",
+            "elbow_r": "0",
+            "flat": "true",
+            "hole": "4",
+            "insert_h": "10",
+            "insert_wall": "2",
+            "neck_h": "7",
+            "part": "half",
+            "pin_d": "2",
+            "slice_y": "0",
+            "tube_id": "16.850000000000001",
+            "tube_wall": "2.6000000000000001"
+        }
+    }
+}
