@@ -13,7 +13,7 @@ base = [70, D, can_z]; //Shelf-side wall
 
 well()
     position(RIGHT+BOT) up(can_z-base.z/2) double_mount();
-    support();
+    //support();
 
 //back(1.75 * INCH/2) right(42) yrot(90) ruler();
 
@@ -47,7 +47,7 @@ module post() {
     diff() {
         hull() { zcopies(n = 2, spacing = B/2) ycyl(d = B, h = C, anchor = BACK); }
         position(FWD) fwd(1) top_half(z = -A/2.5) ycyl(d = A, h = D+2, rounding = 0.5, anchor = BACK);
-        //tag("remove") #hull() { zcopies(n = 2, spacing = B) #ycyl(d = 0.2, h = C+D+2, anchor = BACK); }
+        //tag("remove") #hull() { zcopies(n = 2, spacing = B) #ycyl(d = 0.2, h = C+D+2+5, anchor = BACK); }
     }
 }
 
