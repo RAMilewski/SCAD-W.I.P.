@@ -8,7 +8,7 @@ yshift = 5;
 block = [40,40,offset];
 
 
-mount(); right(50) wall_mount(); left(50) bumper();
+mount(); right(50) wall_mount(); //left(50) bumper();
 
 module mount(){
     diff()
