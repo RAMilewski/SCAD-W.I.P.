@@ -13,13 +13,13 @@ mount(); right(50) wall_mount(); //left(50) bumper();
 module mount(){
     diff()
         cuboid(block, rounding = 2, except = BOT, anchor = BOT)
-            tag("remove")  position(BOT) up(offset * .4) fwd(yshift/2) #keystone();
+            tag("remove")  position(BOT) up(offset * .4) fwd(yshift/2) keystone();
 }
 
 module wall_mount(){
     diff() {
         keystone() {
-            #screw_hole("#6", l = 12, head = "flat", head_oversize = 2, counterbore = 1.5, anchor = TOP, orient = DOWN);
+            screw_hole("#6", l = 12, head = "flat", head_oversize = 2, counterbore = 1.5, anchor = TOP, orient = DOWN);
         }
     }
 }
