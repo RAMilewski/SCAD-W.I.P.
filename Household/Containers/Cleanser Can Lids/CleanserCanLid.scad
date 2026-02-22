@@ -2,7 +2,7 @@ include<BOSL2/std.scad>
 
 /* [Hidden] */
 $fn = 144;
-BF = [78,76];  //Bartender's Friend
+BF = [77,75];  //Bartender's Friend
 Comet  = [99,90];  //Comet ...not real numbers
 BonAmi = [80,78];  //BonAmi ...not real numbers
 

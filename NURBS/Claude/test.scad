@@ -4,17 +4,5 @@ include <BOSL2/std.scad>
 include <BOSL2/nurbs.scad>
 include <nurbs_interp.scad>
 //
-data = [[0,0], [30,50], [60,40], [80,10], [50,-20], [20,-10]];
-
-result  = nurbs_interp(data, 3, type="clamped");
-control = result[0];
-knots   = result[1];
-
-echo("data ",data);
-echo("knots ",knots);
-echo("control ",control);
-
-path = nurbs_interp_curve(data, 3, splinesteps=1, type="clamped");
-polygon(path);
-
-color("red") move_copies(data) circle(r=0.5, $fn=16);
+ data = [[4.15723, -0.416853], [0.919878, -3.52248], [-4.6257, 0.314422], [0.819475, 3.98495]];
+   debug_nurbs_interp(data, 3, type="closed");
