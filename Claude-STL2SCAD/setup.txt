@@ -1,0 +1,15 @@
+# STL to OpenScad reconstruction
+
+You are running inside a MacOS 26.3 system with sudo, brew, python3 and whatever you need to accomplish this task.
+
+Your job is to take the STL file in this workspace and reconstruct a copy of it using OpenSCAD and the BOSL2 Library.
+
+If the STL is too large or complex, you can try decimating it/using octrees/segmenting it/using marching cubes as needed.
+
+## Requirements
+
+- The final STL file must be within 0.1mm accuracy of the original
+- the OpenSCAD code must use the BOSL2 Library to whatever extent possible.
+- The OpenSCAD code must be modular, readable, and have relevant constants surfaced at the beginning for a customizer
+- You should focus on building reusable tools, not one-off scripts
+- You should maintain a plan.md file with your progress checklist and tick off items (including failed approaches) as you make progress

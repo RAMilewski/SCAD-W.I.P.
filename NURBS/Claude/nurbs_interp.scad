@@ -50,6 +50,19 @@ function _nip(i, p, u, U) =
         c1 + c2;
 
 
+// Derivative of B-spline basis N_{j,p}'(u).
+// Standard recurrence (P&T §2.3 eq. 2.9); zero-length spans are guarded.
+
+function _dnip(j, p, u, U) =
+    p == 0 ? 0
+    : let(
+          d1 = U[j+p]   - U[j],
+          d2 = U[j+p+1] - U[j+1]
+      )
+      (abs(d1) > 1e-15 ? p * _nip(j,   p-1, u, U) / d1 : 0)
+    - (abs(d2) > 1e-15 ? p * _nip(j+1, p-1, u, U) / d2 : 0);
+
+
 // =====================================================================
 // SECTION: Parameterization
 // =====================================================================
@@ -147,6 +160,9 @@ function _avg_knots_periodic(params, p) =
 
 // Full periodic knot vector for basis evaluation.
 // n+2p+1 entries: p wrapped from end, n+1 bar knots, p wrapped from start.
+// NOTE: This is the Piegl & Tiller symmetric extension.  It does NOT match
+// what BOSL2's nurbs_curve() constructs internally.  Use
+// _bosl2_full_closed_knots() when building collocation matrices for BOSL2.
 
 function _full_periodic_knots(bar_knots, n, p) =
     let(T = bar_knots[n] - bar_knots[0])
@@ -155,6 +171,22 @@ function _full_periodic_knots(bar_knots, n, p) =
         bar_knots,
         [for (i = [1 : p]) bar_knots[i] + T]
     );
+
+
+// BOSL2-compatible full periodic knot vector for "closed" type evaluation.
+// n+2p+1 entries matching the vector that nurbs_curve() constructs internally
+// via _extend_knot_vector(bar_knots, 0, n+2p+1).
+//
+// Formula: U[j] = floor(j/n)*T + bar_knots[j%n]
+// where T = bar_knots[n] (always 1 for the averaging parameterization).
+//
+// Active evaluation domain: [U[p], U[n+p]] = [bar_knots[p], bar_knots[p]+T].
+
+function _bosl2_full_closed_knots(bar_knots, n, p) =
+    let(T = bar_knots[n])
+    [for (j = [0 : n + 2*p])
+        floor(j / n) * T + bar_knots[j % n]
+    ];
 
 
 // =====================================================================
@@ -225,14 +257,17 @@ function _collocation_matrix_periodic(params, n, p, U_periodic) =
 //   ---
 //   centripetal = if true, use centripetal parameterization.  Default: false
 //   type        = "clamped", "closed", or "open".  Default: "clamped"
-//   start_der   = tangent vector at start (clamped only).  Default: undef
-//   end_der     = tangent vector at end (clamped only).  Default: undef
+//   derivs      = list of tangent vectors, one per data point; undef entries
+//                 are unconstrained.  All three types supported.  Cannot be
+//                 combined with start_der=/end_der=.  Default: undef
+//   start_der   = tangent vector at start (clamped only; legacy).  Default: undef
+//   end_der     = tangent vector at end   (clamped only; legacy).  Default: undef
 //
 // Returns:
 //   [control_points, knots] for nurbs_curve(..., type=type)
 
 function nurbs_interp(points, degree, centripetal=false, type="clamped",
-                      start_der=undef, end_der=undef) =
+                      derivs=undef, start_der=undef, end_der=undef) =
     assert(is_list(points) && len(points) >= 2,
            "nurbs_interp: need at least 2 data points")
     assert(is_num(degree) && degree >= 1,
@@ -240,32 +275,39 @@ function nurbs_interp(points, degree, centripetal=false, type="clamped",
     assert(type == "clamped" || type == "closed" || type == "open",
            str("nurbs_interp: type must be \"clamped\", \"closed\", or \"open\"",
                ", got \"", type, "\""))
+    assert(is_undef(derivs) || (is_undef(start_der) && is_undef(end_der)),
+           "nurbs_interp: use derivs= OR start_der=/end_der=, not both")
     assert(type == "clamped" || (is_undef(start_der) && is_undef(end_der)),
            "nurbs_interp: start_der/end_der only supported for type=\"clamped\"")
+    assert(is_undef(derivs) || len(derivs) == len(points),
+           str("nurbs_interp: derivs= must have same length as points (",
+               len(points), " points, ", is_undef(derivs) ? 0 : len(derivs), " derivs)"))
     type == "clamped" ? _nurbs_interp_clamped(points, degree, centripetal,
-                                               start_der, end_der)
-  : type == "closed"  ? _nurbs_interp_closed(points, degree, centripetal)
-  :                     _nurbs_interp_open(points, degree, centripetal);
+                                               derivs, start_der, end_der)
+  : type == "closed"  ? _nurbs_interp_closed(points, degree, centripetal, derivs)
+  :                     _nurbs_interp_open(points, degree, centripetal, derivs);
 
 
 // ---------- CLAMPED interpolation ----------
 
 function _nurbs_interp_clamped(points, degree, centripetal,
-                                start_der, end_der) =
+                                derivs, start_der, end_der) =
     let(
         n = len(points) - 1,
         p = degree,
         _ = assert(n >= p,
                 str("nurbs_interp (clamped): need at least ", p+1,
                     " points for degree ", p, ", got ", n+1)),
+        has_dl = !is_undef(derivs) &&
+                 len([for (k = [0:n]) if (!is_undef(derivs[k])) k]) > 0,
         has_sd = !is_undef(start_der),
         has_ed = !is_undef(end_der)
     )
-    (!has_sd && !has_ed)
-      ? _nurbs_interp_clamped_basic(points, p, centripetal)
-      : _nurbs_interp_clamped_deriv(points, p, centripetal,
-                                     start_der, end_der,
-                                     has_sd, has_ed);
+    has_dl            ? _nurbs_interp_clamped_derivlist(points, p, centripetal, derivs)
+  : (has_sd || has_ed) ? _nurbs_interp_clamped_deriv(points, p, centripetal,
+                                                       start_der, end_der,
+                                                       has_sd, has_ed)
+  :                      _nurbs_interp_clamped_basic(points, p, centripetal);
 
 
 // Basic clamped interpolation (no derivatives).
@@ -355,21 +397,92 @@ function _nurbs_interp_clamped_deriv(points, p, centripetal,
     [control, knots];
 
 
+// General clamped interpolation with per-point derivative constraints.
+//
+// derivs = list of length n+1; each entry is a tangent vector or undef.
+// Each non-undef entry adds one derivative equation (using _dnip) and one
+// extra interior knot, giving the system an extra DOF per constraint.
+//
+// Extra knot placement for constraint at index k (P&T §9.2.2, generalised):
+//   k == 0   : midpoint of [0,     params[1]]
+//   k == n   : midpoint of [params[n-1], 1]
+//   interior : midpoint of [params[k-1], params[k+1]]
+
+function _nurbs_interp_clamped_derivlist(points, p, centripetal, derivs) =
+    let(
+        n         = len(points) - 1,
+        params    = _interp_params(points, centripetal),
+
+        // [index, vector] for every non-undef entry
+        der_specs = [for (k = [0:n]) if (!is_undef(derivs[k])) [k, derivs[k]]],
+        n_extra   = len(der_specs),
+        N         = n + 1 + n_extra,   // total control points
+
+        // Standard interior knots (unconstrained baseline)
+        std_int = _avg_knots_interior(params, p),
+
+        // One extra interior knot per derivative constraint
+        extra_knots = [for (spec = der_specs)
+            let(k = spec[0])
+            k == 0 ? params[1] / 2
+          : k == n ? (params[n-1] + 1) / 2
+          :          (params[k-1] + params[k+1]) / 2
+        ],
+
+        all_int = sort(concat(std_int, extra_knots)),
+        U_full  = _full_clamped_knots(all_int, p),
+
+        // Interpolation rows: N_{j,p}(t_k)
+        interp_rows = [for (k = [0:n])
+            [for (j = [0:N-1]) _nip(j, p, params[k], U_full)]
+        ],
+
+        // Derivative rows: N'_{j,p}(t_k)
+        deriv_rows = [for (spec = der_specs)
+            let(k = spec[0])
+            [for (j = [0:N-1]) _dnip(j, p, params[k], U_full)]
+        ],
+
+        A       = concat(interp_rows, deriv_rows),
+        rhs     = concat(points, [for (spec = der_specs) spec[1]]),
+        control = linear_solve(A, rhs),
+        knots   = concat([0], all_int, [1])
+    )
+    assert(control != [],
+           "nurbs_interp (clamped+derivs): singular system")
+    [control, knots];
+
+
 // ---------- CLOSED interpolation ----------
 
-function _nurbs_interp_closed(points, degree, centripetal) =
+function _nurbs_interp_closed(points, degree, centripetal, derivs) =
     let(
         n = len(points),
         p = degree,
         _ = assert(n >= p + 1,
                 str("nurbs_interp (closed): need at least ", p+1,
                     " points for degree ", p, ", got ", n)),
+        has_dl = !is_undef(derivs) &&
+                 len([for (k = [0:n-1]) if (!is_undef(derivs[k])) k]) > 0
+    )
+    has_dl ? _nurbs_interp_closed_derivlist(points, p, centripetal, derivs)
+           : _nurbs_interp_closed_basic(points, p, centripetal);
+
+
+function _nurbs_interp_closed_basic(points, p, centripetal) =
+    let(
+        n           = len(points),
         raw_params  = _interp_params_closed(points, centripetal),
         knot_result = _avg_knots_periodic(raw_params, p),
         bar_knots   = knot_result[0],
-        params      = knot_result[1],
-        U_periodic  = _full_periodic_knots(bar_knots, n, p),
-        N_mat       = _collocation_matrix_periodic(params, n, p, U_periodic),
+        // Build the BOSL2-compatible full knot vector.  This matches what
+        // nurbs_curve() constructs internally via _extend_knot_vector().
+        U_full      = _bosl2_full_closed_knots(bar_knots, n, p),
+        // Map collocation parameters into the BOSL2 active domain
+        // [bar_knots[p], bar_knots[p]+T].  (p < n is guaranteed by the
+        // assertion above, so bar_knots[p] is always valid.)
+        params      = [for (t = raw_params) t + bar_knots[p]],
+        N_mat       = _collocation_matrix_periodic(params, n, p, U_full),
         control     = linear_solve(N_mat, points)
     )
     assert(control != [],
@@ -377,15 +490,82 @@ function _nurbs_interp_closed(points, degree, centripetal) =
     [control, bar_knots];
 
 
+// Closed interpolation with per-point derivative constraints.
+//
+// Augments the bar knot vector: for each constrained index k, inserts an
+// extra bar knot midway between bar_knots[k] and bar_knots[k+1].  The
+// resulting M = n + n_extra control points use the standard BOSL2 periodic
+// aliasing extended to M: B_j(t) = N_j(t) + (j<p ? N_{j+M}(t) : 0),
+// and likewise for derivatives.
+
+function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
+    let(
+        n           = len(points),
+        raw_params  = _interp_params_closed(points, centripetal),
+        knot_result = _avg_knots_periodic(raw_params, p),
+        bar_knots   = knot_result[0],   // n+1 entries
+
+        der_specs = [for (k = [0:n-1]) if (!is_undef(derivs[k])) [k, derivs[k]]],
+        n_extra   = len(der_specs),
+        M         = n + n_extra,   // total control points
+
+        // Extra bar knot midway between bar_knots[k] and bar_knots[k+1]
+        extra_bar = [for (spec = der_specs)
+            let(k = spec[0])
+            (bar_knots[k] + bar_knots[k + 1]) / 2
+        ],
+
+        aug_bar  = sort(concat(bar_knots, extra_bar)),   // M+1 entries
+        U_full   = _bosl2_full_closed_knots(aug_bar, M, p),
+
+        // Map raw params into active domain [aug_bar[p], aug_bar[p]+T]
+        params = [for (t = raw_params) t + aug_bar[p]],
+
+        // Interpolation rows: aliased basis for M control points
+        interp_rows = [for (k = [0:n-1])
+            [for (j = [0:M-1])
+                _nip(j, p, params[k], U_full)
+              + (j < p ? _nip(j + M, p, params[k], U_full) : 0)
+            ]
+        ],
+
+        // Derivative rows: aliased derivative basis for M control points
+        deriv_rows = [for (spec = der_specs)
+            let(k = spec[0])
+            [for (j = [0:M-1])
+                _dnip(j, p, params[k], U_full)
+              + (j < p ? _dnip(j + M, p, params[k], U_full) : 0)
+            ]
+        ],
+
+        A       = concat(interp_rows, deriv_rows),
+        rhs     = concat(points, [for (spec = der_specs) spec[1]]),
+        control = linear_solve(A, rhs)
+    )
+    assert(control != [],
+           "nurbs_interp (closed+derivs): singular system")
+    [control, aug_bar];
+
+
 // ---------- OPEN interpolation ----------
 
-function _nurbs_interp_open(points, degree, centripetal) =
+function _nurbs_interp_open(points, degree, centripetal, derivs) =
     let(
         n = len(points) - 1,
         p = degree,
         _ = assert(n >= p,
                 str("nurbs_interp (open): need at least ", p+1,
                     " points for degree ", p, ", got ", n+1)),
+        has_dl = !is_undef(derivs) &&
+                 len([for (k = [0:n]) if (!is_undef(derivs[k])) k]) > 0
+    )
+    has_dl ? _nurbs_interp_open_derivlist(points, p, centripetal, derivs)
+           : _nurbs_interp_open_basic(points, p, centripetal);
+
+
+function _nurbs_interp_open_basic(points, p, centripetal) =
+    let(
+        n      = len(points) - 1,
         m      = n + p + 1,
         U_full = [for (i = [0:m]) i / m],
         u_lo   = U_full[p],
@@ -397,6 +577,46 @@ function _nurbs_interp_open(points, degree, centripetal) =
     )
     assert(control != [],
            "nurbs_interp (open): singular system")
+    [control, U_full];
+
+
+// Open interpolation with per-point derivative constraints.
+//
+// Increases the control point count to N = n + 1 + n_extra and rebuilds
+// the uniform knot vector for N points.  The evaluation domain scales
+// accordingly; raw chord-length params are remapped into it.
+
+function _nurbs_interp_open_derivlist(points, p, centripetal, derivs) =
+    let(
+        n          = len(points) - 1,
+        raw_params = _interp_params(points, centripetal),
+        der_specs  = [for (k = [0:n]) if (!is_undef(derivs[k])) [k, derivs[k]]],
+        n_extra    = len(der_specs),
+        N          = n + 1 + n_extra,   // total control points
+
+        m      = N + p,                 // last knot index
+        U_full = [for (i = [0:m]) i / m],
+        u_lo   = U_full[p],
+        u_hi   = U_full[N],
+        params = [for (t = raw_params) u_lo + t * (u_hi - u_lo)],
+
+        // Interpolation rows
+        interp_rows = [for (k = [0:n])
+            [for (j = [0:N-1]) _nip(j, p, params[k], U_full)]
+        ],
+
+        // Derivative rows (evaluated at same mapped parameters)
+        deriv_rows = [for (spec = der_specs)
+            let(k = spec[0])
+            [for (j = [0:N-1]) _dnip(j, p, params[k], U_full)]
+        ],
+
+        A       = concat(interp_rows, deriv_rows),
+        rhs     = concat(points, [for (spec = der_specs) spec[1]]),
+        control = linear_solve(A, rhs)
+    )
+    assert(control != [],
+           "nurbs_interp (open+derivs): singular system")
     [control, U_full];
 
 
@@ -414,11 +634,11 @@ function _nurbs_interp_open(points, degree, centripetal) =
 
 function nurbs_interp_curve(points, degree, splinesteps=16,
                             centripetal=false, type="clamped",
-                            start_der=undef, end_der=undef) =
+                            derivs=undef, start_der=undef, end_der=undef) =
     let(
         result  = nurbs_interp(points, degree, centripetal=centripetal,
-                               type=type, start_der=start_der,
-                               end_der=end_der),
+                               type=type, derivs=derivs,
+                               start_der=start_der, end_der=end_der),
         control = result[0],
         knots   = result[1]
     )
@@ -440,12 +660,13 @@ function nurbs_interp_curve(points, degree, splinesteps=16,
 //                      [width=], [size=], [data_color=], [data_size=]);
 
 module debug_nurbs_interp(points, degree, splinesteps=16, centripetal=false,
-                          type="clamped", start_der=undef, end_der=undef,
+                          type="clamped", derivs=undef,
+                          start_der=undef, end_der=undef,
                           width=0.1, size=undef,
                           data_color="magenta", data_size=undef) {
     result  = nurbs_interp(points, degree, centripetal=centripetal,
-                           type=type, start_der=start_der,
-                           end_der=end_der);
+                           type=type, derivs=derivs,
+                           start_der=start_der, end_der=end_der);
     control = result[0];
     knots   = result[1];
     ds      = is_undef(data_size) ? 0.125 : data_size;
@@ -491,9 +712,9 @@ function _build_closed_system(params, p) =
         n           = len(params),
         knot_result = _avg_knots_periodic(params, p),
         bar_knots   = knot_result[0],
-        shifted     = knot_result[1],
-        U_periodic  = _full_periodic_knots(bar_knots, n, p),
-        N_mat       = _collocation_matrix_periodic(shifted, n, p, U_periodic)
+        U_full      = _bosl2_full_closed_knots(bar_knots, n, p),
+        col_params  = [for (t = params) t + bar_knots[p]],
+        N_mat       = _collocation_matrix_periodic(col_params, n, p, U_full)
     )
     [N_mat, bar_knots];
 

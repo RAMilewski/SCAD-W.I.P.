@@ -1,0 +1,9 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$vpt": "[0, 0, 0]",
+            "type": "closed"
+        }
+    }
+}

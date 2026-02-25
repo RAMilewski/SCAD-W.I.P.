@@ -1,5 +1,0 @@
-The code for NURBS in the BOSL2 library for OpenSCAD is at https://github.com/BelfrySCAD/BOSL2/blob/master/nurbs.scad.  Can you write a routine that will generate a nurbs curve that interpolates the curve through a set of points?
-
-
-The code for NURBS in the BOSL2 library for OpenSCAD is at https://github.com/BelfrySCAD/BOSL2/blob/master/nurbs.scad.  Can you write a routine that will generate a nurbs curve that interpolates the curve through a set of points?            
-
