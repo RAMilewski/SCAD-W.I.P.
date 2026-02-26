@@ -461,86 +461,62 @@ function _nurbs_interp_closed(points, degree, centripetal, derivs) =
            : _nurbs_interp_closed_basic(points, p, centripetal);
 
 
-// Basic closed interpolation — start-point independent.
+// Basic closed interpolation — rotation-invariant.
 //
-// Implements the cyclic chord-length parameterization and cyclic knot
-// averaging of Piegl & Tiller §9.2.4.  In exact arithmetic the resulting
-// curve is the same regardless of which data point is listed first; only
-// the parametric origin changes (the curve is just reparameterized).
+// The P&T periodic knot averaging should guarantee one collocation param
+// per active knot span, but fails for highly non-uniform chord-length data
+// (a short chord adjacent to a long one can cause two params in one span,
+// making the collocation matrix ill-conditioned).
 //
-// Numerical conditioning depends on where the "worst junction" — a very
-// short chord immediately before a very long one — falls relative to the
-// active knot spans.  When that junction is an interior point pair, the
-// two close-together parameters can land in the same span, making the
-// collocation matrix near-singular.  We avoid this by choosing the cyclic
-// starting offset r* = (argmax_i d[i+1]/d[i] + 1) % n, which places that
-// junction at the periodic seam.  At the seam, the two parameters straddle
-// the [0,1] boundary and are assigned to different knot spans by the
-// cyclic averaging, restoring a one-param-per-span distribution.
+// To make the result independent of which point the caller lists first,
+// we cycle through all n cyclic starting-point rotations until one produces
+// a valid (one-per-span) parameterization.  For data2-style failures,
+// rotation 0 fails but some other rotation always succeeds.  If all n
+// rotations fail, the caller should switch to centripetal=true.
 //
-// This is an O(n) deterministic selection rather than a rotation search.
-// If the resulting collocation matrix is still ill-conditioned (assert
-// below), use centripetal=true or provide more uniform data.
+// _rot: internal recursion counter (starting-point offset), default 0.
 
-function _nurbs_interp_closed_basic(points, p, centripetal) =
+function _nurbs_interp_closed_basic(points, p, centripetal, _rot=0) =
     let(
-        n      = len(points),
-
-        // Cyclic chord lengths, including the closing segment.
-        chords = [for (i = [0:n-1]) norm(points[(i+1)%n] - points[i])],
-
-        // Ratio d[i+1]/d[i] for each junction.  A large ratio flags a
-        // "short before long" junction that should go at the seam.
-        ratios  = [for (i = [0:n-1]) chords[(i+1)%n] / max(chords[i], 1e-15)],
-        max_rat = max(ratios),
-
-        // argmax(ratios): first index achieving the maximum.
-        rat_idx = [for (i = [0:n-1]) if (ratios[i] >= max_rat - 1e-9) i][0],
-
-        // Optimal starting offset: one past the short chord of the worst pair.
-        _rot   = (rat_idx + 1) % n,
-        pts    = _rot == 0 ? points
-                           : [for (k = [0:n-1]) points[(k + _rot) % n]],
-
-        raw_params  = _interp_params_closed(pts, centripetal),
+        n          = len(points),
+        pts        = _rot == 0 ? points
+                               : [for (k = [0:n-1]) points[(k + _rot) % n]],
+        raw_params = _interp_params_closed(pts, centripetal),
         knot_result = _avg_knots_periodic(raw_params, p),
-        bar_knots   = knot_result[0],
-
-        // BOSL2-compatible full knot vector (matches _extend_knot_vector()).
-        U_full  = _bosl2_full_closed_knots(bar_knots, n, p),
-
-        // Map raw params into the BOSL2 active domain [bar_knots[p], bar_knots[p]+T].
-        params  = [for (t = raw_params) t + bar_knots[p]],
-
-        // Sanity: each active span must contain exactly one param.
+        bar_knots  = knot_result[0],
+        // Build the BOSL2-compatible full knot vector.  This matches what
+        // nurbs_curve() constructs internally via _extend_knot_vector().
+        U_full     = _bosl2_full_closed_knots(bar_knots, n, p),
+        // Map collocation parameters into the BOSL2 active domain
+        // [bar_knots[p], bar_knots[p]+T].  (p < n is guaranteed by the
+        // assertion above, so bar_knots[p] is always valid.)
+        params     = [for (t = raw_params) t + bar_knots[p]],
+        // Span check: each active span [U[p+k], U[p+k+1]) must contain
+        // exactly one collocation param.  If this rotation fails, try the
+        // next one; assert only when all n rotations are exhausted.
         _span_counts = [for (k = [0:n-1])
                             len([for (t = params)
                                      if (t >= U_full[p+k] && t < U_full[p+k+1])
                                          t])
                        ],
-        _chk = assert(max(_span_counts) <= 1,
-                      str("nurbs_interp (closed): ill-conditioned parameterization ",
-                          "(span counts = ", _span_counts, "). ",
-                          "Use centripetal=true or provide more uniform data.")),
-
-        _echo = _rot > 0
-                ? echo(str("nurbs_interp (closed): cyclic start rotation = ", _rot,
-                           " (optimal seam placement for chord ratio ",
-                           round(max_rat * 100) / 100, ")"))
-                : undef,
-
-        N_mat    = _collocation_matrix_periodic(params, n, p, U_full),
-        control  = linear_solve(N_mat, pts),
-
-        // Unrotate control points so the curve starts at points[0].
-        // For cyclic chord-length parameterization this is exact: rotating
-        // data by _rot and control by (n - _rot) is a pure reparameterization
-        // that preserves the geometric curve.
-        final_cp = _rot == 0 ? control
-                             : [for (k = [0:n-1]) control[(k + n - _rot) % n]]
+        _span_ok   = max(_span_counts) <= 1,
+        _chk = assert(_span_ok || _rot + 1 < n,
+                      str("nurbs_interp (closed): all ", n, " starting-point ",
+                          "rotations yield an ill-conditioned collocation matrix. ",
+                          "Use centripetal=true or provide more uniform data."))
     )
-    assert(control != [], "nurbs_interp (closed): singular system")
-    [final_cp, bar_knots];
+    !_span_ok
+      ? _nurbs_interp_closed_basic(points, p, centripetal, _rot + 1)
+      : let(
+            _echo   = _rot > 0
+                      ? echo(str("nurbs_interp (closed): $rot = ", _rot,
+                                 " (rotated starting point for well-conditioned parameterization)"))
+                      : undef,
+            N_mat   = _collocation_matrix_periodic(params, n, p, U_full),
+            control = linear_solve(N_mat, pts)
+        )
+        assert(control != [], "nurbs_interp (closed): singular system")
+        [control, bar_knots];
 
 
 // Closed interpolation with per-point derivative constraints.
@@ -551,42 +527,20 @@ function _nurbs_interp_closed_basic(points, p, centripetal) =
 // resulting M = n + n_extra control points use the standard BOSL2 periodic
 // aliasing: B_j(t) = N_j(t) + (j<p ? N_{j+M}(t) : 0), likewise for
 // derivatives.
-//
-// Applies the same optimal-seam rotation as _nurbs_interp_closed_basic for
-// numerical conditioning.  Both the data points and the derivative list are
-// rotated together so the constraint associations are preserved.  Control
-// points are unrotated after solving so the curve starts at points[0].
-// For M=n the unrotation is exact; for M>n (derivative constraints present)
-// the shift (n-_rot) in M-space is an approximation that aligns the curve
-// start closely with points[0].
 
 function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
     let(
-        n = len(points),
+        n           = len(points),
+        raw_params  = _interp_params_closed(points, centripetal),
 
-        // Optimal-seam rotation (same criterion as basic closed case).
-        chords  = [for (i = [0:n-1]) norm(points[(i+1)%n] - points[i])],
-        ratios  = [for (i = [0:n-1]) chords[(i+1)%n] / max(chords[i], 1e-15)],
-        max_rat = max(ratios),
-        rat_idx = [for (i = [0:n-1]) if (ratios[i] >= max_rat - 1e-9) i][0],
-        _rot    = (rat_idx + 1) % n,
-
-        // Rotate both data points and derivative list by the same offset.
-        pts      = _rot == 0 ? points
-                             : [for (k = [0:n-1]) points[(k + _rot) % n]],
-        derivs_r = _rot == 0 ? derivs
-                             : [for (k = [0:n-1]) derivs[(k + _rot) % n]],
-
-        raw_params = _interp_params_closed(pts, centripetal),
-
-        der_specs = [for (k = [0:n-1]) if (!is_undef(derivs_r[k])) [k, derivs_r[k]]],
+        der_specs = [for (k = [0:n-1]) if (!is_undef(derivs[k])) [k, derivs[k]]],
         n_extra   = len(der_specs),
         M         = n + n_extra,   // total control points
 
         // Expanded parameter sequence ũ of length M: duplicate raw_params[k]
         // for each derivative constraint at k
-        u_tilde = sort(concat(raw_params,
-                      [for (spec = der_specs) raw_params[spec[0]]])),
+        u_tilde     = sort(concat(raw_params,
+                          [for (spec = der_specs) raw_params[spec[0]]])),
 
         // Periodic bar knots from expanded sequence: M+1 entries
         knot_result = _avg_knots_periodic(u_tilde, p),
@@ -614,17 +568,12 @@ function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
         ],
 
         A       = concat(interp_rows, deriv_rows),
-        rhs     = concat(pts, [for (spec = der_specs) spec[1]]),
-        control = linear_solve(A, rhs),
-
-        // Unrotate control points so curve starts near points[0].
-        // Shift by (n - _rot) in M-space: exact when M=n, approximate for M>n.
-        final_cp = _rot == 0 ? control
-                             : [for (k = [0:M-1]) control[(k + n - _rot) % M]]
+        rhs     = concat(points, [for (spec = der_specs) spec[1]]),
+        control = linear_solve(A, rhs)
     )
     assert(control != [],
            "nurbs_interp (closed+derivs): singular system")
-    [final_cp, aug_bar];
+    [control, aug_bar];
 
 
 // ---------- OPEN interpolation ----------

@@ -2,7 +2,7 @@
 //
 include <BOSL2/std.scad>
 include <BOSL2/nurbs.scad>
-include <nurbs_interp.scad>
+include <../nurbs_interp.scad>
 //
 data = [[0,0], [10,30], [25,15], [40,35], [60,10], [80,25]];
 result  = nurbs_interp(data, 3, type="clamped", centripetal = true);

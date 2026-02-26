@@ -6,12 +6,13 @@ $fn = 72;
 od = 13;
 id = 7;
 extension = 60;
-bend = 50;
+bend = 60;
+radius = 40;
 vent = 2;
 cap_h = 26.5;
 fillet = 5;
 
-path = arc(r = 30, angle = bend, n = 24);
+path = arc(r = radius, angle = bend, n = 24);
 region = make_region([circle(d = od), circle(d = id)]);
 
 //back_half(s= 200)
