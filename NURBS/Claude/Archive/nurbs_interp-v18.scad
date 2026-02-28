@@ -69,26 +69,18 @@ function _dnip(j, p, u, U) =
 // =====================================================================
 
 // Validate and coerce a single derivative vector to the required dimension.
-//
-// dim == 2 (special case):
-//   Accepts a 3D BOSL2 direction constant (UP, DOWN, LEFT, RIGHT, BACK, FWD)
-//   by projecting it onto the data plane.  The vector must lie in the XZ plane
-//   (Y=0, as UP/DOWN/LEFT/RIGHT/FWD/BACK are defined) or the XY plane (Z=0).
-//   Underlength inputs (1D) are zero-padded to 2D as in the general case.
-//
-// All dimensions (dim ≥ 2):
-//   Any vector shorter than dim is zero-padded to length dim.
-//   Vectors longer than dim (not handled by the dim=2 special case) error.
+// Accepts 3D vectors for 2D interpolations, enabling BOSL2 named direction
+// constants (UP, DOWN, LEFT, RIGHT, BACK, FWD) as derivative inputs.
+// The 3D vector must be planar (Y=0 or Z=0); the non-zero plane is projected.
+// For 3D interpolations, accepts any vector of dimension ≤ 3 and zero-pads.
 
 function _force_deriv_dim(deriv, dim) =
     dim == 2 && is_vector(deriv, 3) ?
-        // Special: 3D BOSL2 constant for 2D curve — project onto data plane.
         assert(deriv.y == 0 || deriv.z == 0,
                "\nDerivative for a 2D interpolation cannot be fully 3D.  It must have either Y or Z component equal to zero.")
         deriv.y == 0 ? [deriv.x, deriv.z] : point2d(deriv)
-    : // General: validate length ≤ dim, then zero-pad to exactly dim.
-      assert(is_vector(deriv) && len(deriv) >= 1 && len(deriv) <= dim,
-             str("\nDerivative must be a non-empty vector of dimension ", dim, " or less."))
+    : assert(is_vector(deriv) && len(deriv) <= dim,
+             str("\nDerivative must be a vector of dimension ", dim, " or less."))
       list_pad(deriv, dim, 0);
 
 
@@ -315,11 +307,10 @@ function _collocation_matrix_periodic(params, n, p, U_periodic) =
 //                 Clamped only.  Default: undef
 //
 // Returns:
-//   [control_points, knots, start_index] for nurbs_curve(..., type=type).
-//   start_index is the index into the original points list of the data point
-//   at the parametric origin.  For clamped/open this is always 0.  For
-//   closed it equals the seam-rotation offset _rot, which may be nonzero
-//   when the conditioning heuristic cyclic-shifts the data.
+//   [control_points, knots, start_point] for nurbs_curve(..., type=type).
+//   start_point is the world-space data point at the parametric origin.
+//   For clamped/open this is always points[0].  For closed it may differ
+//   from points[0] when the seam-rotation heuristic rotates the data.
 
 function nurbs_interp(points, degree, centripetal=false, type="clamped",
                       derivs=undef, start_der=undef, end_der=undef) =
@@ -393,7 +384,7 @@ function _nurbs_interp_clamped_basic(points, p, centripetal) =
     )
     assert(control != [],
            "nurbs_interp (clamped): singular system")
-    [control, knots, 0];
+    [control, knots, points[0]];
 
 
 // General clamped interpolation with per-point derivative constraints.
@@ -444,7 +435,7 @@ function _nurbs_interp_clamped_derivlist(points, p, centripetal, derivs) =
     )
     assert(control != [],
            "nurbs_interp (clamped+derivs): singular system")
-    [control, knots, 0];
+    [control, knots, points[0]];
 
 
 // ---------- CLOSED interpolation ----------
@@ -535,7 +526,7 @@ function _nurbs_interp_closed_basic(points, p, centripetal) =
         control = linear_solve(N_mat, pts)
     )
     assert(control != [], "nurbs_interp (closed): singular system")
-    [control, bar_knots, _rot];
+    [control, bar_knots, pts[0]];
 
 
 // Closed interpolation with per-point derivative constraints.
@@ -613,7 +604,7 @@ function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
     )
     assert(control != [],
            "nurbs_interp (closed+derivs): singular system")
-    [control, aug_bar, _rot];
+    [control, aug_bar, pts[0]];
 
 
 // ---------- OPEN interpolation ----------
@@ -646,7 +637,7 @@ function _nurbs_interp_open_basic(points, p, centripetal) =
     )
     assert(control != [],
            "nurbs_interp (open): singular system")
-    [control, U_full, 0];
+    [control, U_full, points[0]];
 
 
 // Open interpolation with per-point derivative constraints.
@@ -689,7 +680,7 @@ function _nurbs_interp_open_derivlist(points, p, centripetal, derivs) =
     )
     assert(control != [],
            "nurbs_interp (open+derivs): singular system")
-    [control, U_full, 0];
+    [control, U_full, points[0]];
 
 
 // =====================================================================

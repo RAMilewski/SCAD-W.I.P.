@@ -65,34 +65,6 @@ function _dnip(j, p, u, U) =
 
 
 // =====================================================================
-// SECTION: Input Helpers
-// =====================================================================
-
-// Validate and coerce a single derivative vector to the required dimension.
-//
-// dim == 2 (special case):
-//   Accepts a 3D BOSL2 direction constant (UP, DOWN, LEFT, RIGHT, BACK, FWD)
-//   by projecting it onto the data plane.  The vector must lie in the XZ plane
-//   (Y=0, as UP/DOWN/LEFT/RIGHT/FWD/BACK are defined) or the XY plane (Z=0).
-//   Underlength inputs (1D) are zero-padded to 2D as in the general case.
-//
-// All dimensions (dim ≥ 2):
-//   Any vector shorter than dim is zero-padded to length dim.
-//   Vectors longer than dim (not handled by the dim=2 special case) error.
-
-function _force_deriv_dim(deriv, dim) =
-    dim == 2 && is_vector(deriv, 3) ?
-        // Special: 3D BOSL2 constant for 2D curve — project onto data plane.
-        assert(deriv.y == 0 || deriv.z == 0,
-               "\nDerivative for a 2D interpolation cannot be fully 3D.  It must have either Y or Z component equal to zero.")
-        deriv.y == 0 ? [deriv.x, deriv.z] : point2d(deriv)
-    : // General: validate length ≤ dim, then zero-pad to exactly dim.
-      assert(is_vector(deriv) && len(deriv) >= 1 && len(deriv) <= dim,
-             str("\nDerivative must be a non-empty vector of dimension ", dim, " or less."))
-      list_pad(deriv, dim, 0);
-
-
-// =====================================================================
 // SECTION: Parameterization
 // =====================================================================
 
@@ -286,13 +258,14 @@ function _collocation_matrix_periodic(params, n, p, U_periodic) =
 //   .
 //   Derivative constraints (derivs=):
 //   .
-//   derivs[k] specifies the desired tangent direction (and relative speed)
-//   at the k-th data point.  Each derivative vector is automatically scaled
-//   by the total chord length of the data, so a unit vector produces motion
-//   at natural arc-length speed and a vector of magnitude 2 produces twice
-//   that speed.  BOSL2 named constants (UP, DOWN, LEFT, RIGHT, BACK, FWD)
-//   are accepted for 2D curves; the 3D vector is projected onto the data
-//   plane (XZ if Y=0, XY otherwise).
+//   derivs[k] specifies C'(t_k) — the curve's first derivative with
+//   respect to the parameter t ∈ [0,1] at the k-th data point.  The
+//   magnitude matters: with chord-length parameterization the "natural"
+//   speed is approximately the total chord length L, so
+//     derivs[k] = L * unit_tangent  →  curve moves in that direction
+//                                       at natural arc-length speed.
+//   A shorter vector gives weaker tangent pull; longer gives stronger.
+//   Use path_length(points) or sum of norms as a starting magnitude.
 //   start_der= and end_der= are shorthand equivalents for specifying
 //   derivs[0] and derivs[n] respectively.
 //
@@ -302,12 +275,9 @@ function _collocation_matrix_periodic(params, n, p, U_periodic) =
 //   ---
 //   centripetal = if true, use centripetal parameterization.  Default: false
 //   type        = "clamped", "closed", or "open".  Default: "clamped"
-//   derivs      = list of tangent vectors, one per data point; undef entries
-//                 are unconstrained.  All three curve types supported.
-//                 Cannot be combined with start_der=/end_der=.  Vectors are
-//                 scaled by total chord length internally; pass unit vectors
-//                 for natural speed.  BOSL2 direction constants (UP, DOWN,
-//                 LEFT, RIGHT, BACK, FWD) accepted for 2D curves.
+//   derivs      = list of tangent vectors (C'(t_k)), one per data point;
+//                 undef entries are unconstrained.  All three curve types
+//                 supported.  Cannot be combined with start_der=/end_der=.
 //                 Default: undef
 //   start_der   = tangent at start point; shorthand for derivs[0].
 //                 Clamped only.  Default: undef
@@ -315,11 +285,7 @@ function _collocation_matrix_periodic(params, n, p, U_periodic) =
 //                 Clamped only.  Default: undef
 //
 // Returns:
-//   [control_points, knots, start_index] for nurbs_curve(..., type=type).
-//   start_index is the index into the original points list of the data point
-//   at the parametric origin.  For clamped/open this is always 0.  For
-//   closed it equals the seam-rotation offset _rot, which may be nonzero
-//   when the conditioning heuristic cyclic-shifts the data.
+//   [control_points, knots] for nurbs_curve(..., type=type)
 
 function nurbs_interp(points, degree, centripetal=false, type="clamped",
                       derivs=undef, start_der=undef, end_der=undef) =
@@ -393,7 +359,7 @@ function _nurbs_interp_clamped_basic(points, p, centripetal) =
     )
     assert(control != [],
            "nurbs_interp (clamped): singular system")
-    [control, knots, 0];
+    [control, knots];
 
 
 // General clamped interpolation with per-point derivative constraints.
@@ -407,13 +373,10 @@ function _nurbs_interp_clamped_basic(points, p, centripetal) =
 function _nurbs_interp_clamped_derivlist(points, p, centripetal, derivs) =
     let(
         n         = len(points) - 1,
-        dim       = len(points[0]),
-        path_len  = sum([for (i = [0:n-1]) norm(points[i+1] - points[i])]),
         params    = _interp_params(points, centripetal),
 
-        // [index, scaled+validated vector] for every non-undef entry
-        der_specs = [for (k = [0:n]) if (!is_undef(derivs[k]))
-                        [k, _force_deriv_dim(derivs[k], dim) * path_len]],
+        // [index, vector] for every non-undef entry
+        der_specs = [for (k = [0:n]) if (!is_undef(derivs[k])) [k, derivs[k]]],
         n_extra   = len(der_specs),
         N         = n + 1 + n_extra,   // total control points
 
@@ -444,7 +407,7 @@ function _nurbs_interp_clamped_derivlist(points, p, centripetal, derivs) =
     )
     assert(control != [],
            "nurbs_interp (clamped+derivs): singular system")
-    [control, knots, 0];
+    [control, knots];
 
 
 // ---------- CLOSED interpolation ----------
@@ -535,7 +498,7 @@ function _nurbs_interp_closed_basic(points, p, centripetal) =
         control = linear_solve(N_mat, pts)
     )
     assert(control != [], "nurbs_interp (closed): singular system")
-    [control, bar_knots, _rot];
+    [control, bar_knots];
 
 
 // Closed interpolation with per-point derivative constraints.
@@ -553,9 +516,7 @@ function _nurbs_interp_closed_basic(points, p, centripetal) =
 
 function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
     let(
-        n        = len(points),
-        dim      = len(points[0]),
-        path_len = sum([for (i = [0:n-1]) norm(points[(i+1)%n] - points[i])]),
+        n = len(points),
 
         // Optimal-seam rotation (same criterion as basic closed case).
         chords  = [for (i = [0:n-1]) norm(points[(i+1)%n] - points[i])],
@@ -572,8 +533,7 @@ function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
 
         raw_params = _interp_params_closed(pts, centripetal),
 
-        der_specs = [for (k = [0:n-1]) if (!is_undef(derivs_r[k]))
-                        [k, _force_deriv_dim(derivs_r[k], dim) * path_len]],
+        der_specs = [for (k = [0:n-1]) if (!is_undef(derivs_r[k])) [k, derivs_r[k]]],
         n_extra   = len(der_specs),
         M         = n + n_extra,   // total control points
 
@@ -613,7 +573,7 @@ function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
     )
     assert(control != [],
            "nurbs_interp (closed+derivs): singular system")
-    [control, aug_bar, _rot];
+    [control, aug_bar];
 
 
 // ---------- OPEN interpolation ----------
@@ -646,7 +606,7 @@ function _nurbs_interp_open_basic(points, p, centripetal) =
     )
     assert(control != [],
            "nurbs_interp (open): singular system")
-    [control, U_full, 0];
+    [control, U_full];
 
 
 // Open interpolation with per-point derivative constraints.
@@ -658,11 +618,8 @@ function _nurbs_interp_open_basic(points, p, centripetal) =
 function _nurbs_interp_open_derivlist(points, p, centripetal, derivs) =
     let(
         n          = len(points) - 1,
-        dim        = len(points[0]),
-        path_len   = sum([for (i = [0:n-1]) norm(points[i+1] - points[i])]),
         raw_params = _interp_params(points, centripetal),
-        der_specs  = [for (k = [0:n]) if (!is_undef(derivs[k]))
-                         [k, _force_deriv_dim(derivs[k], dim) * path_len]],
+        der_specs  = [for (k = [0:n]) if (!is_undef(derivs[k])) [k, derivs[k]]],
         n_extra    = len(der_specs),
         N          = n + 1 + n_extra,   // total control points
 
@@ -689,7 +646,7 @@ function _nurbs_interp_open_derivlist(points, p, centripetal, derivs) =
     )
     assert(control != [],
            "nurbs_interp (open+derivs): singular system")
-    [control, U_full, 0];
+    [control, U_full];
 
 
 // =====================================================================
@@ -1101,10 +1058,9 @@ module debug_nurbs_interp_surface(points, degree, splinesteps=8,
 //
 //
 // ---- Example 9: Endpoint tangent control ----
-//   Specify start and/or end tangent vectors.  Each vector is automatically
-//   scaled by the total chord length; a unit vector produces natural
-//   arc-length speed.  Magnitude > 1 increases pull, < 1 weakens it.
-//   BOSL2 direction constants (UP, RIGHT, etc.) work for 2D curves.
+//   Specify start and/or end tangent vectors.  The tangent vector
+//   controls both direction and magnitude — a longer vector makes
+//   the curve "pull" more strongly in that direction.
 //
 //   include <BOSL2/std.scad>
 //   include <BOSL2/nurbs.scad>
@@ -1115,11 +1071,11 @@ module debug_nurbs_interp_surface(points, degree, splinesteps=8,
 //   color("gray") stroke(nurbs_interp_curve(data, 3), width=0.3);
 //   // Tangent: start going straight up, end going straight down:
 //   color("blue") stroke(
-//       nurbs_interp_curve(data, 3, start_der=[0,1], end_der=[0,-1]),
+//       nurbs_interp_curve(data, 3, start_der=[0,80], end_der=[0,-80]),
 //       width=0.3);
 //   // Tangent: start going right, end going right:
 //   color("red") stroke(
-//       nurbs_interp_curve(data, 3, start_der=[1,0], end_der=[1,0]),
+//       nurbs_interp_curve(data, 3, start_der=[80,0], end_der=[80,0]),
 //       width=0.3);
 //   color("black") move_copies(data) circle(r=0.25, $fn=16);
 //
@@ -1133,7 +1089,7 @@ module debug_nurbs_interp_surface(points, degree, splinesteps=8,
 //   data = [[0,0], [20,30], [50,25], [80,0]];
 //   color("gray") stroke(nurbs_interp_curve(data, 3), width=0.3);
 //   color("blue") stroke(
-//       nurbs_interp_curve(data, 3, start_der=[0,1]),
+//       nurbs_interp_curve(data, 3, start_der=[0,100]),
 //       width=0.3);
 //   color("black") move_copies(data) circle(r=0.25, $fn=16);
 //

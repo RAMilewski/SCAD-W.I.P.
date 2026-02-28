@@ -9,9 +9,10 @@
 //     "closed"  - curve forms a smooth closed loop through all points
 //     "open"    - open (non-clamped) B-spline interpolation
 //
-//   For clamped curves, optional start and end tangent vectors can be
-//   specified to control the curve direction at the endpoints (Piegl &
-//   Tiller, "The NURBS Book", Section 9.2.2).
+//   Optional per-point derivative (tangent) constraints can be applied
+//   to all three curve types via the derivs= parameter.  The clamped
+//   type also accepts the start_der=/end_der= shorthand arguments.
+//   (Piegl & Tiller, "The NURBS Book", Section 9.2.2.)
 //
 //   Algorithm from Piegl & Tiller, "The NURBS Book", Chapters 2 & 9.
 //
@@ -64,6 +65,34 @@ function _dnip(j, p, u, U) =
 
 
 // =====================================================================
+// SECTION: Input Helpers
+// =====================================================================
+
+// Validate and coerce a single derivative vector to the required dimension.
+//
+// dim == 2 (special case):
+//   Accepts a 3D BOSL2 direction constant (UP, DOWN, LEFT, RIGHT, BACK, FWD)
+//   by projecting it onto the data plane.  The vector must lie in the XZ plane
+//   (Y=0, as UP/DOWN/LEFT/RIGHT/FWD/BACK are defined) or the XY plane (Z=0).
+//   Underlength inputs (1D) are zero-padded to 2D as in the general case.
+//
+// All dimensions (dim ≥ 2):
+//   Any vector shorter than dim is zero-padded to length dim.
+//   Vectors longer than dim (not handled by the dim=2 special case) error.
+
+function _force_deriv_dim(deriv, dim) =
+    dim == 2 && is_vector(deriv, 3) ?
+        // Special: 3D BOSL2 constant for 2D curve — project onto data plane.
+        assert(deriv.y == 0 || deriv.z == 0,
+               "\nDerivative for a 2D interpolation cannot be fully 3D.  It must have either Y or Z component equal to zero.")
+        deriv.y == 0 ? [deriv.x, deriv.z] : point2d(deriv)
+    : // General: validate length ≤ dim, then zero-pad to exactly dim.
+      assert(is_vector(deriv) && len(deriv) >= 1 && len(deriv) <= dim,
+             str("\nDerivative must be a non-empty vector of dimension ", dim, " or less."))
+      list_pad(deriv, dim, 0);
+
+
+// =====================================================================
 // SECTION: Parameterization
 // =====================================================================
 
@@ -72,10 +101,11 @@ function _dnip(j, p, u, U) =
 
 function _interp_params(points, centripetal=false) =
     let(
-        n = len(points) - 1,
-        dists = [for (i = [0:n-1])
-                     let(d = norm(points[i+1] - points[i]))
-                     centripetal ? sqrt(d) : d],
+        n     = len(points) - 1,
+        raw   = [for (i = [0:n-1]) norm(points[i+1] - points[i])],
+        _     = assert(min(raw) > 1e-10,
+                       "nurbs_interp: consecutive duplicate data points detected"),
+        dists = centripetal ? [for (d = raw) sqrt(d)] : raw,
         total = sum(dists)
     )
     total < 1e-15
@@ -89,10 +119,11 @@ function _interp_params(points, centripetal=false) =
 
 function _interp_params_closed(points, centripetal=false) =
     let(
-        n = len(points),
-        dists = [for (i = [0:n-1])
-                     let(d = norm(points[(i+1) % n] - points[i]))
-                     centripetal ? sqrt(d) : d],
+        n     = len(points),
+        raw   = [for (i = [0:n-1]) norm(points[(i+1) % n] - points[i])],
+        _     = assert(min(raw) > 1e-10,
+                       "nurbs_interp: consecutive duplicate data points detected"),
+        dists = centripetal ? [for (d = raw) sqrt(d)] : raw,
         total = sum(dists)
     )
     total < 1e-15
@@ -231,7 +262,7 @@ function _collocation_matrix_periodic(params, n, p, U_periodic) =
 //
 // Usage:
 //   result = nurbs_interp(points, degree, [centripetal=], [type=],
-//                         [start_der=], [end_der=]);
+//                         [derivs=], [start_der=], [end_der=]);
 //
 // Description:
 //   Given a list of data points (2D or 3D) and a NURBS degree, computes
@@ -242,14 +273,28 @@ function _collocation_matrix_periodic(params, n, p, U_periodic) =
 //   Three curve types are supported:
 //   .
 //   "clamped" (default): Curve starts at the first point and ends at
-//   the last.  Optionally specify start_der and/or end_der to control
-//   the tangent direction and magnitude at the endpoints.  Each tangent
-//   adds one control point to the result.
+//   the last point.  Optionally constrain tangent directions at any data
+//   point with derivs=.
 //   .
 //   "closed": Smooth closed loop through all points.  Do NOT repeat the
 //   first point at the end.
 //   .
-//   "open": Open (non-clamped) B-spline through all points.
+//   "open": Open (non-clamped) B-spline through all points.  Unlike
+//   clamped, the curve does not grip the first/last points tightly,
+//   giving a softer end-to-end behavior similar to a natural spline.
+//   Useful when endpoints should blend smoothly without a sharp anchor.
+//   .
+//   Derivative constraints (derivs=):
+//   .
+//   derivs[k] specifies the desired tangent direction (and relative speed)
+//   at the k-th data point.  Each derivative vector is automatically scaled
+//   by the total chord length of the data, so a unit vector produces motion
+//   at natural arc-length speed and a vector of magnitude 2 produces twice
+//   that speed.  BOSL2 named constants (UP, DOWN, LEFT, RIGHT, BACK, FWD)
+//   are accepted for 2D curves; the 3D vector is projected onto the data
+//   plane (XZ if Y=0, XY otherwise).
+//   start_der= and end_der= are shorthand equivalents for specifying
+//   derivs[0] and derivs[n] respectively.
 //
 // Arguments:
 //   points      = list of 2D or 3D data points to interpolate
@@ -258,13 +303,23 @@ function _collocation_matrix_periodic(params, n, p, U_periodic) =
 //   centripetal = if true, use centripetal parameterization.  Default: false
 //   type        = "clamped", "closed", or "open".  Default: "clamped"
 //   derivs      = list of tangent vectors, one per data point; undef entries
-//                 are unconstrained.  All three types supported.  Cannot be
-//                 combined with start_der=/end_der=.  Default: undef
-//   start_der   = tangent vector at start (clamped only; legacy).  Default: undef
-//   end_der     = tangent vector at end   (clamped only; legacy).  Default: undef
+//                 are unconstrained.  All three curve types supported.
+//                 Cannot be combined with start_der=/end_der=.  Vectors are
+//                 scaled by total chord length internally; pass unit vectors
+//                 for natural speed.  BOSL2 direction constants (UP, DOWN,
+//                 LEFT, RIGHT, BACK, FWD) accepted for 2D curves.
+//                 Default: undef
+//   start_der   = tangent at start point; shorthand for derivs[0].
+//                 Clamped only.  Default: undef
+//   end_der     = tangent at end point; shorthand for derivs[n].
+//                 Clamped only.  Default: undef
 //
 // Returns:
-//   [control_points, knots] for nurbs_curve(..., type=type)
+//   [control_points, knots, start_index] for nurbs_curve(..., type=type).
+//   start_index is the index into the original points list of the data point
+//   at the parametric origin.  For clamped/open this is always 0.  For
+//   closed it equals the seam-rotation offset _rot, which may be nonzero
+//   when the conditioning heuristic cyclic-shifts the data.
 
 function nurbs_interp(points, degree, centripetal=false, type="clamped",
                       derivs=undef, start_der=undef, end_der=undef) =
@@ -289,25 +344,38 @@ function nurbs_interp(points, degree, centripetal=false, type="clamped",
 
 
 // ---------- CLAMPED interpolation ----------
+//
+// start_der= and end_der= are convenience shorthands for derivs= at the
+// endpoints.  They are merged into a derivs list here so that all
+// derivative-constrained cases flow through a single solver
+// (_nurbs_interp_clamped_derivlist).
 
 function _nurbs_interp_clamped(points, degree, centripetal,
                                 derivs, start_der, end_der) =
     let(
-        n = len(points) - 1,
-        p = degree,
-        _ = assert(n >= p,
-                str("nurbs_interp (clamped): need at least ", p+1,
-                    " points for degree ", p, ", got ", n+1)),
-        has_dl = !is_undef(derivs) &&
-                 len([for (k = [0:n]) if (!is_undef(derivs[k])) k]) > 0,
+        n      = len(points) - 1,
+        p      = degree,
+        _      = assert(n >= p,
+                     str("nurbs_interp (clamped): need at least ", p+1,
+                         " points for degree ", p, ", got ", n+1)),
         has_sd = !is_undef(start_der),
-        has_ed = !is_undef(end_der)
+        has_ed = !is_undef(end_der),
+
+        // Convert start_der / end_der to a derivs list when no explicit
+        // derivs= was provided.
+        eff_der = !is_undef(derivs) ? derivs
+                : (has_sd || has_ed)
+                  ? [for (k = [0:n])
+                         k == 0 && has_sd ? start_der
+                       : k == n && has_ed ? end_der
+                       : undef]
+                : undef,
+
+        has_any = !is_undef(eff_der) &&
+                  len([for (k = [0:n]) if (!is_undef(eff_der[k])) k]) > 0
     )
-    has_dl            ? _nurbs_interp_clamped_derivlist(points, p, centripetal, derivs)
-  : (has_sd || has_ed) ? _nurbs_interp_clamped_deriv(points, p, centripetal,
-                                                       start_der, end_der,
-                                                       has_sd, has_ed)
-  :                      _nurbs_interp_clamped_basic(points, p, centripetal);
+    has_any ? _nurbs_interp_clamped_derivlist(points, p, centripetal, eff_der)
+            : _nurbs_interp_clamped_basic(points, p, centripetal);
 
 
 // Basic clamped interpolation (no derivatives).
@@ -325,76 +393,7 @@ function _nurbs_interp_clamped_basic(points, p, centripetal) =
     )
     assert(control != [],
            "nurbs_interp (clamped): singular system")
-    [control, knots];
-
-
-// Clamped interpolation with endpoint derivatives (§9.2.2).
-//
-// Each specified derivative adds one control point and one extra
-// interior knot.  The derivative conditions are:
-//   C'(0)   = (p / U_{p+1}) * (P_1 - P_0)
-//   C'(1)   = (p / (1 - U_{m-p-1})) * (P_{N-1} - P_{N-2})
-// which gives linear equations on adjacent control points.
-
-function _nurbs_interp_clamped_deriv(points, p, centripetal,
-                                      start_der, end_der,
-                                      has_sd, has_ed) =
-    let(
-        n = len(points) - 1,
-        n_extra = (has_sd ? 1 : 0) + (has_ed ? 1 : 0),
-        N = n + 1 + n_extra,   // total control points (N-1 = last index)
-
-        params = _interp_params(points, centripetal),
-
-        // Standard interior knots (would be used for n+1 control points)
-        std_int = _avg_knots_interior(params, p),
-
-        // Insert extra knots near boundaries for the derivative DOFs.
-        start_knot = !has_sd ? []
-                   : len(std_int) > 0
-                     ? [std_int[0] / 2]
-                     : has_ed ? [1/3] : [1/2],
-        end_knot   = !has_ed ? []
-                   : len(std_int) > 0
-                     ? [(last(std_int) + 1) / 2]
-                     : has_sd ? [2/3] : [1/2],
-        int_knots = concat(start_knot, std_int, end_knot),
-
-        U_full = _full_clamped_knots(int_knots, p),
-        m = len(U_full) - 1,
-
-        // Knot values needed for derivative equations
-        u_first = U_full[p + 1],
-        u_last  = U_full[m - p - 1],
-
-        // Build augmented system:
-        //   Rows 0..n:  N_{j,p}(t_k) * P_j = D_k  (interpolation)
-        //   Extra rows: derivative conditions
-        interp_rows = [for (k = [0:n])
-            [for (j = [0:N-1]) _nip(j, p, params[k], U_full)]
-        ],
-
-        // C'(0) = start_der  =>  P_1 - P_0 = (u_first/p) * start_der
-        // C'(1) = end_der    =>  P_{N-1} - P_{N-2} = ((1-u_last)/p) * end_der
-        deriv_rows = concat(
-            has_sd ? [[for (j = [0:N-1]) j==0 ? -1 : j==1 ? 1 : 0]] : [],
-            has_ed ? [[for (j = [0:N-1]) j==N-2 ? -1 : j==N-1 ? 1 : 0]] : []
-        ),
-
-        A = concat(interp_rows, deriv_rows),
-
-        rhs = concat(
-            points,
-            has_sd ? [(u_first / p) * start_der] : [],
-            has_ed ? [((1 - u_last) / p) * end_der] : []
-        ),
-
-        control = linear_solve(A, rhs),
-        knots   = concat([0], int_knots, [1])
-    )
-    assert(control != [],
-           "nurbs_interp (clamped+deriv): singular system")
-    [control, knots];
+    [control, knots, 0];
 
 
 // General clamped interpolation with per-point derivative constraints.
@@ -408,10 +407,13 @@ function _nurbs_interp_clamped_deriv(points, p, centripetal,
 function _nurbs_interp_clamped_derivlist(points, p, centripetal, derivs) =
     let(
         n         = len(points) - 1,
+        dim       = len(points[0]),
+        path_len  = sum([for (i = [0:n-1]) norm(points[i+1] - points[i])]),
         params    = _interp_params(points, centripetal),
 
-        // [index, vector] for every non-undef entry
-        der_specs = [for (k = [0:n]) if (!is_undef(derivs[k])) [k, derivs[k]]],
+        // [index, scaled+validated vector] for every non-undef entry
+        der_specs = [for (k = [0:n]) if (!is_undef(derivs[k]))
+                        [k, _force_deriv_dim(derivs[k], dim) * path_len]],
         n_extra   = len(der_specs),
         N         = n + 1 + n_extra,   // total control points
 
@@ -442,7 +444,7 @@ function _nurbs_interp_clamped_derivlist(points, p, centripetal, derivs) =
     )
     assert(control != [],
            "nurbs_interp (clamped+derivs): singular system")
-    [control, knots];
+    [control, knots, 0];
 
 
 // ---------- CLOSED interpolation ----------
@@ -529,18 +531,11 @@ function _nurbs_interp_closed_basic(points, p, centripetal) =
                            round(max_rat * 100) / 100, ")"))
                 : undef,
 
-        N_mat    = _collocation_matrix_periodic(params, n, p, U_full),
-        control  = linear_solve(N_mat, pts),
-
-        // Unrotate control points so the curve starts at points[0].
-        // For cyclic chord-length parameterization this is exact: rotating
-        // data by _rot and control by (n - _rot) is a pure reparameterization
-        // that preserves the geometric curve.
-        final_cp = _rot == 0 ? control
-                             : [for (k = [0:n-1]) control[(k + n - _rot) % n]]
+        N_mat   = _collocation_matrix_periodic(params, n, p, U_full),
+        control = linear_solve(N_mat, pts)
     )
     assert(control != [], "nurbs_interp (closed): singular system")
-    [final_cp, bar_knots];
+    [control, bar_knots, _rot];
 
 
 // Closed interpolation with per-point derivative constraints.
@@ -554,15 +549,13 @@ function _nurbs_interp_closed_basic(points, p, centripetal) =
 //
 // Applies the same optimal-seam rotation as _nurbs_interp_closed_basic for
 // numerical conditioning.  Both the data points and the derivative list are
-// rotated together so the constraint associations are preserved.  Control
-// points are unrotated after solving so the curve starts at points[0].
-// For M=n the unrotation is exact; for M>n (derivative constraints present)
-// the shift (n-_rot) in M-space is an approximation that aligns the curve
-// start closely with points[0].
+// rotated together so the constraint associations are preserved.
 
 function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
     let(
-        n = len(points),
+        n        = len(points),
+        dim      = len(points[0]),
+        path_len = sum([for (i = [0:n-1]) norm(points[(i+1)%n] - points[i])]),
 
         // Optimal-seam rotation (same criterion as basic closed case).
         chords  = [for (i = [0:n-1]) norm(points[(i+1)%n] - points[i])],
@@ -579,7 +572,8 @@ function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
 
         raw_params = _interp_params_closed(pts, centripetal),
 
-        der_specs = [for (k = [0:n-1]) if (!is_undef(derivs_r[k])) [k, derivs_r[k]]],
+        der_specs = [for (k = [0:n-1]) if (!is_undef(derivs_r[k]))
+                        [k, _force_deriv_dim(derivs_r[k], dim) * path_len]],
         n_extra   = len(der_specs),
         M         = n + n_extra,   // total control points
 
@@ -615,16 +609,11 @@ function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
 
         A       = concat(interp_rows, deriv_rows),
         rhs     = concat(pts, [for (spec = der_specs) spec[1]]),
-        control = linear_solve(A, rhs),
-
-        // Unrotate control points so curve starts near points[0].
-        // Shift by (n - _rot) in M-space: exact when M=n, approximate for M>n.
-        final_cp = _rot == 0 ? control
-                             : [for (k = [0:M-1]) control[(k + n - _rot) % M]]
+        control = linear_solve(A, rhs)
     )
     assert(control != [],
            "nurbs_interp (closed+derivs): singular system")
-    [final_cp, aug_bar];
+    [control, aug_bar, _rot];
 
 
 // ---------- OPEN interpolation ----------
@@ -657,7 +646,7 @@ function _nurbs_interp_open_basic(points, p, centripetal) =
     )
     assert(control != [],
            "nurbs_interp (open): singular system")
-    [control, U_full];
+    [control, U_full, 0];
 
 
 // Open interpolation with per-point derivative constraints.
@@ -669,8 +658,11 @@ function _nurbs_interp_open_basic(points, p, centripetal) =
 function _nurbs_interp_open_derivlist(points, p, centripetal, derivs) =
     let(
         n          = len(points) - 1,
+        dim        = len(points[0]),
+        path_len   = sum([for (i = [0:n-1]) norm(points[i+1] - points[i])]),
         raw_params = _interp_params(points, centripetal),
-        der_specs  = [for (k = [0:n]) if (!is_undef(derivs[k])) [k, derivs[k]]],
+        der_specs  = [for (k = [0:n]) if (!is_undef(derivs[k]))
+                         [k, _force_deriv_dim(derivs[k], dim) * path_len]],
         n_extra    = len(der_specs),
         N          = n + 1 + n_extra,   // total control points
 
@@ -697,7 +689,7 @@ function _nurbs_interp_open_derivlist(points, p, centripetal, derivs) =
     )
     assert(control != [],
            "nurbs_interp (open+derivs): singular system")
-    [control, U_full];
+    [control, U_full, 0];
 
 
 // =====================================================================
@@ -710,7 +702,7 @@ function _nurbs_interp_open_derivlist(points, p, centripetal, derivs) =
 //
 // Usage:
 //   path = nurbs_interp_curve(points, degree, [splinesteps],
-//              [centripetal=], [type=], [start_der=], [end_der=]);
+//              [centripetal=], [type=], [derivs=], [start_der=], [end_der=]);
 
 function nurbs_interp_curve(points, degree, splinesteps=16,
                             centripetal=false, type="clamped",
@@ -1109,9 +1101,10 @@ module debug_nurbs_interp_surface(points, degree, splinesteps=8,
 //
 //
 // ---- Example 9: Endpoint tangent control ----
-//   Specify start and/or end tangent vectors.  The tangent vector
-//   controls both direction and magnitude — a longer vector makes
-//   the curve "pull" more strongly in that direction.
+//   Specify start and/or end tangent vectors.  Each vector is automatically
+//   scaled by the total chord length; a unit vector produces natural
+//   arc-length speed.  Magnitude > 1 increases pull, < 1 weakens it.
+//   BOSL2 direction constants (UP, RIGHT, etc.) work for 2D curves.
 //
 //   include <BOSL2/std.scad>
 //   include <BOSL2/nurbs.scad>
@@ -1122,11 +1115,11 @@ module debug_nurbs_interp_surface(points, degree, splinesteps=8,
 //   color("gray") stroke(nurbs_interp_curve(data, 3), width=0.3);
 //   // Tangent: start going straight up, end going straight down:
 //   color("blue") stroke(
-//       nurbs_interp_curve(data, 3, start_der=[0,80], end_der=[0,-80]),
+//       nurbs_interp_curve(data, 3, start_der=[0,1], end_der=[0,-1]),
 //       width=0.3);
 //   // Tangent: start going right, end going right:
 //   color("red") stroke(
-//       nurbs_interp_curve(data, 3, start_der=[80,0], end_der=[80,0]),
+//       nurbs_interp_curve(data, 3, start_der=[1,0], end_der=[1,0]),
 //       width=0.3);
 //   color("black") move_copies(data) circle(r=0.25, $fn=16);
 //
@@ -1140,7 +1133,7 @@ module debug_nurbs_interp_surface(points, degree, splinesteps=8,
 //   data = [[0,0], [20,30], [50,25], [80,0]];
 //   color("gray") stroke(nurbs_interp_curve(data, 3), width=0.3);
 //   color("blue") stroke(
-//       nurbs_interp_curve(data, 3, start_der=[0,100]),
+//       nurbs_interp_curve(data, 3, start_der=[0,1]),
 //       width=0.3);
 //   color("black") move_copies(data) circle(r=0.25, $fn=16);
 //
