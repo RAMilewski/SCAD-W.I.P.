@@ -1,0 +1,12 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "mod": "2",
+            "shaft_diam": "5",
+            "spread": "121",
+            "teeth": "50",
+            "thickness": "8"
+        }
+    }
+}
