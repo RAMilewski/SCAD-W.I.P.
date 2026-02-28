@@ -101,17 +101,19 @@ function _force_deriv_dim(deriv, dim) =
 
 function _interp_params(points, centripetal=false) =
     let(
-        n     = len(points) - 1,
-        raw   = [for (i = [0:n-1]) norm(points[i+1] - points[i])],
-        _     = assert(min(raw) > 1e-10,
-                       "nurbs_interp: consecutive duplicate data points detected"),
+        raw = path_segment_lengths(points),
+        n   = len(raw)
+    )
+    assert(min(raw) > 1e-10,
+           "nurbs_interp: consecutive duplicate data points detected")
+    let(
         dists = centripetal ? [for (d = raw) sqrt(d)] : raw,
         total = sum(dists)
     )
     total < 1e-15
       ? [for (i = [0:n]) i / n]
       : let(cs = cumsum(dists))
-        concat([0], [for (i = [0:n-2]) cs[i] / total], [1]);
+        [0, each [for (i = [0:n-2]) cs[i] / total], 1];
 
 
 // Parameterization for closed curves.
@@ -119,17 +121,19 @@ function _interp_params(points, centripetal=false) =
 
 function _interp_params_closed(points, centripetal=false) =
     let(
-        n     = len(points),
-        raw   = [for (i = [0:n-1]) norm(points[(i+1) % n] - points[i])],
-        _     = assert(min(raw) > 1e-10,
-                       "nurbs_interp: consecutive duplicate data points detected"),
+        raw = path_segment_lengths(points, closed=true),
+        n   = len(raw)
+    )
+    assert(min(raw) > 1e-10,
+           "nurbs_interp: consecutive duplicate data points detected")
+    let(
         dists = centripetal ? [for (d = raw) sqrt(d)] : raw,
         total = sum(dists)
     )
     total < 1e-15
       ? [for (i = [0:n-1]) i / n]
       : let(cs = cumsum(dists))
-        concat([0], [for (i = [0:n-2]) cs[i] / total]);
+        [0, each [for (i = [0:n-2]) cs[i] / total]];
 
 
 // =====================================================================
@@ -153,11 +157,7 @@ function _avg_knots_interior(params, p) =
 // Full clamped knot vector: (p+1) zeros, interior, (p+1) ones.
 
 function _full_clamped_knots(interior_knots, p) =
-    concat(
-        [for (i = [0:p]) 0],
-        interior_knots,
-        [for (i = [0:p]) 1]
-    );
+    [each repeat(0, p+1), each interior_knots, each repeat(1, p+1)];
 
 
 // Periodic "bar knots" for closed B-splines.
@@ -180,11 +180,11 @@ function _avg_knots_periodic(params, p) =
                             params[m % n] + floor(m / n)
                        ]) / p
               ],
-        shift = raw[0],
-        bar_knots = [for (u = raw) u - shift],
-        shifted = [for (t = params)
-                       let(s = t - shift)
-                       s < 0 ? s + 1 : (s >= 1 ? s - 1 : s)]
+        shift     = raw[0],
+        bar_knots = add_scalar(raw, -shift),
+        shifted   = [for (t = params)
+                         let(s = t - shift)
+                         s < 0 ? s + 1 : (s >= 1 ? s - 1 : s)]
     )
     [bar_knots, shifted];
 
@@ -197,11 +197,9 @@ function _avg_knots_periodic(params, p) =
 
 function _full_periodic_knots(bar_knots, n, p) =
     let(T = bar_knots[n] - bar_knots[0])
-    concat(
-        [for (i = [n-p : n-1]) bar_knots[i] - T],
-        bar_knots,
-        [for (i = [1 : p]) bar_knots[i] + T]
-    );
+    [for (i = [n-p : n-1]) bar_knots[i] - T,
+     each bar_knots,
+     for (i = [1 : p]) bar_knots[i] + T];
 
 
 // BOSL2-compatible full periodic knot vector for "closed" type evaluation.
@@ -352,12 +350,11 @@ function nurbs_interp(points, degree, centripetal=false, type="clamped",
 
 function _nurbs_interp_clamped(points, degree, centripetal,
                                 derivs, start_der, end_der) =
+    let(n = len(points) - 1, p = degree)
+    assert(n >= p,
+           str("nurbs_interp (clamped): need at least ", p+1,
+               " points for degree ", p, ", got ", n+1))
     let(
-        n      = len(points) - 1,
-        p      = degree,
-        _      = assert(n >= p,
-                     str("nurbs_interp (clamped): need at least ", p+1,
-                         " points for degree ", p, ", got ", n+1)),
         has_sd = !is_undef(start_der),
         has_ed = !is_undef(end_der),
 
@@ -389,7 +386,7 @@ function _nurbs_interp_clamped_basic(points, p, centripetal) =
         U_full  = _full_clamped_knots(int_kn, p),
         N_mat   = _collocation_matrix(params, n, p, U_full),
         control = linear_solve(N_mat, points),
-        knots   = concat([0], int_kn, [1])
+        knots   = [0, each int_kn, 1]
     )
     assert(control != [],
            "nurbs_interp (clamped): singular system")
@@ -408,7 +405,7 @@ function _nurbs_interp_clamped_derivlist(points, p, centripetal, derivs) =
     let(
         n         = len(points) - 1,
         dim       = len(points[0]),
-        path_len  = sum([for (i = [0:n-1]) norm(points[i+1] - points[i])]),
+        path_len  = path_length(points),
         params    = _interp_params(points, centripetal),
 
         // [index, scaled+validated vector] for every non-undef entry
@@ -419,8 +416,7 @@ function _nurbs_interp_clamped_derivlist(points, p, centripetal, derivs) =
 
         // Expanded parameter sequence ũ: duplicate params[k] for each
         // derivative constraint at k (sort preserves monotonicity)
-        u_tilde = sort(concat(params,
-                      [for (spec = der_specs) params[spec[0]]])),
+        u_tilde = sort([each params, for (spec = der_specs) params[spec[0]]]),
 
         // Interior knots by standard averaging on ũ (P&T eq 9.8)
         int_kn  = _avg_knots_interior(u_tilde, p),
@@ -437,10 +433,10 @@ function _nurbs_interp_clamped_derivlist(points, p, centripetal, derivs) =
             [for (j = [0:N-1]) _dnip(j, p, params[k], U_full)]
         ],
 
-        A       = concat(interp_rows, deriv_rows),
-        rhs     = concat(points, [for (spec = der_specs) spec[1]]),
+        A       = [each interp_rows, each deriv_rows],
+        rhs     = [each points, for (spec = der_specs) spec[1]],
         control = linear_solve(A, rhs),
-        knots   = concat([0], int_kn, [1])
+        knots   = [0, each int_kn, 1]
     )
     assert(control != [],
            "nurbs_interp (clamped+derivs): singular system")
@@ -450,15 +446,12 @@ function _nurbs_interp_clamped_derivlist(points, p, centripetal, derivs) =
 // ---------- CLOSED interpolation ----------
 
 function _nurbs_interp_closed(points, degree, centripetal, derivs) =
-    let(
-        n = len(points),
-        p = degree,
-        _ = assert(n >= p + 1,
-                str("nurbs_interp (closed): need at least ", p+1,
-                    " points for degree ", p, ", got ", n)),
-        has_dl = !is_undef(derivs) &&
-                 len([for (k = [0:n-1]) if (!is_undef(derivs[k])) k]) > 0
-    )
+    let(n = len(points), p = degree)
+    assert(n >= p + 1,
+           str("nurbs_interp (closed): need at least ", p+1,
+               " points for degree ", p, ", got ", n))
+    let(has_dl = !is_undef(derivs) &&
+                 len([for (k = [0:n-1]) if (!is_undef(derivs[k])) k]) > 0)
     has_dl ? _nurbs_interp_closed_derivlist(points, p, centripetal, derivs)
            : _nurbs_interp_closed_basic(points, p, centripetal);
 
@@ -489,48 +482,45 @@ function _nurbs_interp_closed_basic(points, p, centripetal) =
         n      = len(points),
 
         // Cyclic chord lengths, including the closing segment.
-        chords = [for (i = [0:n-1]) norm(points[(i+1)%n] - points[i])],
+        chords = path_segment_lengths(points, closed=true),
 
         // Ratio d[i+1]/d[i] for each junction.  A large ratio flags a
         // "short before long" junction that should go at the seam.
         ratios  = [for (i = [0:n-1]) chords[(i+1)%n] / max(chords[i], 1e-15)],
-        max_rat = max(ratios),
 
         // argmax(ratios): first index achieving the maximum.
-        rat_idx = [for (i = [0:n-1]) if (ratios[i] >= max_rat - 1e-9) i][0],
+        rat_idx = max_index(ratios),
 
         // Optimal starting offset: one past the short chord of the worst pair.
-        _rot   = (rat_idx + 1) % n,
-        pts    = _rot == 0 ? points
-                           : [for (k = [0:n-1]) points[(k + _rot) % n]],
+        _rot       = (rat_idx + 1) % n,
+        pts        = select(points, _rot, _rot + n - 1),
 
-        raw_params  = _interp_params_closed(pts, centripetal),
-        knot_result = _avg_knots_periodic(raw_params, p),
-        bar_knots   = knot_result[0],
+        raw_params = _interp_params_closed(pts, centripetal),
+        bar_knots  = _avg_knots_periodic(raw_params, p)[0],
 
         // BOSL2-compatible full knot vector (matches _extend_knot_vector()).
         U_full  = _bosl2_full_closed_knots(bar_knots, n, p),
 
         // Map raw params into the BOSL2 active domain [bar_knots[p], bar_knots[p]+T].
-        params  = [for (t = raw_params) t + bar_knots[p]],
+        params  = add_scalar(raw_params, bar_knots[p]),
 
         // Sanity: each active span must contain exactly one param.
         _span_counts = [for (k = [0:n-1])
                             len([for (t = params)
                                      if (t >= U_full[p+k] && t < U_full[p+k+1])
                                          t])
-                       ],
-        _chk = assert(max(_span_counts) <= 1,
-                      str("nurbs_interp (closed): ill-conditioned parameterization ",
-                          "(span counts = ", _span_counts, "). ",
-                          "Use centripetal=true or provide more uniform data.")),
-
-        _echo = _rot > 0
-                ? echo(str("nurbs_interp (closed): cyclic start rotation = ", _rot,
-                           " (optimal seam placement for chord ratio ",
-                           round(max_rat * 100) / 100, ")"))
-                : undef,
-
+                       ]
+    )
+    assert(max(_span_counts) <= 1,
+           str("nurbs_interp (closed): ill-conditioned parameterization ",
+               "(span counts = ", _span_counts, "). ",
+               "Use centripetal=true or provide more uniform data."))
+    let(
+        _echo   = _rot > 0
+                  ? echo(str("nurbs_interp (closed): cyclic start rotation = ", _rot,
+                             " (optimal seam placement for chord ratio ",
+                             round(ratios[rat_idx] * 100) / 100, ")"))
+                  : undef,
         N_mat   = _collocation_matrix_periodic(params, n, p, U_full),
         control = linear_solve(N_mat, pts)
     )
@@ -555,20 +545,17 @@ function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
     let(
         n        = len(points),
         dim      = len(points[0]),
-        path_len = sum([for (i = [0:n-1]) norm(points[(i+1)%n] - points[i])]),
+        path_len = path_length(points, closed=true),
 
         // Optimal-seam rotation (same criterion as basic closed case).
-        chords  = [for (i = [0:n-1]) norm(points[(i+1)%n] - points[i])],
+        chords  = path_segment_lengths(points, closed=true),
         ratios  = [for (i = [0:n-1]) chords[(i+1)%n] / max(chords[i], 1e-15)],
-        max_rat = max(ratios),
-        rat_idx = [for (i = [0:n-1]) if (ratios[i] >= max_rat - 1e-9) i][0],
+        rat_idx = max_index(ratios),
         _rot    = (rat_idx + 1) % n,
 
         // Rotate both data points and derivative list by the same offset.
-        pts      = _rot == 0 ? points
-                             : [for (k = [0:n-1]) points[(k + _rot) % n]],
-        derivs_r = _rot == 0 ? derivs
-                             : [for (k = [0:n-1]) derivs[(k + _rot) % n]],
+        pts      = select(points, _rot, _rot + n - 1),
+        derivs_r = select(derivs, _rot, _rot + n - 1),
 
         raw_params = _interp_params_closed(pts, centripetal),
 
@@ -579,16 +566,14 @@ function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
 
         // Expanded parameter sequence ũ of length M: duplicate raw_params[k]
         // for each derivative constraint at k
-        u_tilde = sort(concat(raw_params,
-                      [for (spec = der_specs) raw_params[spec[0]]])),
+        u_tilde = sort([each raw_params, for (spec = der_specs) raw_params[spec[0]]]),
 
         // Periodic bar knots from expanded sequence: M+1 entries
-        knot_result = _avg_knots_periodic(u_tilde, p),
-        aug_bar     = knot_result[0],
-        U_full      = _bosl2_full_closed_knots(aug_bar, M, p),
+        aug_bar = _avg_knots_periodic(u_tilde, p)[0],
+        U_full  = _bosl2_full_closed_knots(aug_bar, M, p),
 
         // Map raw params into active domain [aug_bar[p], aug_bar[p]+T]
-        params = [for (t = raw_params) t + aug_bar[p]],
+        params = add_scalar(raw_params, aug_bar[p]),
 
         // Interpolation rows: aliased basis for M control points
         interp_rows = [for (k = [0:n-1])
@@ -607,8 +592,8 @@ function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
             ]
         ],
 
-        A       = concat(interp_rows, deriv_rows),
-        rhs     = concat(pts, [for (spec = der_specs) spec[1]]),
+        A       = [each interp_rows, each deriv_rows],
+        rhs     = [each pts, for (spec = der_specs) spec[1]],
         control = linear_solve(A, rhs)
     )
     assert(control != [],
@@ -619,15 +604,12 @@ function _nurbs_interp_closed_derivlist(points, p, centripetal, derivs) =
 // ---------- OPEN interpolation ----------
 
 function _nurbs_interp_open(points, degree, centripetal, derivs) =
-    let(
-        n = len(points) - 1,
-        p = degree,
-        _ = assert(n >= p,
-                str("nurbs_interp (open): need at least ", p+1,
-                    " points for degree ", p, ", got ", n+1)),
-        has_dl = !is_undef(derivs) &&
-                 len([for (k = [0:n]) if (!is_undef(derivs[k])) k]) > 0
-    )
+    let(n = len(points) - 1, p = degree)
+    assert(n >= p,
+           str("nurbs_interp (open): need at least ", p+1,
+               " points for degree ", p, ", got ", n+1))
+    let(has_dl = !is_undef(derivs) &&
+                 len([for (k = [0:n]) if (!is_undef(derivs[k])) k]) > 0)
     has_dl ? _nurbs_interp_open_derivlist(points, p, centripetal, derivs)
            : _nurbs_interp_open_basic(points, p, centripetal);
 
@@ -659,7 +641,7 @@ function _nurbs_interp_open_derivlist(points, p, centripetal, derivs) =
     let(
         n          = len(points) - 1,
         dim        = len(points[0]),
-        path_len   = sum([for (i = [0:n-1]) norm(points[i+1] - points[i])]),
+        path_len   = path_length(points),
         raw_params = _interp_params(points, centripetal),
         der_specs  = [for (k = [0:n]) if (!is_undef(derivs[k]))
                          [k, _force_deriv_dim(derivs[k], dim) * path_len]],
@@ -683,8 +665,8 @@ function _nurbs_interp_open_derivlist(points, p, centripetal, derivs) =
             [for (j = [0:N-1]) _dnip(j, p, params[k], U_full)]
         ],
 
-        A       = concat(interp_rows, deriv_rows),
-        rhs     = concat(points, [for (spec = der_specs) spec[1]]),
+        A       = [each interp_rows, each deriv_rows],
+        rhs     = [each points, for (spec = der_specs) spec[1]],
         control = linear_solve(A, rhs)
     )
     assert(control != [],
@@ -775,18 +757,17 @@ function _build_clamped_system(params, p) =
         int_kn  = _avg_knots_interior(params, p),
         U_full  = _full_clamped_knots(int_kn, p),
         N_mat   = _collocation_matrix(params, n, p, U_full),
-        knots   = concat([0], int_kn, [1])
+        knots   = [0, each int_kn, 1]
     )
     [N_mat, knots];
 
 function _build_closed_system(params, p) =
     let(
-        n           = len(params),
-        knot_result = _avg_knots_periodic(params, p),
-        bar_knots   = knot_result[0],
-        U_full      = _bosl2_full_closed_knots(bar_knots, n, p),
-        col_params  = [for (t = params) t + bar_knots[p]],
-        N_mat       = _collocation_matrix_periodic(col_params, n, p, U_full)
+        n          = len(params),
+        bar_knots  = _avg_knots_periodic(params, p)[0],
+        U_full     = _bosl2_full_closed_knots(bar_knots, n, p),
+        col_params = add_scalar(params, bar_knots[p]),
+        N_mat      = _collocation_matrix_periodic(col_params, n, p, U_full)
     )
     [N_mat, bar_knots];
 
@@ -890,27 +871,20 @@ function nurbs_interp_surface(points, degree, centripetal=false,
         p_v    = is_list(degree) ? degree[1] : degree,
         type_u = is_list(type) ? type[0] : type,
         type_v = is_list(type) ? type[1] : type,
-
         n_rows = len(points),
-        n_cols = len(points[0]),
-
-        _ = assert(is_list(points) && n_rows >= 2,
-                   "nurbs_interp_surface: need at least 2 rows"),
-        __ = assert(n_cols >= 2,
-                    "nurbs_interp_surface: need at least 2 columns"),
-        ___ = assert(
-            type_u == "closed"
-              ? n_rows >= p_u + 1
-              : n_rows >= p_u + 1,
-            str("nurbs_interp_surface: need at least ", p_u+1,
-                " rows for u-degree ", p_u, ", got ", n_rows)),
-        ____ = assert(
-            type_v == "closed"
-              ? n_cols >= p_v + 1
-              : n_cols >= p_v + 1,
-            str("nurbs_interp_surface: need at least ", p_v+1,
-                " columns for v-degree ", p_v, ", got ", n_cols)),
-
+        n_cols = len(points[0])
+    )
+    assert(is_list(points) && n_rows >= 2,
+           "nurbs_interp_surface: need at least 2 rows")
+    assert(n_cols >= 2,
+           "nurbs_interp_surface: need at least 2 columns")
+    assert(n_rows >= p_u + 1,
+           str("nurbs_interp_surface: need at least ", p_u+1,
+               " rows for u-degree ", p_u, ", got ", n_rows))
+    assert(n_cols >= p_v + 1,
+           str("nurbs_interp_surface: need at least ", p_v+1,
+               " columns for v-degree ", p_v, ", got ", n_cols))
+    let(
         // Averaged parameterization in each direction
         u_params = _surface_params_u(points, centripetal,
                                      type_u == "closed"),

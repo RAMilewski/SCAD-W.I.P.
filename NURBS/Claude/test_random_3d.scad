@@ -4,7 +4,7 @@ include <nurbs_interp.scad>
 //
 $vpt = [0,0,0];
 
-type = "closed"; // [closed,clamped,open]
+type = "closed"; // [closed,clamped]
 count = 12;     // [4:1:25]
 
 closed_stroke =  (type == "closed");
