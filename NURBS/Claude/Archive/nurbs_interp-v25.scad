@@ -466,42 +466,6 @@ function _nurbs_interp_closed(points, degree, param, deriv) =
            : _nurbs_interp_closed_basic(points, p, param);
 
 
-// Returns true if cyclic rotation r produces exactly one parameter per
-// active knot span — the necessary condition for a non-singular collocation.
-// The param="dynamic" method can invert the chord→increment ordering, so
-// the chord-ratio heuristic may pick a rotation that causes a span collision
-// for that method even though the data itself is well-conditioned.
-
-function _closed_rotation_valid(points, n, p, param, r) =
-    let(
-        pts = select(points, r, r + n - 1),
-        rp  = _interp_params(pts, param, closed=true),
-        bk  = _avg_knots_periodic(rp, p)[0],
-        U   = _bosl2_full_closed_knots(bk, n, p),
-        ps  = add_scalar(rp, bk[p])
-    )
-    max([for (k = [0:n-1])
-            len([for (t = ps) if (t >= U[p+k] && t < U[p+k+1]) t])
-        ]) <= 1;
-
-
-// Find the best seam rotation for closed curve interpolation.
-// The chord-ratio heuristic (argmax d[i+1]/d[i] + 1) is tried first;
-// if it causes a span collision, all n rotations are searched in order.
-// Returns undef only if every rotation produces a collision.
-
-function _find_closed_rotation(points, n, p, param) =
-    let(
-        chords     = path_segment_lengths(points, closed=true),
-        ratios     = [for (i = [0:n-1]) chords[(i+1)%n] / max(chords[i], 1e-15)],
-        rot0       = (max_index(ratios) + 1) % n,
-        candidates = concat([rot0], [for (i = [0:n-1]) if (i != rot0) i]),
-        valid      = [for (r = candidates)
-                         if (_closed_rotation_valid(points, n, p, param, r)) r]
-    )
-    len(valid) > 0 ? valid[0] : undef;
-
-
 // Basic closed interpolation — start-point independent.
 //
 // Implements the cyclic chord-length parameterization and cyclic knot
@@ -509,31 +473,66 @@ function _find_closed_rotation(points, n, p, param) =
 // curve is the same regardless of which data point is listed first; only
 // the parametric origin changes (the curve is just reparameterized).
 //
-// Numerical conditioning requires one parameter per active knot span.
-// The chord-ratio heuristic rotation works for param="length" and
-// param="centripetal" (long chord → large increment).  For param="dynamic"
-// the exponent inversion (long chord → small increment) can make the
-// heuristic rotation suboptimal, so _find_closed_rotation() searches all
-// n candidates and picks the first valid one.
+// Numerical conditioning depends on where the "worst junction" — a very
+// short chord immediately before a very long one — falls relative to the
+// active knot spans.  When that junction is an interior point pair, the
+// two close-together parameters can land in the same span, making the
+// collocation matrix near-singular.  We avoid this by choosing the cyclic
+// starting offset r* = (argmax_i d[i+1]/d[i] + 1) % n, which places that
+// junction at the periodic seam.  At the seam, the two parameters straddle
+// the [0,1] boundary and are assigned to different knot spans by the
+// cyclic averaging, restoring a one-param-per-span distribution.
+//
+// This is an O(n) deterministic selection rather than a rotation search.
+// If the resulting collocation matrix is still ill-conditioned (assert
+// below), use param="centripetal" or param="dynamic" or provide more uniform data.
 
 function _nurbs_interp_closed_basic(points, p, param) =
     let(
-        n    = len(points),
-        _rot = _find_closed_rotation(points, n, p, param)
-    )
-    assert(!is_undef(_rot),
-           "nurbs_interp (closed): no valid seam rotation found; data may be too irregular.")
-    let(
+        n      = len(points),
+
+        // Cyclic chord lengths, including the closing segment.
+        chords = path_segment_lengths(points, closed=true),
+
+        // Ratio d[i+1]/d[i] for each junction.  A large ratio flags a
+        // "short before long" junction that should go at the seam.
+        ratios  = [for (i = [0:n-1]) chords[(i+1)%n] / max(chords[i], 1e-15)],
+
+        // argmax(ratios): first index achieving the maximum.
+        rat_idx = max_index(ratios),
+
+        // Optimal starting offset: one past the short chord of the worst pair.
+        _rot       = (rat_idx + 1) % n,
         pts        = select(points, _rot, _rot + n - 1),
+
         raw_params = _interp_params(pts, param, closed=true),
         bar_knots  = _avg_knots_periodic(raw_params, p)[0],
-        U_full     = _bosl2_full_closed_knots(bar_knots, n, p),
-        params     = add_scalar(raw_params, bar_knots[p]),
-        _echo      = _rot > 0
-                     ? echo(str("nurbs_interp (closed): seam rotation = ", _rot))
-                     : undef,
-        N_mat      = _collocation_matrix_periodic(params, n, p, U_full),
-        control    = linear_solve(N_mat, pts)
+
+        // BOSL2-compatible full knot vector (matches _extend_knot_vector()).
+        U_full  = _bosl2_full_closed_knots(bar_knots, n, p),
+
+        // Map raw params into the BOSL2 active domain [bar_knots[p], bar_knots[p]+T].
+        params  = add_scalar(raw_params, bar_knots[p]),
+
+        // Sanity: each active span must contain exactly one param.
+        _span_counts = [for (k = [0:n-1])
+                            len([for (t = params)
+                                     if (t >= U_full[p+k] && t < U_full[p+k+1])
+                                         t])
+                       ]
+    )
+    assert(max(_span_counts) <= 1,
+           str("nurbs_interp (closed): ill-conditioned parameterization ",
+               "(span counts = ", _span_counts, "). ",
+               "Use param=\"centripetal\"/\"dynamic\" or provide more uniform data."))
+    let(
+        _echo   = _rot > 0
+                  ? echo(str("nurbs_interp (closed): cyclic start rotation = ", _rot,
+                             " (optimal seam placement for chord ratio ",
+                             round(ratios[rat_idx] * 100) / 100, ")"))
+                  : undef,
+        N_mat   = _collocation_matrix_periodic(params, n, p, U_full),
+        control = linear_solve(N_mat, pts)
     )
     assert(control != [], "nurbs_interp (closed): singular system")
     [control, bar_knots, _rot];

@@ -22,7 +22,7 @@ $vpt = [0,0,0];
 //
 //   Grid: 9 rings (clamped) × 8 angles (closed, Δθ=45°)
 
-
+/*
 potato = [
     // z=-52  pole — pointed end
     [[0,0,-52],[0,0,-52],[0,0,-52],[0,0,-52],
@@ -89,7 +89,7 @@ vnf_polyhedron(nurbs_interp_vnf(egg, 3, splinesteps=12,
 //
 //   Grid: 9 rings × 8 angles
 
-/*
+// /*
 pebble = [for (i = [0:8])
     let(phi = i * 180/8,
         z   = -25 * cos(phi))

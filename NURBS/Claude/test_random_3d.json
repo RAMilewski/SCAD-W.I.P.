@@ -5,6 +5,11 @@
             "$vpt": "[0, 0, 0]",
             "count": "9",
             "type": "closed"
+        },
+        "New set 2": {
+            "$vpt": "[0, 0, 0]",
+            "count": "12",
+            "type": "clamped"
         }
     }
 }

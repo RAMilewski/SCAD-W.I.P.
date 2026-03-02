@@ -11,6 +11,8 @@ closed_stroke =  (type == "closed");
    
 data3d = random_points(count,3,[20,20,20]);
 echo(data3d);
-path = nurbs_interp_curve(data3d, 3, splinesteps=32, centripetal = true, type=type);
+
+path = nurbs_interp_curve(data3d, 3, splinesteps=32, param="dynamic", type=type);
 stroke(path, closed = closed_stroke, width=.2);
 color("red") move_copies(data3d) sphere(r=.5, $fn=16);
+/* */

@@ -70,7 +70,7 @@ What we need to do now is modify nurbs_interp.scad to accept a derivitive list w
 - Align `=` in `let()` blocks when it aids readability
 - Default optional args to `undef`; test with `is_undef()`
 - All `assert()` calls must have descriptive string messages
-- Use named arguments (`centripetal=centripetal`) at call sites for clarity
+- Use named arguments (`param=param`) at call sites for clarity
 - Numeric tolerances: `1e-12` for near-zero checks, `1e-15` for divisor guards
 
 ### License

@@ -25,7 +25,7 @@ len1 = path_length(data1);
 
 type="closed";
 for(rot=[3:5]){
-x=nurbs_interp(list_rotate(data2,rot), 3, type=type, derivs=list_rotate([undef,[0,len2],undef,undef,undef,[0,-len2]],rot),centripetal=true);
+x=nurbs_interp(list_rotate(data2,rot), 3, type=type, deriv=list_rotate([undef,[0,len2],undef,undef,undef,[0,-len2]],rot),param="centripetal");
 fwd(140*rot){shownurbs(x,type);
      color("red")move_copies(data2) circle(r=2);
 }     
