@@ -136,52 +136,11 @@ function _fang_dists(path, closed) =
   dists;
 
 
-// Foley-Neilson parameterization (Foley & Neilson 1987; as cited in
-// Balta et al., IEEE Access 2020 §II.E).  Each chord's parameter increment
-// is chord_length × (1 + curvature corrections from both adjacent vertices).
-// The correction weight at each vertex is proportional to the deflection angle
-// at that vertex (clamped to π/2) and the shorter of the two adjacent chords.
-// For open curves, endpoint deflection angles are treated as zero.
-// For closed curves, wrap-around angles and chords are used at the seam.
-
-function _foley_dists(points, closed) =
-    let(
-        n  = len(points),
-        c  = path_segment_lengths(points, closed=closed),
-        nc = len(c),
-        // θ̂[i] = min(deflection angle at P[i], π/2) in radians.
-        // Deflection angle = 180° − interior angle at P[i].
-        // Endpoints of an open curve contribute zero correction.
-        theta_hat = [for (i = [0:n-1])
-            !closed && (i == 0 || i == n-1) ? 0
-          : let(phi_deg = 180 - vector_angle(select(points, i-1, i+1)))
-            min(phi_deg * PI/180, PI/2)
-        ]
-    )
-    [for (i = [0:nc-1])
-        let(
-            ci     = c[i],
-            c_prev = c[(i - 1 + nc) % nc],
-            c_next = c[(i + 1) % nc],
-            th_L   = theta_hat[i],
-            th_R   = theta_hat[(i + 1) % n],
-            left   = (i == 0 && !closed) ? 0
-                   : 3 * th_L * c_prev / max(2 * (c_prev + ci), 1e-15),
-            right  = (i == nc-1 && !closed) ? 0
-                   : 3 * th_R * c_next / max(2 * (ci + c_next), 1e-15)
-        )
-        ci * (1 + left + right)
-    ];
-
-
-// Chord-length, centripetal, dynamic, Fang, or Foley parameterization.
+// Chord-length, centripetal, or dynamic parameterization.
 // clamped: n+1 points -> n+1 values in [0, 1] with t_0=0, t_n=1.
 // closed:  n   points -> n   values in [0, 1) with t_0=0.
-// param: "length"      = chord-length
-//        "centripetal" = sqrt exponent (Lee 1989)
-//        "dynamic"     = per-chord dynamic exponent (Balta et al. 2020)
-//        "fang"        = osculating-circle correction (Fang & Hung 2013)
-//        "foley"       = deflection-angle correction (Foley & Neilson 1987)
+// param: "length" = chord-length, "centripetal" = sqrt exponent,
+//        "dynamic" = Balta et al. per-chord dynamic exponent.
 
 function _interp_params(points, param="dynamic", closed=false) =
     let(
@@ -200,8 +159,7 @@ function _interp_params(points, param="dynamic", closed=false) =
         let(
             dists = param == "centripetal" ? [for (d = raw) sqrt(d)]
                   : param == "dynamic"     ? _dynamic_dists(raw)
-                  : param == "fang"        ? _fang_dists(points, closed)
-                  : param == "foley"       ? _foley_dists(points, closed)
+                  : param == "fang"        ? _fang_dists(points,closed)
                   :                          raw,
             total = sum(dists),
             cs    = cumsum(dists)
@@ -368,10 +326,8 @@ function _collocation_matrix_periodic(params, n, p, U_periodic) =
 //   degree      = degree of the NURBS curve (commonly 3)
 //   ---
 //   param       = parameterization method: "length" (chord-length),
-//                 "centripetal" (square-root exponent, Lee 1989),
-//                 "dynamic" (per-chord dynamic exponent, Balta et al. 2020),
-//                 "fang" (osculating-circle correction, Fang & Hung 2013), or
-//                 "foley" (deflection-angle correction, Foley & Neilson 1987).
+//                 "centripetal" (square-root exponent, Lee 1989), or
+//                 "dynamic" (per-chord dynamic exponent, Balta et al. 2020).
 //                 Default: "dynamic"
 //   type        = "clamped" or "closed".  Default: "clamped"
 //   deriv       = list of tangent vectors, one per data point; undef entries
@@ -399,9 +355,8 @@ function nurbs_interp(points, degree, param="dynamic", type="clamped",
            "nurbs_interp: need at least 2 data points")
     assert(is_num(degree) && degree >= 1,
            "nurbs_interp: degree must be >= 1")
-    assert(param == "length" || param == "centripetal" || param == "dynamic"
-               || param == "fang" || param == "foley",
-           str("nurbs_interp: param must be \"length\", \"centripetal\", \"dynamic\", \"fang\", or \"foley\", got \"", param, "\""))
+    assert(param == "length" || param == "centripetal" || param == "dynamic",
+           str("nurbs_interp: param must be \"length\", \"centripetal\", or \"dynamic\", got \"", param, "\""))
     assert(type == "clamped" || type == "closed",
            str("nurbs_interp: type must be \"clamped\" or \"closed\"",
                ", got \"", type, "\""))
@@ -845,8 +800,8 @@ function _surface_params_v(points, param, closed_v) =
 //   points      = rectangular grid of 3D data points (list of rows)
 //   degree      = NURBS degree: scalar or [u_degree, v_degree]
 //   ---
-//   param       = parameterization method: "length", "centripetal", "dynamic",
-//                 "fang", or "foley".  Default: "dynamic"
+//   param       = parameterization method: "length", "centripetal", or "dynamic".
+//                 Default: "dynamic"
 //   type        = "clamped"/"closed", or [u_type, v_type].
 //                 Default: "clamped"
 //

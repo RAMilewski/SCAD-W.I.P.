@@ -11,4 +11,4 @@ data = [
     [[-55,-50,  0], [-50,-50, 10], [-16,-50, 10], [ 16,-50,  20], [50,-50,  5], [80,-50,  5], [85,-50, 0]],
     [[-55,-55,  0], [-50,-55,  0], [-16,-55,  0], [ 16,-55,   0], [50,-55,  0], [80,-55,  0], [85,-55, 0]]
 ];
-debug_nurbs_interp_surface(data, 3, param = "dynamic", splinesteps=128);
+debug_nurbs_interp_surface(data, 3, param = "foley", splinesteps=128);

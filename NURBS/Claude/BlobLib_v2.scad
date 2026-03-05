@@ -102,7 +102,7 @@ pebble = [for (i = [0:8])
     ]
 ];
 
-vnf_polyhedron(nurbs_interp_vnf(pebble, 3, splinesteps=12,
+vnf_polyhedron(nurbs_interp_vnf(pebble, 3, param = "foley", splinesteps=12,
     type=["clamped","closed"]));
 /* */
 

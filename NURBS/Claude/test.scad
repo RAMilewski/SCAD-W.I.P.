@@ -14,8 +14,11 @@ color("red") move_copies(data) sphere(r=2, $fn=16);
 path =  nurbs_interp_curve (data, 3, param="centripetal", type = "closed", splinesteps=32);
 color("yellow") path_sweep (circle(d = 1),path);
 
-path2 = nurbs_interp_curve (data, 3, param="length",      type = "closed", splinesteps=32);
+path2 = nurbs_interp_curve (data, 3, param="foley",      type = "closed", splinesteps=32);
 color("green") path_sweep (circle(d = 1),path2);
 
+/*
 path3 = nurbs_interp_curve (data, 3, param="dynamic",     type = "closed", splinesteps=32);
 color("blue") path_sweep (circle(d = 1),path3);
+
+/**/
