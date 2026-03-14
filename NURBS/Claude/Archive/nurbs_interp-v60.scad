@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 61
+// Development Version 60
 //////////////////////////////////////////////////////////////////////
 
 
@@ -1014,7 +1014,7 @@ function _nurbs_interp_clamped_constrained(points, p, method, eff_der, eff_curv)
 // ---------- CLOSED interpolation ----------
 
 function _nurbs_interp_closed(points, degree, method, deriv, curvature,
-                               corners) =
+                               corners, _refined=false) =
     let(n = len(points), p = degree)
     assert(n >= p + 1,
            str("nurbs_interp (closed): need at least ", p+1,
@@ -1056,13 +1056,43 @@ function _nurbs_interp_closed(points, degree, method, deriv, curvature,
     assert(bad_corner_der == [],
            str("nurbs_interp: derivative constraint cannot coincide with a corner at: ",
                bad_corner_der))
-    // Basic and constrained solvers handle rotation search internally.
-    // Corner case uses its own rotation (to the first corner).
-    has_corners
-      ? _nurbs_interp_closed_corners(points, p, method, deriv, curvature, corner_idxs)
-      : (has_dl || has_cl)
-        ? _nurbs_interp_closed_constrained(points, p, method, deriv, curvature)
-        : _nurbs_interp_closed_basic(points, p, method);
+    let(
+        raw = has_corners
+          ? _nurbs_interp_closed_corners(points, p, method, deriv, curvature, corner_idxs)
+          : (has_dl || has_cl)
+            ? _nurbs_interp_closed_constrained(points, p, method, deriv, curvature)
+            : _nurbs_interp_closed_basic(points, p, method)
+    )
+    // For non-corner curves, check whether control points spread much wider
+    // than data points.  If so, insert midpoints between consecutive data
+    // points and re-solve — the denser data anchors the curve and prevents
+    // wild oscillation from ill-conditioned periodic systems.
+    has_corners || _refined ? raw
+    : let(
+        pbound    = pointlist_bounds(points),
+        cbound    = pointlist_bounds(raw[0]),
+        pmax      = max(pbound[1] - pbound[0]),
+        cmax      = max(cbound[1] - cbound[0]),
+        ratio     = cmax / max(pmax, 1e-15),
+        threshold = pow(2, p) / p
+      )
+      ratio <= threshold ? raw
+      : let(
+            _echo    = echo(str("nurbs_interp (closed): control spread ",
+                                ratio, " > ", threshold,
+                                "; refining with midpoints")),
+            aug_pts  = [for (k = [0:1:n-1])
+                           each [points[k],
+                                 (points[k] + points[(k+1) % n]) / 2]],
+            aug_der  = is_undef(deriv) ? undef
+                     : [for (k = [0:1:n-1])
+                           each [deriv[k], undef]],
+            aug_curv = is_undef(curvature) ? undef
+                     : [for (k = [0:1:n-1])
+                           each [curvature[k], undef]]
+        )
+        _nurbs_interp_closed(aug_pts, degree, method, aug_der, aug_curv,
+                              undef, _refined=true);
 
 
 // Closed interpolation with C0 corner joints.
@@ -1153,36 +1183,6 @@ function _find_closed_rotation(points, n, p, method) =
         scores[best][1];
 
 
-// Solve a basic closed interpolation for a specific rotation.
-// Returns [control, bar_knots, rot] or undef if singular.
-
-function _closed_basic_solve(points, n, p, method, rot) =
-    let(
-        pts        = select(points, rot, rot + n - 1),
-        raw_params = _interp_params(pts, method, closed=true),
-        bar_knots  = _fix_tiny_spans(_avg_knots_periodic(raw_params, p)[0], n),
-        U_full     = _bosl2_full_closed_knots(bar_knots, n, p),
-        params     = add_scalar(raw_params, bar_knots[p]),
-        N_mat      = _collocation_matrix_periodic(params, n, p, U_full),
-        control    = linear_solve(N_mat, pts)
-    )
-    control == [] ? undef : [control, bar_knots, rot];
-
-
-// Control-point spread ratio: max extent of control points divided by
-// max extent of data points.  Values near 1 are ideal; large values
-// indicate oscillation from ill-conditioning.
-
-function _ctrl_point_ratio(points, control) =
-    let(
-        pbound = pointlist_bounds(points),
-        cbound = pointlist_bounds(control),
-        pmax   = max(pbound[1] - pbound[0]),
-        cmax   = max(cbound[1] - cbound[0])
-    )
-    cmax / max(pmax, 1e-15);
-
-
 // Basic closed interpolation — start-point independent.
 //
 // Implements the cyclic chord-length parameterization and cyclic knot
@@ -1190,43 +1190,34 @@ function _ctrl_point_ratio(points, control) =
 // curve is the same regardless of which data point is listed first; only
 // the parametric origin changes (the curve is just reparameterized).
 //
-// The chord-ratio heuristic rotation is tried first.  If the resulting
-// control-point spread exceeds 2^p/p times the data spread (indicating
-// oscillation), all n rotations are tried and the one with the smallest
-// spread is selected.
+// Numerical conditioning ideally requires one parameter per active knot
+// span.  The chord-ratio heuristic rotation is tried first; if it has
+// span collisions, _find_closed_rotation() picks the rotation with the
+// fewest collisions.  Mild collisions often still produce a non-singular
+// system; linear_solve() is the final arbiter.
 
 function _nurbs_interp_closed_basic(points, p, method) =
     let(
-        n         = len(points),
-        rot0      = _find_closed_rotation(points, n, p, method),
-        result0   = _closed_basic_solve(points, n, p, method, rot0)
+        n    = len(points),
+        _rot = _find_closed_rotation(points, n, p, method)
     )
-    assert(!is_undef(result0), "nurbs_interp (closed): singular system")
     let(
-        ratio0    = _ctrl_point_ratio(points, result0[0]),
-        threshold = pow(2, p) / p
+        pts        = select(points, _rot, _rot + n - 1),
+        raw_params = _interp_params(pts, method, closed=true),
+        bar_knots  = _fix_tiny_spans(_avg_knots_periodic(raw_params, p)[0], n),
+        U_full     = _bosl2_full_closed_knots(bar_knots, n, p),
+        params     = add_scalar(raw_params, bar_knots[p]),
+        _echo      = _rot > 0
+                     ? echo(str("nurbs_interp (closed): seam rotation = ", _rot))
+                     : undef,
+        N_mat      = _collocation_matrix_periodic(params, n, p, U_full),
+        control    = linear_solve(N_mat, pts)
     )
-    ratio0 <= threshold ? result0
-    : let(
-        // Heuristic rotation produced excessive control-point spread.
-        // Try all rotations and pick the one with the smallest spread.
-        candidates = [for (r = [0:1:n-1])
-                         let(res = _closed_basic_solve(points, n, p, method, r))
-                         if (!is_undef(res))
-                         [_ctrl_point_ratio(points, res[0]), res]],
-        _chk = assert(len(candidates) > 0,
-                       "nurbs_interp (closed): all rotations produce singular systems"),
-        best_idx = min_index([for (c = candidates) c[0]]),
-        best     = candidates[best_idx][1],
-        _echo    = echo(str("nurbs_interp (closed): rotation search chose ",
-                            best[2], " (spread ratio ",
-                            candidates[best_idx][0], ")"))
-    )
-    best;
+    assert(control != [], "nurbs_interp (closed): singular system")
+    [control, bar_knots, _rot];
 
 
-// Solve a constrained closed interpolation for a specific rotation.
-// Returns [control, aug_bar, rot] or undef if singular.
+// Closed interpolation with per-point derivative and/or curvature constraints.
 //
 // eff_der:  list of n first-derivative specs (undef = unconstrained).
 // eff_curv: list of n curvature specs (undef = unconstrained).
@@ -1237,19 +1228,25 @@ function _nurbs_interp_closed_basic(points, p, method) =
 // then re-run _avg_knots_periodic on ũ to get M+1 bar knots.  The
 // M = n + n_extra control points use standard BOSL2 periodic aliasing:
 // B_j(t) = N_j(t) + (j<p ? N_{j+M}(t) : 0), and likewise for derivatives.
+//
+// Applies the chord-ratio seam rotation for numerical conditioning; both the
+// data points and all constraint lists are rotated by the same offset.
 
-function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot) =
+function _nurbs_interp_closed_constrained(points, p, method, eff_der, eff_curv) =
     let(
         n         = len(points),
         dim       = len(points[0]),
         path_len  = path_length(points, closed=true),
         path_len2 = path_len * path_len,
 
+        // Seam rotation for best conditioning (same as basic closed case).
+        _rot    = _find_closed_rotation(points, n, p, method),
+
         // Rotate data, deriv, and curvature lists by the same offset so constraint
         // associations are preserved after rotation.
-        pts    = select(points,  rot, rot + n - 1),
-        der_r  = is_undef(eff_der)  ? undef : select(eff_der,  rot, rot + n - 1),
-        curv_r = is_undef(eff_curv) ? undef : select(eff_curv, rot, rot + n - 1),
+        pts    = select(points,  _rot, _rot + n - 1),
+        der_r  = is_undef(eff_der)  ? undef : select(eff_der,  _rot, _rot + n - 1),
+        curv_r = is_undef(eff_curv) ? undef : select(eff_curv, _rot, _rot + n - 1),
 
         raw_params = _interp_params(pts, method, closed=true),
 
@@ -1329,46 +1326,9 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot) =
                    for (spec = curv_specs) spec[1]],
         control = linear_solve(A, rhs)
     )
-    control == [] ? undef : [control, aug_bar, rot];
-
-
-// Closed interpolation with per-point derivative and/or curvature constraints.
-//
-// Applies the chord-ratio seam rotation for numerical conditioning; both the
-// data points and all constraint lists are rotated by the same offset.
-// If the initial rotation produces excessive control-point spread, all n
-// rotations are tried and the one with the smallest spread is selected.
-
-function _nurbs_interp_closed_constrained(points, p, method, eff_der, eff_curv) =
-    let(
-        n         = len(points),
-        rot0      = _find_closed_rotation(points, n, p, method),
-        result0   = _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot0)
-    )
-    assert(!is_undef(result0),
+    assert(control != [],
            "nurbs_interp (closed+constrained): singular system")
-    let(
-        ratio0    = _ctrl_point_ratio(points, result0[0]),
-        threshold = pow(2, p) / p
-    )
-    ratio0 <= threshold ? result0
-    : let(
-        // Heuristic rotation produced excessive control-point spread.
-        // Try all rotations and pick the one with the smallest spread.
-        candidates = [for (r = [0:1:n-1])
-                         let(res = _closed_constrained_solve(points, p, method,
-                                       eff_der, eff_curv, r))
-                         if (!is_undef(res))
-                         [_ctrl_point_ratio(points, res[0]), res]],
-        _chk = assert(len(candidates) > 0,
-                       "nurbs_interp (closed+constrained): all rotations produce singular systems"),
-        best_idx = min_index([for (c = candidates) c[0]]),
-        best     = candidates[best_idx][1],
-        _echo    = echo(str("nurbs_interp (closed+constrained): rotation search chose ",
-                            best[2], " (spread ratio ",
-                            candidates[best_idx][0], ")"))
-    )
-    best;
+    [control, aug_bar, _rot];
 
 
 // =====================================================================
