@@ -1,11 +1,8 @@
 include<BOSL2/std.scad>
-include<BOSL2/threading.scad>
+include<BOSL2/turtle3d.scad>
 
-height = 8;
 
-diff(){
-    cyl(d = 30, h = height, anchor = BOT,  $fn = 64)
-        tag("remove") position(BOT) 
-            #threaded_rod(d = 25, l = height, pitch = 4, internal = true, bevel = false, anchor = BOT, $slop = 0.1, $fn = 64);
-
-}
+state1 = turtle3d(["move", 20],full_state=true);
+  state2 = turtle3d(["arcright", 20],state=state1,full_state=true);
+  final = turtle3d(["move", 30], state=state2);
+  stroke(final);

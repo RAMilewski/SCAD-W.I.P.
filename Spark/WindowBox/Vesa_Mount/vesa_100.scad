@@ -6,27 +6,33 @@ include<BOSL2/screws.scad>
 $fn = 64;
 
 spacing = 100;
-size = [119,119,4];
+size = [119,119,3];
 hole_size = 4.5;
-shaft = [30,undef,200];
+shaft = [30,undef,50];
 bar_dia = 13;
 
-layer_0 = rect(size.x * 0.8, rounding = 10, anchor = CENTER);
-layer_1 = circle(d = size.x * 0.6); 
-layer_2 = circle(d = size.x * 0.4); 
+layer_0 = rect(size.x * 0.6, rounding = 10, anchor = CENTER);
+layer_1 = circle(d = size.x * 0.5); 
+layer_2 = circle(d = size.x * 0.3); 
 layer_3 = circle(d = 25); 
 
-pimount();
+vesa(shaft.z);
+right(80){
+    mount(100);
+    fwd(30) cap();
+}
+right(120) ycopies(4, spacing = 35) ringnut(10);
+
 
 
 module vesa(shaft) {
     //back_half(s = 200)
     diff(){
-        cuboid(size, rounding = 5, edges="Z", anchor = BOT) {
+        cuboid(size, rounding = 15, edges="Z", anchor = BOT) {
             grid_copies(n = [2,2], spacing = spacing) tag("remove") cyl(h = size.z+.01, d = hole_size);
             position(TOP) skin([layer_0,layer_1,layer_2,layer_3], z = [0,5,10,20], slices = 10) {
-                position(TOP) threaded_rod(d = 25, l = shaft.z, pitch = 4, bevel2 = true, anchor = BOT); 
-                tag("remove") position(TOP) cyl(d =12, h = shaft.z, anchor = BOT);
+                position(TOP) threaded_rod(d = 25, l = shaft, pitch = 4, bevel2 = true, anchor = BOT); 
+                tag("remove") position(TOP) cyl(d =12, h = shaft, anchor = BOT);
             }
         }
     }
@@ -70,4 +76,11 @@ module pimount() {
     }
 }
 
+
+module base() {
+    cuboid([200,50,40], rounding = 3, edges = "Z", anchor = BOT) {
+        position(TOP+BACK) cuboid([200,10,20], rounding = 3, edges = [TOP,"Z"], anchor = BOT+BACK);
+        position(TOP+FWD)  cuboid([200,15,4], rounding = 3, edges = [TOP,"Z"], anchor = BOT+FWD);
+    }
+}
 /**/

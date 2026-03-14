@@ -4,8 +4,30 @@
 Develop `nurbs_interp.scad`: a NURBS curve and surface interpolation library
 for eventual inclusion in the BOSL2 OpenSCAD library.
 
+## Recent Completions
+- `deriv=` list with `undef` entries (per-point, any index) — done
+- Foley-Neilson parameterization (`param="foley"`) — done
+- Curvature end constraints (`start_curv=`, `end_curv=`, `curv=`) — done
+- Surface edge partial derivatives (`start_u_der=`, `end_u_der=`, `start_v_der=`, `end_v_der=`) — done
+- Surface boundary oscillation fix: project derivatives onto edge direction at boundary rows/cols when both u and v constraints are active simultaneously — done
+- `start_normal=`/`end_normal=` consolidated from 4 params (`start_u_normal` etc.); auto-detects u vs v from degenerate edge — done
+- `flat_edges=[su, eu, sv, ev]` — coplanar-boundary outward derivatives; scalar or per-point list scale; scalar shorthand `flat_edges=s` expands to `[s,s,s,s]` — done
+- NaN corner markers in `deriv=` for clamped curves: `deriv[k]=0/0` splits curve into independent clamped segments at that point; `_nurbs_is_segmented()` detects the multi-segment result; `nurbs_interp_curve()` / `debug_nurbs_interp()` handle both cases — done
+- Corner segments with fewer than `p+1` points now automatically use `seg_p = min(p, m-1)` (degree reduction); callers use `seg[2]` for the per-segment degree, not the global degree — done
+- When all corner segments achieve full degree p, `_combine_corner_segs()` assembles them into a single clamped B-spline: local segment knots remapped to global params, `p` copies of each corner param in xknots → C0 multiplicity; first ctrl of each seg[1:] dropped (equals shared junction); result is regular `[ctrl, xknots, 0]` — done
+- `debug_nurbs_interp()` default `width` changed from `0.1` to `1` — done
+- `nurbs_elevate_degree(control, degree, knots, [type=], [times=])` — public function for exact clamped B-spline degree elevation via Greville-abscissae collocation; `_greville()` and `_elevate_once_clamped()` helpers — done
+- Corner segments with degree reduction now auto-elevated to full degree p via `nurbs_elevate_degree()`, always producing a single combined B-spline (segmented fallback removed) — done
+- Curve interpolation documented as dimension-agnostic (any dimension >= 1); no code changes needed — done
+- Surface C0 edges: `u_edges=` and `v_edges=` for `nurbs_interp_surface()` — sharp creases at interior row/column indices; reuses curve corner infrastructure (`_build_edge_systems()`, `_solve_with_edges()`, `_combine_corner_segs()`); supports degree elevation for short segments; compatible with cross-direction boundary derivatives — done
+- `corners=` for `nurbs_interp()` — both clamped and closed; alternative to NaN syntax; closed corners rotate to first corner, close loop, solve as clamped via `_nurbs_interp_closed_corners()`; `_nurbs_eff_type()` signals type override to convenience functions — done
+- Return format reorganized: `nurbs_interp()` returns `[type, degree, ctrl, knots, weights, start_idx]`; `nurbs_interp_surface()` returns `[type, degree, ctrl_grid, knots, weights, undef]` where type/degree/knots are `[u,v]` lists; weights=undef (B-spline); removed dead `_nurbs_is_segmented()`/`_nurbs_eff_type()` helpers — done
+- `debug_nurbs_interp()` `show_ctrl=` parameter: when false, renders curve only (via `stroke()`) without control polygon/points; default true — done
+- `u_edges=`/`v_edges=` singleton promotion: scalar value automatically wrapped in a list via `force_list()` — done
+- `flat_edges=` now compatible with `u_edges=`/`v_edges=`: `_build_edge_systems()` accepts `has_sd`/`has_ed` for first/last segment derivative rows; `_solve_with_edges()` accepts `start_der`/`end_der` data per solve; boundary asserts relaxed — done
+
 ## Next Step
-What we need to do now is modify nurbs_interp.scad to accept a derivitive list with "undef" being a possible entry for a point.  The default should be all "undef".
+TBD — fix the Fang parameterization implementation (wrong angle, wrong `ell`, no zero-guard).
 
 ## Key References
 - **Algorithm**: Piegl & Tiller, *The NURBS Book* (2nd ed.) — primary reference for all math.
@@ -33,12 +55,13 @@ What we need to do now is modify nurbs_interp.scad to accept a derivitive list w
 3. Parameterization
 4. Knot Vector Construction
 5. Collocation Matrices
-6. Main Interpolation Function
-7. Convenience Functions
-8. Debug / Visualization
-9. Interpolation System Builder (shared infrastructure)
-10. Surface Interpolation
-11. Usage Examples (in comments)
+6. Degree Elevation
+7. Main Interpolation Function
+8. Convenience Functions
+9. Debug / Visualization
+10. Interpolation System Builder (shared infrastructure)
+11. Surface Interpolation
+12. Usage Examples (in comments)
 
 ### BOSL2 Doc Comment Style (required for all public API)
 ```
@@ -83,6 +106,15 @@ BSD-2-Clause (same as BOSL2). All files must carry this header.
 - Test 2D and 3D point sets
 - For surfaces, test scalar degree/type AND `[u,v]` list form
 
+## Revisions
+- Make ALL changes to nurbs_interp.scad first, THEN archive the finished result.
+- Workflow: (1) make all edits, (2) bump the version number in the file header,
+  (3) copy the completed file to Archive/nurbs_interp-v##.scad (lowercase v).
+- The archive copy should be identical to nurbs_interp.scad after all changes are done.
+  Never archive before changes are complete — the archive is the final state, not a backup.
+- Use lowercase "v" in archive filenames (nurbs_interp-v40.scad, not v40 or V40).
+
+  
 ## Known BOSL2 Integration Details
 - BOSL2 `nurbs_curve()` with `type="closed"` internally calls `_extend_knot_vector()`.
   Must use `_bosl2_full_closed_knots()` (not `_full_periodic_knots()`) when building
