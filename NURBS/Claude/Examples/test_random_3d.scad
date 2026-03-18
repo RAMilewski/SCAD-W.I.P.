@@ -1,6 +1,6 @@
 include <BOSL2/std.scad>
 include <BOSL2/nurbs.scad>
-include <nurbs_interp.scad>
+include <../nurbs_interp.scad>
 //
 $vpt = [0,0,0];
 
@@ -17,7 +17,7 @@ color("red") move_copies(data3d) sphere(r=.5, $fn=16);
 path = nurbs_interp_curve(data3d, 3, splinesteps=32, method="centripetal", type=type);
 color("dodgerblue") stroke(path, closed = closed_stroke, width=.2);
 
-path2 = nurbs_interp_curve(data3d, 3, splinesteps=32, method="dynamic", type=type);
-color("#8ffe09") stroke(path2, closed = closed_stroke, width=.2);
+path2 = nurbs_interp_curve(data3d, 3, splinesteps=32, method="lockyer", type=type);
+color("green") stroke(path2, closed = closed_stroke, width=.2);
 
 /* */

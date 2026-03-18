@@ -1,0 +1,5 @@
+nurbs.scad in BOSL2 has been updated to support parameter lists [type, degree, ...] to specify the nurbs.   The a bug involving knots vanishing if you specify weights has been fixed.
+
+Review the nurbs_interp.scad code and simplify it to take advantage of those changes.
+
+Add a new method named "lockyer" that implements the W=1 method from  Lockyer2007.pdf shown in chapter 3.1

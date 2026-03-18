@@ -16,7 +16,7 @@ include <../nurbs_interp.scad>
        [[-50,-50, 0], [-16,-50, 0], [ 16,-50, 0], [50,-50, 0], [80,-50, 0]],
    ];
 
-vnf1 = nurbs_interp_vnf(data,  3, splinesteps=64,flat_edges=1);
+vnf1 = nurbs_interp_vnf(data,  3, method="quadratic", splinesteps=64,flat_edges=1);
 vnf2 = vnf_reverse_faces(nurbs_interp_vnf(data2, 3, splinesteps=64));
 
 vnf_polyhedron(vnf_join([vnf1,vnf2]));
