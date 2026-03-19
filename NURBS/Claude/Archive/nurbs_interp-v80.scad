@@ -1676,8 +1676,7 @@ module debug_nurbs_interp(points, degree, splinesteps=16, method="dynamic",
     curve = nurbs_curve(result, splinesteps=splinesteps);
 
     if (show_ctrl) {
-        debug_nurbs(result[2], result[1], splinesteps=splinesteps,
-                    knots=result[3], type=result[0],
+        debug_nurbs(result, splinesteps=splinesteps,
                     width=width, size=sz);
     } else {
         stroke(curve, width=width, closed=(result[0]=="closed"));
@@ -2091,8 +2090,8 @@ function nurbs_interp_surface(points, degree, method="dynamic", type="clamped",
            str("nurbs_interp_surface: type must be \"clamped\" or \"closed\", got [\"",
                type_u, "\", \"", type_v, "\"]"))
     assert(method == "length" || method == "centripetal" || method == "dynamic"
-               || method == "foley",
-           str("nurbs_interp_surface: method must be \"length\", \"centripetal\", \"dynamic\", or \"foley\", got \"", method, "\""))
+               || method == "foley" || method == "lockyer",
+           str("nurbs_interp_surface: method must be \"length\", \"centripetal\", \"dynamic\", \"foley\", or \"lockyer\", got \"", method, "\""))
     assert(n_rows >= p_u + 1,
            str("nurbs_interp_surface: need at least ", p_u+1,
                " rows for u-degree ", p_u, ", got ", n_rows))

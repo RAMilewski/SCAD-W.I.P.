@@ -1,0 +1,15 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$fn": "144",
+            "dmax": "55",
+            "dsnap": "6",
+            "part": "both",
+            "wall": "1.5",
+            "win": "5",
+            "zbase": "2",
+            "zmax": "4"
+        }
+    }
+}
