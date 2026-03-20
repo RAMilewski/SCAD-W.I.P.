@@ -6,7 +6,6 @@ for eventual inclusion in the BOSL2 OpenSCAD library.
 
 ## Recent Completions
 - `deriv=` list with `undef` entries (per-point, any index) — done
-- Foley-Neilson parameterization (`param="foley"`) — done
 - Curvature end constraints (`start_curv=`, `end_curv=`, `curv=`) — done
 - Surface edge partial derivatives (`start_u_der=`, `end_u_der=`, `start_v_der=`, `end_v_der=`) — done
 - Surface boundary oscillation fix: project derivatives onto edge direction at boundary rows/cols when both u and v constraints are active simultaneously — done
@@ -27,11 +26,10 @@ for eventual inclusion in the BOSL2 OpenSCAD library.
 - `flat_edges=` now compatible with `u_edges=`/`v_edges=`: `_build_edge_systems()` accepts `has_sd`/`has_ed` for first/last segment derivative rows; `_solve_with_edges()` accepts `start_der`/`end_der` data per solve; boundary asserts relaxed — done
 - BOSL2 parameter list support: return format `[type, degree, ctrl, knots, weights, ...]` is now a standard BOSL2 NURBS parameter list; results can be passed directly to `nurbs_curve()`, `nurbs_vnf()`, etc. Removed `_nurbs_curve_rational()` workaround (BOSL2 knots-with-weights bug fixed upstream). Simplified `nurbs_interp_curve()`, `nurbs_interp_vnf()`, `debug_nurbs_interp()` — done
 - Removed `method="quadratic"` (local rational quadratic interpolation) and all associated helpers (`_local_quadratic_interp`, `_line_intersect`, `_cross_mag`, `_five_point_tangents_lr`, `_shoulder_weight`) — done
-- Lockyer W=1 orthogonal parameterization (`method="lockyer"`): implements §3.1.3 from Lockyer 2007 / Ball 2004; derivative magnitudes satisfy d²C/dt²·dC/dt=0 at Gauss points; Bessel tangent estimation; Ball option (b) fallback for sharp turns; supports both clamped and closed — done
-- Lockyer full pipeline (`method="lockyer"`, clamped, degree 3, unconstrained): §3.1.5 derivative magnitude estimation (Ball 2005); builds three basis interpolants C(1,1), C(1,0), C(0,1) with different end-derivative magnitudes, computes end second derivatives projected onto tangent, solves 2×2 system (Eqs 3.36–3.37) for optimal φ,ψ that force orthogonality at endpoints; falls back to W=1-only for non-cubic, closed, or user-constrained cases — done
+- Removed `method="lockyer"` (Lockyer orthogonal parameterization) and all associated helpers (`_lockyer_build_params`, `_lockyer_params`, `_lockyer_clamped_full`) — done
 
 ## Next Step
-TBD — fix the Fang parameterization implementation (wrong angle, wrong `ell`, no zero-guard).
+TBD
 
 ## Key References (PDFs in `Papers/`)
 - **Algorithm**: Piegl & Tiller, *The NURBS Book* (2nd ed.) — primary reference for all math.
@@ -43,8 +41,6 @@ TBD — fix the Fang parameterization implementation (wrong angle, wrong `ell`, 
   `Papers/balta.pdf`
 - **Test datasets**: *Datasets for Interpolation*
   `Papers/INTERPOLATION - Datasets for Interpolation.pdf`
-- **Interpolation control**: Lockyer, *Controlling the Interpolation of NURBS Curves and Surfaces* (PhD thesis, U. Birmingham, 2007)
-  `Papers/Lockyer2007.pdf`
 - **BOSL2 NURBS source**: https://github.com/BelfrySCAD/BOSL2/blob/master/nurbs.scad
 - **BOSL2 API used**: `nurbs_curve()`, `nurbs_vnf()`, `debug_nurbs()`, `vnf_polyhedron()`,
   `linear_solve()`, `cumsum()`, `sum()`, `norm()`, `last()`, `is_list()`, `is_num()`, `is_undef()`

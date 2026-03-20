@@ -4,54 +4,44 @@ include<BOSL2/std.scad>
 dmax = 55;
 zmax = 4;
 wall = 1.5;
-segments = 5;       //[2:1:18]
-topcorner = 1;      //[0:0.25:3.5]
+segments = 5;
 
 /* [Snap] */
 dsnap = 6;
 snapgap = 1;
 
-/* [Edge Fluting] */
-edgeflute = true;   // [true,false]
-depth = 0.6;        // [0:0.1:3]
-count = 20;         // [4:1:100]
+/* [Texture] */
+texture = true; // [true,false]
+toptex  = true; // [true,false]
+depth = -0.6;
 
 /* [[Show Part] */
-top = false;        // [true,false]
-bottom = false;     // [true,false]
+top = false;    // [true,false]
+bottom = false; // [true,false]
 
 /* [Hidden] */
 $fn = 144;
-shift = top && bottom ? dmax/1.25 : 0;
-
-
+shift = top && bottom ? dmax/1.8 : 0;
 
 if (top) {
-    if (!edgeflute) { top(); } else { top_half(s = 200) top(); }
+    if (toptex) { top(); } else { top_half(s = 200) top(); }
 }
 
-if (bottom) {bottom(); }
-   
+if (bottom) {
+    if (!toptex) { bottom(); } else { down(abs(depth)) bottom(); }
+}
 
 
 module top() {
     left(shift)
     //zrot(360/40)
     diff(){
-        shell() {
+        cyl(d=dmax, h = wall + zmax -1, rounding1 = 0, texture = "", tex_depth = depth, tex_reps = [20,1], anchor = BOT) {
             position(BOT) down(1) tag("remove") pie_slice(ang = 360/segments, d=dmax-5, h = zmax+wall, anchor = BOT);
-            position(BOT) up(wall) tag("remove") cyl(d = dmax - 2 * wall, h = zmax-.99, anchor = BOT );
+            position(TOP) up(0.1) tag("remove") cyl(d = dmax - 2 * wall, h = zmax-1.1, anchor = TOP );
             position(BOT) tag("keep") cyl(d = dsnap, h = zmax-0.5, anchor = BOT)
                 position(TOP) zscale(.75) torus(d_maj = 6, d_min = 1, anchor = TOP);
         }
-    }
-}
-
-module shell(l = wall + zmax-1, d = dmax, orient = DOWN, spin = 0, anchor = TOP) {
-    attachable(orient,spin,anchor){
-        if (edgeflute) { cyl(d=dmax, l = wall + zmax -1, texture = "wave_ribs", tex_depth = depth, tex_reps = [count,1], anchor = BOT); }
-        else { cyl(d=dmax, l = wall + zmax -1, rounding1 = topcorner, teardrop = true, anchor = BOT); } 
-        children();
     }
 }
 
@@ -69,3 +59,5 @@ module bottom() {
         }
     }
 }
+    //zrot(360/40) 
+    //up(5) ruler();

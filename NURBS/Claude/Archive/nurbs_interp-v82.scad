@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 83
+// Development Version 82
 //////////////////////////////////////////////////////////////////////
 
 
@@ -175,8 +175,15 @@ function _dynamic_dists(raw, emin=0.35, emax=0.65) =
 
 
 
-// Foley-Neilson parameterization (Foley & Neilson 1987).
-// Centripetal base with deflection-angle correction at each vertex.
+// Centripetal Foley-Neilson parameterization (Foley & Neilson 1987; as
+// cited in Balta et al., IEEE Access 2020 §II.E), modified to use a
+// centripetal (sqrt chord-length) base instead of raw chord lengths.
+// Each segment's parameter increment is sqrt(chord_length) × (1 + curvature
+// corrections from both adjacent vertices).  The correction ratios also use
+// the centripetal distances, giving better spacing for uneven chord data.
+// For open curves, endpoint deflection angles are treated as zero.
+// For closed curves, wrap-around angles and chords are used at the seam.
+
 function _foley_dists(points, closed) =
     let(
         n  = len(points),
@@ -209,13 +216,115 @@ function _foley_dists(points, closed) =
     ];
 
 
-// Chord-length, centripetal, dynamic, or Foley parameterization.
+// Lockyer W=1 orthogonal parameterization (Lockyer 2007, §3.1.3;
+// Ball 2004).  Computes parameter values by satisfying the
+// orthogonality condition (d²C/dt² · dC/dt = 0) at the Gauss points
+// t = (3 ± √5)/6 on each C¹ cubic Hermite segment.
+//
+// The W=1 construction is special: the derivative magnitudes a_k, b_k
+// (Eqs. 3.22–3.23) are independent of the angle χ_k between adjacent
+// tangent directions, making this the most stable of the orthogonal
+// constructions (Lockyer Table 3.1: instability = "Never").
+//
+// Per-segment a_k is found by solving the quartic (Eq. 3.24):
+//   x⁴ − 4x² + (s·t)(s·t')²x + 4 − 2(s·t')² = 0,  x = a_k/c_k
+// via Newton's method (x₀ = 1, ~5 iterations), then
+// b_k = c_k(2 − x²)/(s·t')  from Eq. 3.22.
+//
+// Tangent directions are estimated using Bessel tangents (weighted
+// average of adjacent chord vectors).  When s·t or s·t' ≤ 0
+// (tangent perpendicular or opposite to chord), fallback to
+// chord-length: a_k = b_k = c_k.
+
+// Recursive parameter accumulation for Lockyer W=1 (Eq. 3.3).
+// s_0 = 0, s_1 = 1, s_{k+1} = a_k * (s_k - s_{k-1}) / b_{k-1} + s_k.
+
+function _lockyer_build_params(ab, n, k=2, acc=[0, 1]) =
+    k > n ? acc
+    : let(
+        a_km1 = ab[k-1][0],
+        b_km2 = ab[k-2][1],
+        s_km1 = acc[k-1],
+        s_km2 = acc[k-2],
+        s_k   = a_km1 * (s_km1 - s_km2) / max(b_km2, 1e-15) + s_km1
+    )
+    _lockyer_build_params(ab, n, k+1, [each acc, s_k]);
+
+
+function _lockyer_params(points, closed) =
+    let(
+        np     = len(points),
+        nseg   = closed ? np : np - 1,
+        // Chord vectors and lengths.
+        chords = [for (k = [0:1:nseg-1])
+                      points[(k+1) % np] - points[k]],
+        c      = [for (ch = chords) norm(ch)],
+        s_dir  = [for (k = [0:1:nseg-1])
+                      c[k] > 1e-15 ? chords[k] / c[k] : chords[k]],
+        // Bessel tangent directions at each data point.
+        // Interior: t_k = unit(c[k] * chords[k-1] + c[k-1] * chords[k])
+        //   (weight by the *opposite* chord length).
+        // Clamped endpoints: chord direction.
+        // Closed: wrap cyclically.
+        tang = [for (k = [0:1:np-1])
+            let(
+                is_start = !closed && k == 0,
+                is_end   = !closed && k == np - 1,
+                km1 = closed ? (k - 1 + nseg) % nseg : max(k - 1, 0),
+                kp0 = closed ? k                      : min(k, nseg - 1),
+                tvec = is_start ? chords[0]
+                     : is_end   ? chords[nseg-1]
+                     : c[kp0] * chords[km1] + c[km1] * chords[kp0],
+                tn   = norm(tvec)
+            )
+            tn > 1e-15 ? tvec / tn : s_dir[min(k, nseg-1)]
+        ],
+        // Derivative magnitudes a_k, b_k for each segment (Eqs. 3.22–3.23).
+        // Solve the W=1 quartic (Eq. 3.24) per segment via root_find().
+        // f(x) = x⁴ − 4x² + pq²·x + (4 − 2q²);  root in (0, √2).
+        // f(0) = 4−2q² > 0 (since q≤1), f(√2) = q²(√2·p−2) < 0 (since p≤1).
+        ab = [for (k = [0:1:nseg-1])
+            let(
+                k1   = (k + 1) % np,
+                p    = s_dir[k] * tang[k],       // s_k · t_k
+                q    = s_dir[k] * tang[k1],      // s_k · t_{k+1}
+                // Need p > 0 and q > 0 for valid W=1 solution;
+                // otherwise fall back to a_k = b_k = c_k (chord-length).
+                safe = p > 1e-10 && q > 1e-10,
+                pq2  = p * q * q,
+                ct   = 4 - 2 * q * q,
+                x    = safe ? root_find(
+                           function(x) x*x*x*x - 4*x*x + pq2*x + ct,
+                           1e-10, 1.4142135) : 1,
+                a    = c[k] * x,
+                b    = safe ? c[k] * (2 - x * x) / q : c[k]
+            )
+            [a, b]
+        ],
+        // Build parameter sequence (Eq. 3.3).
+        npts  = closed ? np + 1 : np,
+        raw_p = _lockyer_build_params(ab, npts - 1),
+        last  = raw_p[len(raw_p) - 1]
+    )
+    last > 1e-15
+      ? (closed
+           ? [for (i = [0:1:np-1]) raw_p[i] / last]
+           : [for (x = raw_p) x / last])
+      // Degenerate fallback: uniform spacing.
+      : (closed
+           ? [for (i = [0:1:np-1]) i / np]
+           : [for (i = [0:1:np-1]) i / (np - 1)]);
+
+
+// Chord-length, centripetal, dynamic, Foley, or Lockyer parameterization.
 // clamped: n+1 points -> n+1 values in [0, 1] with t_0=0, t_n=1.
 // closed:  n   points -> n   values in [0, 1) with t_0=0.
 // method: "length"      = chord-length
 //        "centripetal" = sqrt exponent (Lee 1989)
 //        "dynamic"     = per-chord dynamic exponent (Balta et al. 2020)
 //        "foley"       = centripetal + deflection-angle correction (Foley & Neilson 1987)
+//        "lockyer"     = W=1 orthogonal construction (Lockyer 2007, Ball 2004);
+//                        §3.1.5 end-deriv estimation added at the caller level
 
 function _interp_params(points, method="dynamic", closed=false) =
     let(
@@ -231,7 +340,11 @@ function _interp_params(points, method="dynamic", closed=false) =
            : [for (i = [0:1:n  ]) i / n])
       : assert(min(raw) > 1e-10,
                "nurbs_interp: consecutive duplicate data points detected")
-        let(
+        // Lockyer W=1 recurrence is only used by the full §3.1.5 pipeline
+        // (_lockyer_clamped_full), which calls _lockyer_params directly.
+        // All other lockyer cases fall back to centripetal parameterization.
+        method == "lockyer" ? _interp_params(points, "centripetal", closed)
+      : let(
             dists = method == "centripetal" ? [for (d = raw) sqrt(d)]
                   : method == "dynamic"     ? _dynamic_dists(raw)
                   : method == "foley"       ? _foley_dists(points, closed)
@@ -628,7 +741,7 @@ function nurbs_elevate_degree(control, degree, knots,
 //   points = list of data points to interpolate (any dimension >= 1)
 //   degree = degree of the B-spline curve (commonly 3)
 //   ---
-//   method = parameterization method: "length" (chord-length), "centripetal" (square-root exponent, Lee 1989), "dynamic" (per-chord dynamic exponent, Balta et al. 2020), or "foley" (centripetal + deflection-angle correction, Foley & Neilson 1987).  Default: "dynamic"
+//   method = parameterization method: "length" (chord-length), "centripetal" (square-root exponent, Lee 1989), "dynamic" (per-chord dynamic exponent, Balta et al. 2020), "foley" (centripetal + deflection-angle correction, Foley & Neilson 1987), or "lockyer" (W=1 orthogonal parameterization + §3.1.5 derivative magnitude estimation, Lockyer 2007 / Ball 2004–2005; for unconstrained degree-3 clamped curves, automatically computes optimal end derivative magnitudes that force orthogonality between first and second parametric derivatives at both endpoints; for other cases uses the W=1 parameterization only).  Default: "dynamic"
 //   type = "clamped" or "closed".  Default: "clamped"
 //   deriv = list of tangent vectors, one per data point; undef entries are unconstrained.  Both curve types supported.  Cannot be combined with start_deriv=/end_deriv=.  Vectors are scaled by total chord length internally; pass unit vectors for natural speed.  BOSL2 direction constants (UP, DOWN, LEFT, RIGHT, BACK, FWD) accepted for 2D curves.  Default: undef
 //   start_deriv = tangent at start point; shorthand for deriv[0].  Clamped only.  Default: undef
@@ -663,8 +776,8 @@ function nurbs_interp(points, degree, method="dynamic", type="clamped",
     assert(is_num(degree) && degree >= 1,
            "nurbs_interp: degree must be >= 1")
     assert(method == "length" || method == "centripetal" || method == "dynamic"
-               || method == "foley",
-           str("nurbs_interp: method must be \"length\", \"centripetal\", \"dynamic\", or \"foley\", got \"", method, "\""))
+               || method == "foley" || method == "lockyer",
+           str("nurbs_interp: method must be \"length\", \"centripetal\", \"dynamic\", \"foley\", or \"lockyer\", got \"", method, "\""))
     assert(type == "clamped" || type == "closed",
            str("nurbs_interp: type must be \"clamped\" or \"closed\"",
                ", got \"", type, "\""))
@@ -786,7 +899,9 @@ function _nurbs_interp_clamped(points, degree, method,
       ? _nurbs_interp_clamped_corners(points, p, method, eff_der, eff_curv, corner_idxs)
       : (has_any_der || has_any_curv)
         ? _nurbs_interp_clamped_constrained(points, p, method, eff_der, eff_curv)
-        : _nurbs_interp_clamped_basic(points, p, method);
+        : method == "lockyer" && p == 3
+          ? _lockyer_clamped_full(points, p)
+          : _nurbs_interp_clamped_basic(points, p, method);
 
 
 // Basic clamped interpolation (no derivatives).
@@ -1008,6 +1123,122 @@ function _nurbs_interp_clamped_constrained(points, p, method, eff_der, eff_curv)
     )
     assert(control != [],
            "nurbs_interp (clamped+constrained): singular system")
+    [control, knots, 0];
+
+
+// Full Lockyer pipeline: W=1 parameterization + §3.1.5 derivative
+// magnitude estimation (Lockyer 2007, Ball 2005).
+//
+// Computes optimal end derivative magnitudes τ_0 = φc and τ_{m-2} = ψc
+// (c = total chord length) that force orthogonality (C'' · C' = 0)
+// at both endpoints of the interpolated C² cubic NURBS spline.
+//
+// Method: build three basis interpolants C(1,1), C(1,0), C(0,1) with
+// different end derivative magnitudes, compute their end second
+// derivatives projected onto the tangent direction, and solve the 2×2
+// linear system (Eqs 3.36–3.37) for (φ, ψ).  The final control points
+// are the linear combination (Eq 3.31):
+//   P(φ,ψ) = (φ+ψ−1)P(1,1) + (1−ψ)P(1,0) + (1−φ)P(0,1)
+//
+// Restricted to degree 3, clamped, no user-specified derivatives.
+
+function _lockyer_clamped_full(points, p) =
+    let(
+        n       = len(points) - 1,
+        dim     = len(points[0]),
+        params  = _lockyer_params(points, false),
+
+        // Chord vectors and total chord length.
+        chords  = [for (k = [0:1:n-1]) points[k+1] - points[k]],
+        clen    = [for (ch = chords) norm(ch)],
+        c_total = sum(clen),
+
+        // Bessel tangent directions at endpoints (clamped = chord direction).
+        t0 = let(tn = norm(chords[0]))
+             tn > 1e-15 ? chords[0] / tn : chords[0],
+        tn = let(tn2 = norm(chords[n-1]))
+             tn2 > 1e-15 ? chords[n-1] / tn2 : chords[n-1],
+
+        // Expanded parameter sequence for constrained case (2 end-derivative
+        // constraints → 2 extra DOFs → duplicate params[0] and params[n]).
+        u_tilde = sort([each params, params[0], params[n]]),
+        int_kn  = _avg_knots_interior(u_tilde, p),
+        U_full  = _full_clamped_knots(int_kn, p),
+        N_ctrl  = n + 3,   // n+1 interpolation + 2 derivative constraints
+
+        // ---- Build collocation matrix A (same for all three solves) ----
+        interp_rows = [for (k = [0:1:n])
+            [for (j = [0:1:N_ctrl-1]) _nip(j, p, params[k], U_full)]],
+        d_row_start = [for (j = [0:1:N_ctrl-1]) _dnip(j, p, params[0], U_full)],
+        d_row_end   = [for (j = [0:1:N_ctrl-1]) _dnip(j, p, params[n], U_full)],
+        A           = [each interp_rows, d_row_start, d_row_end],
+
+        // ---- Three RHS systems (Eq. 3.31 basis) ----
+        sd   = c_total * t0,      // start deriv with magnitude c
+        ed   = c_total * tn,      // end   deriv with magnitude c
+        zero = repeat(0, dim),
+
+        rhs11 = [each points, sd, ed],       // C(1,1): τ₀=c, τ_{n}=c
+        rhs10 = [each points, sd, zero],     // C(1,0): τ₀=c, τ_{n}=0
+        rhs01 = [each points, zero, ed],     // C(0,1): τ₀=0, τ_{n}=c
+
+        ctrl11 = linear_solve(A, rhs11),
+        ctrl10 = linear_solve(A, rhs10),
+        ctrl01 = linear_solve(A, rhs01)
+    )
+    assert(ctrl11 != [] && ctrl10 != [] && ctrl01 != [],
+           "nurbs_interp (lockyer §3.1.5): singular system in basis solve")
+    let(
+        // ---- Second derivatives at endpoints (Eqs. 3.32–3.33) ----
+        d2_0 = [for (j = [0:1:N_ctrl-1]) _d2nip(j, p, params[0], U_full)],
+        d2_n = [for (j = [0:1:N_ctrl-1]) _d2nip(j, p, params[n], U_full)],
+
+        // C''(·) at u=0 for each basis (row-vector × control-point matrix).
+        c2_11_0 = d2_0 * ctrl11,
+        c2_10_0 = d2_0 * ctrl10,
+        c2_01_0 = d2_0 * ctrl01,
+
+        // C''(·) at u=1 for each basis.
+        c2_11_n = d2_n * ctrl11,
+        c2_10_n = d2_n * ctrl10,
+        c2_01_n = d2_n * ctrl01,
+
+        // Project onto end tangent directions (Eqs. 3.32–3.33).
+        d11_0 = c2_11_0 * t0,   d10_0 = c2_10_0 * t0,   d01_0 = c2_01_0 * t0,
+        d11_n = c2_11_n * tn,   d10_n = c2_10_n * tn,   d01_n = c2_01_n * tn,
+
+        // ---- Solve 2×2 system for (φ, ψ) (Eqs. 3.36–3.37) ----
+        // φ(d11_0−d01_0) + ψ(d11_0−d10_0) = d11_0−d10_0−d01_0
+        // φ(d11_n−d01_n) + ψ(d11_n−d10_n) = d11_n−d10_n−d01_n
+        M   = [[d11_0 - d01_0, d11_0 - d10_0],
+               [d11_n - d01_n, d11_n - d10_n]],
+        rhs = [d11_0 - d10_0 - d01_0,
+               d11_n - d10_n - d01_n],
+        det = M[0][0] * M[1][1] - M[0][1] * M[1][0],
+
+        // If the 2×2 system is singular or near-singular, fall back to
+        // φ = ψ = 1 (chord-length derivative magnitudes).
+        phi_psi = abs(det) > 1e-12
+                ? let(sol = linear_solve(M, rhs))
+                  sol != [] ? sol : [1, 1]
+                : [1, 1],
+        phi = phi_psi[0],
+        psi = phi_psi[1],
+
+        // Guard: if φ or ψ is non-positive or unreasonably large,
+        // fall back to chord-length magnitudes.
+        safe_phi = (phi > 0.01 && phi < 100) ? phi : 1,
+        safe_psi = (psi > 0.01 && psi < 100) ? psi : 1,
+
+        // ---- Combine control points (Eq. 3.31) ----
+        w11 = safe_phi + safe_psi - 1,
+        w10 = 1 - safe_psi,
+        w01 = 1 - safe_phi,
+
+        control = [for (j = [0:1:N_ctrl-1])
+            w11 * ctrl11[j] + w10 * ctrl10[j] + w01 * ctrl01[j]],
+        knots   = [0, each int_kn, 1]
+    )
     [control, knots, 0];
 
 
@@ -1864,8 +2095,8 @@ function nurbs_interp_surface(points, degree, method="dynamic", type="clamped",
            str("nurbs_interp_surface: type must be \"clamped\" or \"closed\", got [\"",
                type_u, "\", \"", type_v, "\"]"))
     assert(method == "length" || method == "centripetal" || method == "dynamic"
-               || method == "foley",
-           str("nurbs_interp_surface: method must be \"length\", \"centripetal\", \"dynamic\", or \"foley\", got \"", method, "\""))
+               || method == "foley" || method == "lockyer",
+           str("nurbs_interp_surface: method must be \"length\", \"centripetal\", \"dynamic\", \"foley\", or \"lockyer\", got \"", method, "\""))
     assert(n_rows >= p_u + 1,
            str("nurbs_interp_surface: need at least ", p_u+1,
                " rows for u-degree ", p_u, ", got ", n_rows))

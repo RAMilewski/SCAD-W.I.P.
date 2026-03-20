@@ -7,6 +7,13 @@
             "spread": "40",
             "test": "polygon",
             "type": "clamped"
+        },
+        "New set 2": {
+            "count": "8",
+            "degree": "3",
+            "spread": "40",
+            "test": "random",
+            "type": "clamped"
         }
     }
 }
