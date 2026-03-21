@@ -10,13 +10,14 @@ topcorner = 1;      //[0:0.25:3.5]
 /* [Snap] */
 dsnap = 6;
 snapgap = 1;
-teeth = 18;          // [3:1:18]
-toothgap = 0.5;      // [0.5:0.1:1.5]   
+teeth = 18;         // [3:1:18]
+toothgap = 0.5;     // [0.5:0.1:1.5]  
+fillet = 1;         // [0.25:0.25:2]
 
 /* [Edge Fluting] */
 edgeflute = true;   // [true,false]
 depth = 0.6;        // [0:0.1:3]
-count = 20;         // [4:1:100]
+count = 36;         // [4:1:100]
 
 /* [[Show Part] */
 top = true;        // [true,false]
@@ -67,7 +68,7 @@ module bottom() {
         cyl(d=dmax - 2.5 * wall, h = wall, anchor=BOT) {
             position(TOP) tube(od = dmax - 2.5 * wall, h = zmax - wall - .5, 
                 irounding2 = wall/2, orounding2 = wall/2, anchor = BOT);
-            position(TOP) tube(id = dsnap+snapgap, h = 2, orounding1 =  -1, anchor = BOT){
+            position(TOP) tube(id = dsnap+snapgap, h = 2, orounding1 =  -fillet, anchor = BOT){
                 position(TOP) torus(d_maj = dsnap+snapgap, d_min = .75, anchor = TOP);
                 tag("remove") zrot_copies(n=teeth, r = dsnap-2) position(TOP) cuboid([dsnap/2,toothgap,2], anchor = TOP);    
             }
