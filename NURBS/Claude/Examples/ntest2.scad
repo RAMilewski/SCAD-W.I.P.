@@ -52,8 +52,8 @@ xdistribute(100){
  union(){
      debug_nurbs_interp(data1,3, splinesteps=32, show_ctrl=false, data_color="black",  method=method,
                         start_deriv=RIGHT,end_deriv=RIGHT, start_curvature=1/10*unit([1000,1]),end_curvature=1/5);
-     stroke(arc(angle=[180,270], cp=[0,10],r=10));
-     stroke(arc(angle=[270,360], cp=last(data1)+[0,5], r=5,$fn=32));
+    stroke(arc(angle=[180,270], cp=[0,10],r=10));
+    stroke(arc(angle=[270,360], cp=last(data1)+[0,5], r=5,$fn=32));
     fwd(15)text("ends curvature>0",size=6);
  }
  union(){

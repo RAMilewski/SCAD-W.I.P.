@@ -4,8 +4,6 @@
         "New set 1": {
             "method": "centripetal"
         },
-        "New set 2": {
-            "method": "lockyer"
-        }
+        "New set 2": ""
     }
 }
