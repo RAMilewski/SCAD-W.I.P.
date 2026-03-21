@@ -46,6 +46,22 @@
             "topcorner": "3.5",
             "wall": "1.5",
             "zmax": "4"
+        },
+        "New set 5": {
+            "bottom": "true",
+            "count": "20",
+            "depth": "0.59999999999999998",
+            "dmax": "55",
+            "dsnap": "6",
+            "edgeflute": "true",
+            "segments": "5",
+            "snapgap": "1",
+            "spacing": "0.5",
+            "teeth": "12",
+            "top": "false",
+            "topcorner": "1",
+            "wall": "1.5",
+            "zmax": "4"
         }
     }
 }

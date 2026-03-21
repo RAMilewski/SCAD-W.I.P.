@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 85
+// Development Version 84
 //////////////////////////////////////////////////////////////////////
 
 
@@ -247,7 +247,7 @@ function _fang_dists(points, closed) =
 //        "foley"       = centripetal + deflection-angle correction (Foley & Neilson 1987)
 //        "fang"        = centripetal + osculating-circle correction (Fang & Hung 2013)
 
-function _interp_params(points, method="centripetal", closed=false) =
+function _interp_params(points, method="dynamic", closed=false) =
     let(
         raw       = path_segment_lengths(points, closed=closed),
         n         = len(raw),
@@ -685,7 +685,7 @@ function nurbs_elevate_degree(control, degree, knots,
 //            _rot, which may be nonzero when the conditioning heuristic
 //            cyclic-shifts the data.
 
-function nurbs_interp(points, degree, method="centripetal", type="clamped",
+function nurbs_interp(points, degree, method="dynamic", type="clamped",
                       deriv=undef, start_deriv=undef, end_deriv=undef,
                       curvature=undef, start_curvature=undef, end_curvature=undef,
                       corners=undef) =
@@ -1417,7 +1417,7 @@ function _nurbs_interp_closed_constrained(points, p, method, eff_der, eff_curv) 
 //              [curvature=], [start_curvature=], [end_curvature=], [corners=]);
 
 function nurbs_interp_curve(points, degree, splinesteps=16,
-                            method="centripetal", type="clamped",
+                            method="dynamic", type="clamped",
                             deriv=undef, start_deriv=undef, end_deriv=undef,
                             curvature=undef, start_curvature=undef, end_curvature=undef,
                             corners=undef) =
@@ -1442,37 +1442,30 @@ function nurbs_interp_curve(points, degree, splinesteps=16,
 //                      [type=], [deriv=], [start_deriv=], [end_deriv=],
 //                      [curvature=], [start_curvature=], [end_curvature=], [corners=],
 //                      [width=], [size=], [show_ctrl=],
-//                      [color=], [data_color=], [data_size=]);
+//                      [data_color=], [data_size=]);
 
-module debug_nurbs_interp(points, degree, splinesteps=16, method="centripetal",
+module debug_nurbs_interp(points, degree, splinesteps=16, method="dynamic",
                           type="clamped", deriv=undef,
                           start_deriv=undef, end_deriv=undef,
                           curvature=undef, start_curvature=undef, end_curvature=undef,
                           corners=undef,
                           width=1, size=undef, show_ctrl=true,
-                          color=undef, data_color="magenta", data_size=undef) {
+                          data_color="magenta", data_size=undef) {
     result = nurbs_interp(points, degree, method=method,
                           type=type, deriv=deriv,
                           start_deriv=start_deriv, end_deriv=end_deriv,
                           curvature=curvature, start_curvature=start_curvature,
                           end_curvature=end_curvature, corners=corners);
-    ds = is_undef(data_size) ? 1 : data_size;
+    ds = is_undef(data_size) ? 0.125 : data_size;
     sz = is_undef(size)      ? 3 * width : size;
 
     curve = nurbs_curve(result, splinesteps=splinesteps);
 
     if (show_ctrl) {
-        if (is_undef(color))
-            debug_nurbs(result, splinesteps=splinesteps,
-                        width=width, size=sz);
-        else
-            color(color) debug_nurbs(result, splinesteps=splinesteps,
-                                     width=width, size=sz);
+        debug_nurbs(result, splinesteps=splinesteps,
+                    width=width, size=sz);
     } else {
-        if (is_undef(color))
-            stroke(curve, width=width, closed=(result[0]=="closed"));
-        else
-            color(color) stroke(curve, width=width, closed=(result[0]=="closed"));
+        stroke(curve, width=width, closed=(result[0]=="closed"));
     }
 
     if (ds > 0)
@@ -1838,7 +1831,7 @@ function _surface_params_v(points, method, closed_v) =
 // Returns:
 //   [type, degree, control_grid, knots, weights, undef]
 
-function nurbs_interp_surface(points, degree, method="centripetal", type="clamped",
+function nurbs_interp_surface(points, degree, method="dynamic", type="clamped",
                               u_edge1_deriv=undef, u_edge2_deriv=undef,
                               v_edge1_deriv=undef, v_edge2_deriv=undef,
                               normal1=undef, normal2=undef,
@@ -2256,7 +2249,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
 //   passing the nurbs_interp_surface() result to nurbs_vnf().
 
 function nurbs_interp_vnf(points, degree, splinesteps=8,
-                          method="centripetal", type="clamped",
+                          method="dynamic", type="clamped",
                           style="default",
                           u_edge1_deriv=undef, u_edge2_deriv=undef,
                           v_edge1_deriv=undef, v_edge2_deriv=undef,
@@ -2288,7 +2281,7 @@ function nurbs_interp_vnf(points, degree, splinesteps=8,
 //       [data_color=], [data_size=]);
 
 module debug_nurbs_interp_surface(points, degree, splinesteps=8,
-                                  method="centripetal", type="clamped",
+                                  method="dynamic", type="clamped",
                                   style="default",
                                   u_edge1_deriv=undef, u_edge2_deriv=undef,
                                   v_edge1_deriv=undef, v_edge2_deriv=undef,
@@ -2401,7 +2394,7 @@ module debug_nurbs_interp_surface(points, degree, splinesteps=8,
 //   sharp = [[0,0], [5,40],[6,40], [10,0], [50,0], [55,40],[56,42], [60,0]];
 //   color("blue")   stroke(nurbs_interp_curve(sharp, 3), width=0.1);
 //   color("red")    stroke(nurbs_interp_curve(sharp, 3, method="centripetal"), width=0.1);
-//   color("orange") stroke(nurbs_interp_curve(sharp, 3, method="centripetal"), width=0.1);
+//   color("orange") stroke(nurbs_interp_curve(sharp, 3, method="dynamic"), width=0.1);
 //   color("green") move_copies(sharp) circle(r=.1, $fn=16);
 //
 //

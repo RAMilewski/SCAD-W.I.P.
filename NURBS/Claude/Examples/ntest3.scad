@@ -8,7 +8,7 @@ $vpr = [40,0,0];
 $vpd = 5000;
 
 
-method="centripetal";   // [length,centripetal,dynamic,foley,lockyer]
+method="centripetal";   // [length,centripetal,dynamic,foley,fang]
 
 
 ydistribute(250){

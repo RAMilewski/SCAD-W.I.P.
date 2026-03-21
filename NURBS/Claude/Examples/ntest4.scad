@@ -7,7 +7,7 @@ include<data.scad>
 $vpd=1350;
 $vpr = [50,5,20];
 
-method="centripetal";   // [length,centripetal,dynamic,foley,lockyer]
+method="centripetal";   // [length,centripetal,dynamic,foley,fang]
 
 ydistribute(85){
 

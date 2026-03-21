@@ -1,0 +1,11 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "color1": "dodgerblue",
+            "color2": "cyan",
+            "method1": "fang",
+            "method2": "foley"
+        }
+    }
+}

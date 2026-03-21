@@ -10,6 +10,8 @@ topcorner = 1;      //[0:0.25:3.5]
 /* [Snap] */
 dsnap = 6;
 snapgap = 1;
+teeth = 18;          // [3:1:18]
+toothgap = 0.5;      // [0.5:0.1:1.5]   
 
 /* [Edge Fluting] */
 edgeflute = true;   // [true,false]
@@ -17,13 +19,17 @@ depth = 0.6;        // [0:0.1:3]
 count = 20;         // [4:1:100]
 
 /* [[Show Part] */
-top = false;        // [true,false]
-bottom = false;     // [true,false]
+top = true;        // [true,false]
+bottom = true;     // [true,false]
 
 /* [Hidden] */
 $fn = 144;
-shift = top && bottom ? dmax/1.25 : 0;
-
+firstview=$vpr==[55,0,25];
+$vpt = firstview ? [0,0,0]  : $vpt;
+$vpr = firstview ? [30,0,0] : $vpr;
+$vpd = firstview ? 200      : $vpd;
+fudge = edgeflute ? depth : 0 ;
+shift = top && bottom ? dmax/2 + fudge : 0;
 
 
 if (top) {
@@ -35,8 +41,7 @@ if (bottom) {bottom(); }
 
 
 module top() {
-    left(shift)
-    //zrot(360/40)
+    left(shift + wall)
     diff(){
         shell() {
             position(BOT) down(1) tag("remove") pie_slice(ang = 360/segments, d=dmax-5, h = zmax+wall, anchor = BOT);
@@ -64,7 +69,7 @@ module bottom() {
                 irounding2 = wall/2, orounding2 = wall/2, anchor = BOT);
             position(TOP) tube(id = dsnap+snapgap, h = 2, orounding1 =  -1, anchor = BOT){
                 position(TOP) torus(d_maj = dsnap+snapgap, d_min = .75, anchor = TOP);
-                tag("remove") rot_copies(n=9) position(TOP) cuboid([0.5,15,2], anchor = TOP);    
+                tag("remove") zrot_copies(n=teeth, r = dsnap-2) position(TOP) cuboid([dsnap/2,toothgap,2], anchor = TOP);    
             }
         }
     }

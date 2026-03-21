@@ -3,7 +3,12 @@ include<BOSL2/nurbs.scad>
 include<../nurbs_interp.scad>
 include<data.scad>
 
-method="centripetal";   // [length,centripetal,dynamic,foley,lockyer]
+method="centripetal";   // [length,centripetal,dynamic,foley,fang]
+
+$vpt=[0,-223.9,0];
+$vpr=[0,0,0];
+$vpd=2034.0;
+
 
 
 xdistribute(100){
@@ -180,6 +185,3 @@ xdistribute(135){
     fwd(22)text("",size=6);
  }
 
-$vpt=[0,-223.9,0];
-$vpr=[0,0,0];
-$vpd=2034.0;

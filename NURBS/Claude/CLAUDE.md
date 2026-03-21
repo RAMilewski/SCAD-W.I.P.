@@ -27,6 +27,9 @@ for eventual inclusion in the BOSL2 OpenSCAD library.
 - BOSL2 parameter list support: return format `[type, degree, ctrl, knots, weights, ...]` is now a standard BOSL2 NURBS parameter list; results can be passed directly to `nurbs_curve()`, `nurbs_vnf()`, etc. Removed `_nurbs_curve_rational()` workaround (BOSL2 knots-with-weights bug fixed upstream). Simplified `nurbs_interp_curve()`, `nurbs_interp_vnf()`, `debug_nurbs_interp()` — done
 - Removed `method="quadratic"` (local rational quadratic interpolation) and all associated helpers (`_local_quadratic_interp`, `_line_intersect`, `_cross_mag`, `_five_point_tangents_lr`, `_shoulder_weight`) — done
 - Removed `method="lockyer"` (Lockyer orthogonal parameterization) and all associated helpers (`_lockyer_build_params`, `_lockyer_params`, `_lockyer_clamped_full`) — done
+- `method="fang"` (Fang & Hung 2013, Eq. 10): centripetal base + osculating-circle dragging tolerance (α=0.1); `_fang_correction()` and `_fang_dists()` helpers; zero-guard for collinear points (θ→0 limit = ℓ) — done
+- Foley cleanup: removed dead 1e-15 divisor guard and redundant explicit endpoint checks (theta_hat=0 at endpoints already zeroes the correction terms) — done
+- `debug_nurbs_interp()` `color=` parameter: sets curve color while control polygon/labels keep their own colors (outer `color()` overridden by inner); default data dot size doubled from 0.125 to 0.25 — done
 
 ## Next Step
 TBD
