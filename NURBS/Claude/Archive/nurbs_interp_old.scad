@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 91
+// Development Version 59
 //////////////////////////////////////////////////////////////////////
 
 
@@ -175,8 +175,15 @@ function _dynamic_dists(raw, emin=0.35, emax=0.65) =
 
 
 
-// Foley-Neilson parameterization (Foley & Neilson 1987).
-// Centripetal base with deflection-angle correction at each vertex.
+// Centripetal Foley-Neilson parameterization (Foley & Neilson 1987; as
+// cited in Balta et al., IEEE Access 2020 §II.E), modified to use a
+// centripetal (sqrt chord-length) base instead of raw chord lengths.
+// Each segment's parameter increment is sqrt(chord_length) × (1 + curvature
+// corrections from both adjacent vertices).  The correction ratios also use
+// the centripetal distances, giving better spacing for uneven chord data.
+// For open curves, endpoint deflection angles are treated as zero.
+// For closed curves, wrap-around angles and chords are used at the seam.
+
 function _foley_dists(points, closed) =
     let(
         n  = len(points),
@@ -200,54 +207,24 @@ function _foley_dists(points, closed) =
             d_next = d[(i + 1) % nc],
             th_L   = theta_hat[i],
             th_R   = theta_hat[(i + 1) % n],
-            left   = 3 * th_L * d_prev / (2 * (d_prev + di)),
-            right  = 3 * th_R * d_next / (2 * (di + d_next))
+            left   = (i == 0 && !closed) ? 0
+                   : 3 * th_L * d_prev / max(2 * (d_prev + di), 1e-15),
+            right  = (i == nc-1 && !closed) ? 0
+                   : 3 * th_R * d_next / max(2 * (di + d_next), 1e-15)
         )
         di * (1 + left + right)
     ];
 
 
-// Fang improved centripetal parameterization (Fang & Hung, CAD 2013, Eq. 10).
-// Centripetal base + osculating-circle dragging tolerance (α = 0.1).
-// At each interior point Pᵢ, eᵢ = α·(θᵢ·ℓᵢ/(2·sin(θᵢ/2)) + θᵢ₋₁·ℓᵢ₋₁/(2·sin(θᵢ₋₁/2)))
-// where θᵢ is deflection angle at Pᵢ, ℓᵢ is shortest side of triangle Pᵢ₋₁PᵢPᵢ₊₁.
-// Each chord increment is Δᵢ = √‖Lᵢ‖ + eᵢ + eᵢ₊₁ (corrections from both endpoints).
-
-function _fang_correction(points, closed) =
-    let(n = len(points))
-    [for (i = [0:1:n-1])
-        !closed && (i == 0 || i == n-1) ? 0
-      : let(
-            tri      = select(points, i-1, i+1),
-            ell      = min(path_segment_lengths(tri, closed=true)),
-            theta_deg = 180 - vector_angle(select(points, i-1, i+1))
-        )
-        // θ·ℓ/(2·sin(θ/2)); limit as θ→0 is ℓ.
-        0.1 * (abs(theta_deg) < 1e-6 ? ell
-              : theta_deg * PI/180 * ell / (2 * sin(theta_deg / 2)))
-    ];
-
-function _fang_dists(points, closed) =
-    let(
-        c  = path_segment_lengths(points, closed=closed),
-        nc = len(c),
-        ef = _fang_correction(points, closed)
-    )
-    [for (i = [0:1:nc-1])
-        sqrt(c[i]) + ef[i] + select(ef, i+1)
-    ];
-
-
-// Chord-length, centripetal, dynamic, Foley, or Fang parameterization.
+// Chord-length, centripetal, dynamic, or Foley parameterization.
 // clamped: n+1 points -> n+1 values in [0, 1] with t_0=0, t_n=1.
 // closed:  n   points -> n   values in [0, 1) with t_0=0.
 // method: "length"      = chord-length
 //        "centripetal" = sqrt exponent (Lee 1989)
 //        "dynamic"     = per-chord dynamic exponent (Balta et al. 2020)
 //        "foley"       = centripetal + deflection-angle correction (Foley & Neilson 1987)
-//        "fang"        = centripetal + osculating-circle correction (Fang & Hung 2013)
 
-function _interp_params(points, method="centripetal", closed=false) =
+function _interp_params(points, method="dynamic", closed=false) =
     let(
         raw       = path_segment_lengths(points, closed=closed),
         n         = len(raw),
@@ -265,7 +242,6 @@ function _interp_params(points, method="centripetal", closed=false) =
             dists = method == "centripetal" ? [for (d = raw) sqrt(d)]
                   : method == "dynamic"     ? _dynamic_dists(raw)
                   : method == "foley"       ? _foley_dists(points, closed)
-                  : method == "fang"        ? _fang_dists(points, closed)
                   :                          raw,
             total = sum(dists),
             cs    = cumsum(dists)
@@ -357,48 +333,6 @@ function _fix_tiny_spans(bar_knots, n, eps=1e-6) =
                          each (i == absorb_k ? [merged[i], mid] : [merged[i]])]
     )
     _fix_tiny_spans(fixed, n, eps);
-
-
-// Insert constraint knots into unconstrained periodic bar_knots.
-//
-// For each derivative or curvature constraint, one extra knot is needed to
-// provide the additional DOF.  Instead of recomputing all knots from an
-// expanded parameter sequence (which shifts every knot and can break
-// symmetry), this function inserts each new knot near the constraint
-// parameter while keeping the original knots intact.
-//
-// bar_knots: unconstrained periodic knots [0, ..., T], n+1 entries.
-// vals:      parameter values at which constraints occur.
-// n:         number of original spans (len(bar_knots)-1).
-// T:         period (bar_knots[n]).
-//
-// Returns augmented bar_knots with n+1+len(vals) entries.
-
-function _insert_constraint_knots(bar_knots, vals, n, T) =
-    let(
-        eps = T / n * 1e-4,
-        new_knots = [for (v = vals)
-            let(
-                dists  = [for (b = bar_knots) abs(v - b)],
-                d_min  = min(dists)
-            )
-            // If v doesn't coincide with an existing knot, insert directly.
-            d_min >= eps ? v
-            // Otherwise, place at midpoint of the larger adjacent span.
-            : let(
-                j          = min_index(dists),
-                span_after = j < n ? bar_knots[j+1] - bar_knots[j]
-                                   : T - bar_knots[n-1],
-                span_before = j > 0 ? bar_knots[j] - bar_knots[j-1]
-                                    : bar_knots[1],
-                use_after  = span_after >= span_before,
-                j2         = use_after ? (j < n ? j : 0)
-                                       : (j > 0 ? j - 1 : n - 1)
-              )
-              (bar_knots[j2] + bar_knots[j2 + 1]) / 2
-        ]
-    )
-    sort([each bar_knots, each new_knots]);
 
 
 // Full periodic knot vector for basis evaluation.
@@ -625,11 +559,6 @@ function nurbs_elevate_degree(control, degree, knots,
 
 
 // =====================================================================
-// SECTION: Local Rational Quadratic Interpolation (P&T §9.3.3)
-// =====================================================================
-
-
-// =====================================================================
 // SECTION: Main Interpolation Function
 // =====================================================================
 
@@ -648,8 +577,8 @@ function nurbs_elevate_degree(control, degree, knots,
 //   Given a list of data points and a NURBS degree, computes the control
 //   points and knot vector for a NURBS curve that passes exactly through
 //   every data point.  Points may be of any dimension (1D and up); the
-//   interpolation math is dimension-agnostic.  Returns a NURBS parameter
-//   list that can be passed directly to nurbs_curve(), debug_nurbs(), etc.
+//   interpolation math is dimension-agnostic.  Returns
+//   [control_points, knots] for use with nurbs_curve().
 //   .
 //   Two curve types are supported:
 //   .
@@ -701,7 +630,7 @@ function nurbs_elevate_degree(control, degree, knots,
 //   points = list of data points to interpolate (any dimension >= 1)
 //   degree = degree of the B-spline curve (commonly 3)
 //   ---
-//   method = parameterization method: "length" (chord-length), "centripetal" (square-root exponent, Lee 1989), "dynamic" (per-chord dynamic exponent, Balta et al. 2020), "foley" (centripetal + deflection-angle correction, Foley & Neilson 1987), or "fang" (centripetal + osculating-circle correction, Fang & Hung 2013).  Default: "dynamic"
+//   method = parameterization method: "length" (chord-length), "centripetal" (square-root exponent, Lee 1989), "dynamic" (per-chord dynamic exponent, Balta et al. 2020), or "foley" (centripetal + deflection-angle correction, Foley & Neilson 1987).  Default: "dynamic"
 //   type = "clamped" or "closed".  Default: "clamped"
 //   deriv = list of tangent vectors, one per data point; undef entries are unconstrained.  Both curve types supported.  Cannot be combined with start_deriv=/end_deriv=.  Vectors are scaled by total chord length internally; pass unit vectors for natural speed.  BOSL2 direction constants (UP, DOWN, LEFT, RIGHT, BACK, FWD) accepted for 2D curves.  Default: undef
 //   start_deriv = tangent at start point; shorthand for deriv[0].  Clamped only.  Default: undef
@@ -712,14 +641,12 @@ function nurbs_elevate_degree(control, degree, knots,
 //   corners = list of interior point indices where C0 corner joints (sharp creases) should occur.  Equivalent to setting deriv[k]=0/0 at those indices.  Both clamped and closed.  Default: undef
 //
 // Returns:
-//   A NURBS parameter list: [type, degree, control_points, knots, weights, closed_starting_point].
-//   The first five elements form a standard BOSL2 NURBS parameter list and can be
-//   passed directly to nurbs_curve(), nurbs_vnf(), debug_nurbs(), etc.
+//   [type, degree, control_points, knots, weights, closed_starting_point]
 //   type   = effective NURBS type ("clamped" or "closed").  For closed
 //            curves with corners, the effective type is "clamped".
 //   degree = the B-spline degree used.
-//   control_points = list of control points.
-//   knots  = BOSL2-format knot vector.
+//   control_points = list of control points for nurbs_curve().
+//   knots  = BOSL2-format knot vector for nurbs_curve().
 //   weights = undef (B-spline interpolation; no rational weights).
 //   closed_starting_point = index into the original points list of the
 //            data point at the parametric origin.  For clamped this is
@@ -727,7 +654,7 @@ function nurbs_elevate_degree(control, degree, knots,
 //            _rot, which may be nonzero when the conditioning heuristic
 //            cyclic-shifts the data.
 
-function nurbs_interp(points, degree, method="centripetal", type="clamped",
+function nurbs_interp(points, degree, method="dynamic", type="clamped",
                       deriv=undef, start_deriv=undef, end_deriv=undef,
                       curvature=undef, start_curvature=undef, end_curvature=undef,
                       corners=undef) =
@@ -736,8 +663,8 @@ function nurbs_interp(points, degree, method="centripetal", type="clamped",
     assert(is_num(degree) && degree >= 1,
            "nurbs_interp: degree must be >= 1")
     assert(method == "length" || method == "centripetal" || method == "dynamic"
-               || method == "foley" || method == "fang",
-           str("nurbs_interp: method must be \"length\", \"centripetal\", \"dynamic\", \"foley\", or \"fang\", got \"", method, "\""))
+               || method == "foley",
+           str("nurbs_interp: method must be \"length\", \"centripetal\", \"dynamic\", or \"foley\", got \"", method, "\""))
     assert(type == "clamped" || type == "closed",
            str("nurbs_interp: type must be \"clamped\" or \"closed\"",
                ", got \"", type, "\""))
@@ -1129,8 +1056,6 @@ function _nurbs_interp_closed(points, degree, method, deriv, curvature,
     assert(bad_corner_der == [],
            str("nurbs_interp: derivative constraint cannot coincide with a corner at: ",
                bad_corner_der))
-    // Basic and constrained solvers handle rotation search internally.
-    // Corner case uses its own rotation (to the first corner).
     has_corners
       ? _nurbs_interp_closed_corners(points, p, method, deriv, curvature, corner_idxs)
       : (has_dl || has_cl)
@@ -1226,36 +1151,6 @@ function _find_closed_rotation(points, n, p, method) =
         scores[best][1];
 
 
-// Solve a basic closed interpolation for a specific rotation.
-// Returns [control, bar_knots, rot] or undef if singular.
-
-function _closed_basic_solve(points, n, p, method, rot) =
-    let(
-        pts        = select(points, rot, rot + n - 1),
-        raw_params = _interp_params(pts, method, closed=true),
-        bar_knots  = _fix_tiny_spans(_avg_knots_periodic(raw_params, p)[0], n),
-        U_full     = _bosl2_full_closed_knots(bar_knots, n, p),
-        params     = add_scalar(raw_params, bar_knots[p]),
-        N_mat      = _collocation_matrix_periodic(params, n, p, U_full),
-        control    = linear_solve(N_mat, pts)
-    )
-    control == [] ? undef : [control, bar_knots, rot];
-
-
-// Control-point spread ratio: max extent of control points divided by
-// max extent of data points.  Values near 1 are ideal; large values
-// indicate oscillation from ill-conditioning.
-
-function _ctrl_point_ratio(points, control) =
-    let(
-        pbound = pointlist_bounds(points),
-        cbound = pointlist_bounds(control),
-        pmax   = max(pbound[1] - pbound[0]),
-        cmax   = max(cbound[1] - cbound[0])
-    )
-    cmax / max(pmax, 1e-15);
-
-
 // Basic closed interpolation — start-point independent.
 //
 // Implements the cyclic chord-length parameterization and cyclic knot
@@ -1263,67 +1158,63 @@ function _ctrl_point_ratio(points, control) =
 // curve is the same regardless of which data point is listed first; only
 // the parametric origin changes (the curve is just reparameterized).
 //
-// The chord-ratio heuristic rotation is tried first.  If the resulting
-// control-point spread exceeds 2^p/p times the data spread (indicating
-// oscillation), all n rotations are tried and the one with the smallest
-// spread is selected.
+// Numerical conditioning ideally requires one parameter per active knot
+// span.  The chord-ratio heuristic rotation is tried first; if it has
+// span collisions, _find_closed_rotation() picks the rotation with the
+// fewest collisions.  Mild collisions often still produce a non-singular
+// system; linear_solve() is the final arbiter.
 
 function _nurbs_interp_closed_basic(points, p, method) =
     let(
-        n         = len(points),
-        rot0      = _find_closed_rotation(points, n, p, method),
-        result0   = _closed_basic_solve(points, n, p, method, rot0)
+        n    = len(points),
+        _rot = _find_closed_rotation(points, n, p, method)
     )
-    assert(!is_undef(result0), "nurbs_interp (closed): singular system")
     let(
-        ratio0    = _ctrl_point_ratio(points, result0[0]),
-        threshold = pow(2, p) / p
+        pts        = select(points, _rot, _rot + n - 1),
+        raw_params = _interp_params(pts, method, closed=true),
+        bar_knots  = _fix_tiny_spans(_avg_knots_periodic(raw_params, p)[0], n),
+        U_full     = _bosl2_full_closed_knots(bar_knots, n, p),
+        params     = add_scalar(raw_params, bar_knots[p]),
+        _echo      = _rot > 0
+                     ? echo(str("nurbs_interp (closed): seam rotation = ", _rot))
+                     : undef,
+        N_mat      = _collocation_matrix_periodic(params, n, p, U_full),
+        control    = linear_solve(N_mat, pts)
     )
-    ratio0 <= threshold ? result0
-    : let(
-        // Heuristic rotation produced excessive control-point spread.
-        // Try all rotations and pick the one with the smallest spread.
-        candidates = [for (r = [0:1:n-1])
-                         let(res = _closed_basic_solve(points, n, p, method, r))
-                         if (!is_undef(res))
-                         [_ctrl_point_ratio(points, res[0]), res]],
-        _chk = assert(len(candidates) > 0,
-                       "nurbs_interp (closed): all rotations produce singular systems"),
-        best_idx = min_index([for (c = candidates) c[0]]),
-        best     = candidates[best_idx][1],
-        _echo    = echo(str("nurbs_interp (closed): rotation search chose ",
-                            best[2], " (spread ratio ",
-                            candidates[best_idx][0], ")"))
-    )
-    best;
+    assert(control != [], "nurbs_interp (closed): singular system")
+    [control, bar_knots, _rot];
 
 
-// Solve a constrained closed interpolation for a specific rotation.
-// Returns [control, aug_bar, rot] or undef if singular.
+// Closed interpolation with per-point derivative and/or curvature constraints.
 //
 // eff_der:  list of n first-derivative specs (undef = unconstrained).
 // eff_curv: list of n curvature specs (undef = unconstrained).
 //           dim=2: signed scalar κ or 2D vector.  dim≥3: curvature vector.
 //
-// Uses knot-insertion approach: compute the unconstrained periodic knots
-// first, then insert one knot per constraint near the constraint parameter.
-// This preserves the original knot structure and localizes the extra DOF,
-// avoiding the global knot shift of the expanded-parameter method.
+// Uses Method A (expanded-parameter knot averaging): for each constraint
+// at index k, duplicate raw_params[k] in an expanded sequence ũ of length M,
+// then re-run _avg_knots_periodic on ũ to get M+1 bar knots.  The
 // M = n + n_extra control points use standard BOSL2 periodic aliasing:
 // B_j(t) = N_j(t) + (j<p ? N_{j+M}(t) : 0), and likewise for derivatives.
+//
+// Applies the chord-ratio seam rotation for numerical conditioning; both the
+// data points and all constraint lists are rotated by the same offset.
 
-function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot) =
+function _nurbs_interp_closed_constrained(points, p, method, eff_der, eff_curv) =
     let(
         n         = len(points),
         dim       = len(points[0]),
         path_len  = path_length(points, closed=true),
         path_len2 = path_len * path_len,
 
+        // Seam rotation for best conditioning (same as basic closed case).
+        _rot    = _find_closed_rotation(points, n, p, method),
+
         // Rotate data, deriv, and curvature lists by the same offset so constraint
         // associations are preserved after rotation.
-        pts    = select(points,  rot, rot + n - 1),
-        der_r  = is_undef(eff_der)  ? undef : select(eff_der,  rot, rot + n - 1),
-        curv_r = is_undef(eff_curv) ? undef : select(eff_curv, rot, rot + n - 1),
+        pts    = select(points,  _rot, _rot + n - 1),
+        der_r  = is_undef(eff_der)  ? undef : select(eff_der,  _rot, _rot + n - 1),
+        curv_r = is_undef(eff_curv) ? undef : select(eff_curv, _rot, _rot + n - 1),
 
         raw_params = _interp_params(pts, method, closed=true),
 
@@ -1356,32 +1247,20 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot) =
         n_extra      = n_extra_der + n_extra_curv,
         M            = n + n_extra,   // total control points
 
-        // Uniform bar_knots: bar[j] = j*T/M.
-        // This produces a palindromic full knot vector via
-        // _bosl2_full_closed_knots (U[j]+U[K-j] = const), which is
-        // required for reflection-symmetric input to yield a symmetric
-        // solution.  Non-uniform bar_knots (from insertion or averaging)
-        // do NOT produce palindromic full knots and break symmetry.
-        T         = _avg_knots_periodic(raw_params, p)[0][n],
-        aug_bar   = [for (j = [0:1:M]) j * T / M],
-        U_full    = _bosl2_full_closed_knots(aug_bar, M, p),
+        // Expanded parameter sequence ũ: duplicate raw_params[k] once per
+        // constraint type at k (sort preserves monotonicity)
+        u_tilde = sort([
+            each raw_params,
+            for (spec = der_specs)  raw_params[spec[0]],
+            for (spec = curv_specs) raw_params[spec[0]]
+        ]),
 
-        // Map raw params into active domain [aug_bar[p], aug_bar[p]+T].
-        // Guard: nudge any shifted parameter that lands on (or very near) a
-        // knot value — same technique as _build_closed_system.
-        // The nudge direction must preserve palindromic symmetry: parameters
-        // below the center are nudged +eps, above the center −eps.
-        raw_shifted = add_scalar(raw_params, aug_bar[p]),
-        u_center    = aug_bar[p] + T / 2,
-        eps_knot    = T / M * 1e-6,
-        params      = [for (k = [0:1:n-1])
-            let(
-                u     = raw_shifted[k],
-                d_min = min([for (j = [0:1:M + 2*p]) abs(u - U_full[j])]),
-                sign  = u <= u_center ? 1 : -1
-            )
-            d_min < eps_knot ? u + sign * eps_knot : u
-        ],
+        // Periodic bar knots from expanded sequence: M+1 entries
+        aug_bar = _fix_tiny_spans(_avg_knots_periodic(u_tilde, p)[0], M),
+        U_full  = _bosl2_full_closed_knots(aug_bar, M, p),
+
+        // Map raw params into active domain [aug_bar[p], aug_bar[p]+T]
+        params = add_scalar(raw_params, aug_bar[p]),
 
         // Interpolation rows: aliased basis for M control points
         interp_rows = [for (k = [0:1:n-1])
@@ -1415,55 +1294,14 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot) =
                    for (spec = curv_specs) spec[1]],
         control = linear_solve(A, rhs)
     )
-    control == [] ? undef : [control, aug_bar, rot];
-
-
-// Closed interpolation with per-point derivative and/or curvature constraints.
-//
-// Starts with rot=0 to preserve any reflection symmetry in the input;
-// the knot palindrome is centered at parameter 0, which aligns with the
-// symmetry axis only when rot=0.  If rot=0 produces excessive control-
-// point spread, all n rotations are tried (symmetry may be lost).
-
-function _nurbs_interp_closed_constrained(points, p, method, eff_der, eff_curv) =
-    let(
-        n         = len(points),
-        // Start with rot=0 so the knot palindrome aligns with any
-        // reflection symmetry in the input data + constraints.
-        // (The chord-ratio heuristic can pick a rotation that
-        // misaligns the palindromic center, breaking symmetry.)
-        result0   = _closed_constrained_solve(points, p, method, eff_der, eff_curv, 0)
-    )
-    assert(!is_undef(result0),
+    assert(control != [],
            "nurbs_interp (closed+constrained): singular system")
-    let(
-        ratio0    = _ctrl_point_ratio(points, result0[0]),
-        threshold = pow(2, p) / p
-    )
-    ratio0 <= threshold ? result0
-    : let(
-        // Heuristic rotation produced excessive control-point spread.
-        // Try all rotations and pick the one with the smallest spread.
-        candidates = [for (r = [0:1:n-1])
-                         let(res = _closed_constrained_solve(points, p, method,
-                                       eff_der, eff_curv, r))
-                         if (!is_undef(res))
-                         [_ctrl_point_ratio(points, res[0]), res]],
-        _chk = assert(len(candidates) > 0,
-                       "nurbs_interp (closed+constrained): all rotations produce singular systems"),
-        best_idx = min_index([for (c = candidates) c[0]]),
-        best     = candidates[best_idx][1],
-        _echo    = echo(str("nurbs_interp (closed+constrained): rotation search chose ",
-                            best[2], " (spread ratio ",
-                            candidates[best_idx][0], ")"))
-    )
-    best;
+    [control, aug_bar, _rot];
 
 
 // =====================================================================
 // SECTION: Convenience Functions
 // =====================================================================
-
 
 // Function: nurbs_interp_curve()
 // Synopsis: Generates a curve path that interpolates through data points.
@@ -1475,16 +1313,19 @@ function _nurbs_interp_closed_constrained(points, p, method, eff_der, eff_curv) 
 //              [curvature=], [start_curvature=], [end_curvature=], [corners=]);
 
 function nurbs_interp_curve(points, degree, splinesteps=16,
-                            method="centripetal", type="clamped",
+                            method="dynamic", type="clamped",
                             deriv=undef, start_deriv=undef, end_deriv=undef,
                             curvature=undef, start_curvature=undef, end_curvature=undef,
                             corners=undef) =
-    nurbs_curve(nurbs_interp(points, degree, method=method,
-                    type=type, deriv=deriv,
-                    start_deriv=start_deriv, end_deriv=end_deriv,
-                    curvature=curvature, start_curvature=start_curvature,
-                    end_curvature=end_curvature, corners=corners),
-                splinesteps=splinesteps);
+    let(
+        result = nurbs_interp(points, degree, method=method,
+                              type=type, deriv=deriv,
+                              start_deriv=start_deriv, end_deriv=end_deriv,
+                              curvature=curvature, start_curvature=start_curvature,
+                              end_curvature=end_curvature, corners=corners)
+    )
+    nurbs_curve(result[2], result[1], splinesteps=splinesteps,
+                knots=result[3], type=result[0]);
 
 
 // =====================================================================
@@ -1500,47 +1341,47 @@ function nurbs_interp_curve(points, degree, splinesteps=16,
 //                      [type=], [deriv=], [start_deriv=], [end_deriv=],
 //                      [curvature=], [start_curvature=], [end_curvature=], [corners=],
 //                      [width=], [size=], [show_ctrl=],
-//                      [color=], [data_color=], [data_size=]);
+//                      [data_color=], [data_size=]);
 
-module debug_nurbs_interp(points, degree, splinesteps=16, method="centripetal",
+module debug_nurbs_interp(points, degree, splinesteps=16, method="dynamic",
                           type="clamped", deriv=undef,
                           start_deriv=undef, end_deriv=undef,
                           curvature=undef, start_curvature=undef, end_curvature=undef,
                           corners=undef,
                           width=1, size=undef, show_ctrl=true,
-                          color=undef, data_color="magenta", data_size=undef) {
+                          data_color="magenta", data_size=undef) {
     result = nurbs_interp(points, degree, method=method,
                           type=type, deriv=deriv,
                           start_deriv=start_deriv, end_deriv=end_deriv,
                           curvature=curvature, start_curvature=start_curvature,
                           end_curvature=end_curvature, corners=corners);
-    ds = is_undef(data_size) ? 1 : data_size;
+    ds = is_undef(data_size) ? 0.125 : data_size;
     sz = is_undef(size)      ? 3 * width : size;
 
-    curve = nurbs_curve(result, splinesteps=splinesteps);
-
+    pbound=pointlist_bounds(points);
+    cbound=pointlist_bounds(result[2]);
+    rr=v_div(pbound[1]-pbound[0],cbound[1]-cbound[0]);
+    pmax = max(pbound[1]-pbound[0]);
+    cmax = max(cbound[1]-cbound[0]);
+    echo(ctrlpoint_ratio = cmax/pmax,1/rr);
+    
     if (show_ctrl) {
-        if (is_undef(color))
-            debug_nurbs(result, splinesteps=splinesteps,
-                        width=width, size=sz);
-        else
-            color(color) debug_nurbs(result, splinesteps=splinesteps,
-                                     width=width, size=sz);
+        debug_nurbs(result[2], result[1], splinesteps=splinesteps,
+                    knots=result[3], type=result[0],
+                    width=width, size=sz);
     } else {
-        if (is_undef(color))
-            stroke(curve, width=width, closed=(result[0]=="closed"));
-        else
-            color(color) stroke(curve, width=width, closed=(result[0]=="closed"));
+        stroke(nurbs_curve(result[2], result[1], splinesteps=splinesteps,
+                           knots=result[3], type=result[0]),
+               width=width, closed=(result[0]=="closed"));
     }
 
-    if (ds > 0)
-        color(data_color)
-            for (i = [0 :1: len(points)-1])
-                translate(points[i])
-                    if (len(points[i]) == 2)
-                        circle(r=ds, $fn=16);
-                    else
-                        sphere(r=ds, $fn=16);
+    color(data_color)
+        for (i = [0 :1: len(points)-1])
+            translate(points[i])
+                if (len(points[i]) == 2)
+                    circle(r=ds, $fn=16);
+                else
+                    sphere(r=ds, $fn=16);
 }
 
 
@@ -1571,27 +1412,7 @@ function _build_closed_system(params, p) =
         bar_knots  = _fix_tiny_spans(_avg_knots_periodic(params, p)[0], n),
         U_full     = _bosl2_full_closed_knots(bar_knots, n, p),
         col_params = add_scalar(params, bar_knots[p]),
-        // Guard: if any shifted parameter falls on (or very near) a knot
-        // value, the collocation matrix loses rank — the basis function
-        // that would start at that knot evaluates to zero, reducing the
-        // effective band width.  This is most common with degree 2 and
-        // near-uniform parameterization.  Nudge such parameters into the
-        // interior of their knot span by a tiny relative amount.
-        T          = bar_knots[n],
-        u_center   = bar_knots[p] + T / 2,
-        eps_knot   = T / n * 1e-6,
-        col_safe   = [for (k = [0:1:n-1])
-            let(
-                u     = col_params[k],
-                // Check distance to all knots in [0, T + bar_knots[p]].
-                dists = [for (j = [0:1:n + 2*p])
-                             abs(u - U_full[j])],
-                d_min = min(dists),
-                sign  = u <= u_center ? 1 : -1
-            )
-            d_min < eps_knot ? u + sign * eps_knot : u
-        ],
-        N_mat      = _collocation_matrix_periodic(col_safe, n, p, U_full)
+        N_mat      = _collocation_matrix_periodic(col_params, n, p, U_full)
     )
     [N_mat, bar_knots];
 
@@ -1663,14 +1484,12 @@ function _build_edge_systems(params, p, edge_idxs,
             span    = max(t1 - t0, 1e-15),
             local_p = [for (t = seg_par) (t - t0) / span],
             seg_p   = min(p, len(local_p) - 1),
-            // Derivative extension requires at least seg_p+1 data points
-            // (same minimum as basic interpolation); each derivative row
-            // adds one control point and one equation, keeping the system
-            // square.  Degree-reduced segments with fewer points silently
-            // skip the constraint.
+            // Derivative extension requires at least seg_p+2 data points;
+            // shorter segments (degree-reduced) silently skip the constraint
+            // to avoid a singular collocation matrix.
             n_pts   = len(local_p),
-            seg_sd  = has_sd && s == 0          && n_pts >= seg_p + 1,
-            seg_ed  = has_ed && s == n_segs - 1 && n_pts >= seg_p + 1,
+            seg_sd  = has_sd && s == 0          && n_pts >= seg_p + 2,
+            seg_ed  = has_ed && s == n_segs - 1 && n_pts >= seg_p + 2,
             sys     = (seg_sd || seg_ed)
                     ? _build_clamped_system_with_derivs(local_p, seg_p,
                                                         seg_sd, seg_ed)
@@ -1710,10 +1529,7 @@ function _solve_with_edges(systems, data, params, edge_idxs, p,
                 ctrl = linear_solve(N_mat, rhs)
             )
             assert(ctrl != [],
-                   str("nurbs_interp_surface: singular edge-segment system for rows/cols ",
-                       i0, "-", i1, " (", i1-i0+1, " points, degree ", seg_p,
-                       seg_sd ? ", start deriv" : "",
-                       seg_ed ? ", end deriv" : "", ")"))
+                   "nurbs_interp_surface: singular edge-segment system")
             [ctrl, sys[1], seg_p]
         ],
         // Degree-elevate short segments to full degree p.
@@ -1851,9 +1667,7 @@ function _surface_params_v(points, method, closed_v) =
 //   parametric direction.  Cannot be combined with the corresponding
 //   explicit *_der= parameter.
 //   .
-//   Returns a NURBS parameter list: [type, degree, control_grid, knots, weights, undef].
-//   The first five elements form a standard BOSL2 NURBS parameter list and can be
-//   passed directly to nurbs_vnf().
+//   Returns [type, degree, control_grid, knots, weights, undef].
 //   type   = [type_u, type_v] effective NURBS types.
 //   degree = [p_u, p_v] degrees used.
 //   control_grid = 2D grid of control points.
@@ -1863,7 +1677,8 @@ function _surface_params_v(points, method, closed_v) =
 //   To render:
 //   .
 //     result = nurbs_interp_surface(data, 3);
-//     vnf = nurbs_vnf(result, splinesteps=8);
+//     vnf = nurbs_vnf(result[2], result[1], splinesteps=8,
+//               knots=result[3], type=result[0]);
 //     vnf_polyhedron(vnf);
 //   .
 //   Or use the convenience function nurbs_interp_vnf().
@@ -1883,7 +1698,7 @@ function _surface_params_v(points, method, closed_v) =
 //   points = rectangular grid of 3D data points (list of rows)
 //   degree = NURBS degree: scalar or [u_degree, v_degree]
 //   ---
-//   method = parameterization method: "length", "centripetal", "dynamic", "foley" (centripetal + deflection-angle correction), or "fang" (centripetal + osculating-circle correction).  Default: "dynamic"
+//   method = parameterization method: "length", "centripetal", "dynamic", or "foley" (centripetal + deflection-angle correction).  Default: "dynamic"
 //   type = "clamped"/"closed", or [u_type, v_type].  Default: "clamped"
 //   u_edge1_deriv = list of n_cols derivative vectors for ∂S/∂u along the u=0 boundary (first row edge).  One 3D vector per data column.  Requires type_u="clamped".  Vectors scaled by per-column u-direction chord length (pass unit vectors for natural speed).  Default: undef
 //   u_edge2_deriv = list of n_cols vectors for ∂S/∂u along the u=1 boundary.  Default: undef
@@ -1898,7 +1713,7 @@ function _surface_params_v(points, method, closed_v) =
 // Returns:
 //   [type, degree, control_grid, knots, weights, undef]
 
-function nurbs_interp_surface(points, degree, method="centripetal", type="clamped",
+function nurbs_interp_surface(points, degree, method="dynamic", type="clamped",
                               u_edge1_deriv=undef, u_edge2_deriv=undef,
                               v_edge1_deriv=undef, v_edge2_deriv=undef,
                               normal1=undef, normal2=undef,
@@ -1912,11 +1727,10 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
         n_rows = len(points),
         n_cols = len(points[0]),
         dim    = len(points[0][0]),
-        // Treat an all-undef derivative list the same as undef.
-        has_sud = !is_undef(u_edge1_deriv) && num_defined(u_edge1_deriv) > 0,
-        has_eud = !is_undef(u_edge2_deriv) && num_defined(u_edge2_deriv) > 0,
-        has_svd = !is_undef(v_edge1_deriv) && num_defined(v_edge1_deriv) > 0,
-        has_evd = !is_undef(v_edge2_deriv) && num_defined(v_edge2_deriv) > 0,
+        has_sud = !is_undef(u_edge1_deriv),
+        has_eud = !is_undef(u_edge2_deriv),
+        has_svd = !is_undef(v_edge1_deriv),
+        has_evd = !is_undef(v_edge2_deriv),
         has_sn  = !is_undef(normal1),
         has_en  = !is_undef(normal2),
         // Auto-detect which parametric direction has the degenerate (apex) edge.
@@ -1962,8 +1776,8 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
            str("nurbs_interp_surface: type must be \"clamped\" or \"closed\", got [\"",
                type_u, "\", \"", type_v, "\"]"))
     assert(method == "length" || method == "centripetal" || method == "dynamic"
-               || method == "foley" || method == "fang",
-           str("nurbs_interp_surface: method must be \"length\", \"centripetal\", \"dynamic\", \"foley\", or \"fang\", got \"", method, "\""))
+               || method == "foley",
+           str("nurbs_interp_surface: method must be \"length\", \"centripetal\", \"dynamic\", or \"foley\", got \"", method, "\""))
     assert(n_rows >= p_u + 1,
            str("nurbs_interp_surface: need at least ", p_u+1,
                " rows for u-degree ", p_u, ", got ", n_rows))
@@ -2129,33 +1943,6 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
         has_svd_eff = has_svd || has_svn || has_fesv,
         has_evd_eff = has_evd || has_evn || has_feev
     )
-    // u_edges / v_edges boundary-derivative segment-size checks.
-    // A derivative-carrying edge segment needs at least 3 rows/columns;
-    // with only 2 the degree-reduced knot vector becomes degenerate.
-    assert(!(has_ue && has_sud_eff && ue_norm[0] + 1 < 3),
-           !has_ue ? "" :
-           str("nurbs_interp_surface: u_edges=", ue_norm,
-               " creates a ", ue_norm[0]+1, "-row first segment (rows 0-",
-               ue_norm[0], ") which is too short to carry the start-u derivative constraint. ",
-               "Move the first u_edges index to at least 2"))
-    assert(!(has_ue && has_eud_eff && n_rows - last(ue_norm) < 3),
-           !has_ue ? "" :
-           str("nurbs_interp_surface: u_edges=", ue_norm,
-               " creates a ", n_rows - last(ue_norm), "-row last segment (rows ",
-               last(ue_norm), "-", n_rows-1, ") which is too short to carry the end-u derivative constraint. ",
-               "Move the last u_edges index to at most ", n_rows - 3))
-    assert(!(has_ve && has_svd_eff && ve_norm[0] + 1 < 3),
-           !has_ve ? "" :
-           str("nurbs_interp_surface: v_edges=", ve_norm,
-               " creates a ", ve_norm[0]+1, "-column first segment (columns 0-",
-               ve_norm[0], ") which is too short to carry the start-v derivative constraint. ",
-               "Move the first v_edges index to at least 2"))
-    assert(!(has_ve && has_evd_eff && n_cols - last(ve_norm) < 3),
-           !has_ve ? "" :
-           str("nurbs_interp_surface: v_edges=", ve_norm,
-               " creates a ", n_cols - last(ve_norm), "-column last segment (columns ",
-               last(ve_norm), "-", n_cols-1, ") which is too short to carry the end-v derivative constraint. ",
-               "Move the last v_edges index to at most ", n_cols - 3))
     let(
         // Averaged parameterization in each direction
         u_params = _surface_params_u(points, method, type_u == "closed"),
@@ -2313,10 +2100,10 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
 // Description:
 //   Convenience function that computes the NURBS surface interpolation
 //   and immediately generates a VNF for rendering.  Equivalent to
-//   passing the nurbs_interp_surface() result to nurbs_vnf().
+//   calling nurbs_interp_surface() followed by nurbs_vnf().
 
 function nurbs_interp_vnf(points, degree, splinesteps=8,
-                          method="centripetal", type="clamped",
+                          method="dynamic", type="clamped",
                           style="default",
                           u_edge1_deriv=undef, u_edge2_deriv=undef,
                           v_edge1_deriv=undef, v_edge2_deriv=undef,
@@ -2332,7 +2119,8 @@ function nurbs_interp_vnf(points, degree, splinesteps=8,
                      flat_edges=flat_edges,
                      u_edges=u_edges, v_edges=v_edges)
     )
-    nurbs_vnf(result, splinesteps=splinesteps, style=style);
+    nurbs_vnf(result[2], result[1], splinesteps=splinesteps,
+              knots=result[3], type=result[0], style=style);
 
 
 // Module: debug_nurbs_interp_surface()
@@ -2348,7 +2136,7 @@ function nurbs_interp_vnf(points, degree, splinesteps=8,
 //       [data_color=], [data_size=]);
 
 module debug_nurbs_interp_surface(points, degree, splinesteps=8,
-                                  method="centripetal", type="clamped",
+                                  method="dynamic", type="clamped",
                                   style="default",
                                   u_edge1_deriv=undef, u_edge2_deriv=undef,
                                   v_edge1_deriv=undef, v_edge2_deriv=undef,
@@ -2365,11 +2153,10 @@ module debug_nurbs_interp_surface(points, degree, splinesteps=8,
               u_edges=u_edges, v_edges=v_edges);
     vnf_polyhedron(vnf);
 
-    if (data_size > 0)
-        color(data_color)
-            for (row = points)
-                for (pt = row)
-                    translate(pt) sphere(r=data_size, $fn=16);
+    color(data_color)
+        for (row = points)
+            for (pt = row)
+                translate(pt) sphere(r=data_size, $fn=16);
 }
 
 
@@ -2424,16 +2211,17 @@ module debug_nurbs_interp_surface(points, degree, splinesteps=8,
 //
 //
 // ---- Example 6: Low-level access ----
-//   nurbs_interp() returns a NURBS parameter list that can be passed
-//   directly to nurbs_curve(), debug_nurbs(), etc.
 //
 //   include <BOSL2/std.scad>
 //   include <BOSL2/nurbs.scad>
 //   include <nurbs_interp.scad>
 //
 //   data = [[0,0], [10,30], [25,15], [40,35], [60,10], [80,25]];
-//   result = nurbs_interp(data, 3, type="clamped");
-//   curve = nurbs_curve(result, splinesteps=24);
+//   result  = nurbs_interp(data, 3, type="clamped");
+//   control = result[2];
+//   knots   = result[3];
+//   curve = nurbs_curve(control, result[1], splinesteps=24, knots=knots,
+//                       type=result[0]);
 //   stroke(curve, width=0.5);
 //
 //
@@ -2461,7 +2249,7 @@ module debug_nurbs_interp_surface(points, degree, splinesteps=8,
 //   sharp = [[0,0], [5,40],[6,40], [10,0], [50,0], [55,40],[56,42], [60,0]];
 //   color("blue")   stroke(nurbs_interp_curve(sharp, 3), width=0.1);
 //   color("red")    stroke(nurbs_interp_curve(sharp, 3, method="centripetal"), width=0.1);
-//   color("orange") stroke(nurbs_interp_curve(sharp, 3, method="centripetal"), width=0.1);
+//   color("orange") stroke(nurbs_interp_curve(sharp, 3, method="dynamic"), width=0.1);
 //   color("green") move_copies(sharp) circle(r=.1, $fn=16);
 //
 //
@@ -2605,8 +2393,6 @@ module debug_nurbs_interp_surface(points, degree, splinesteps=8,
 //
 //
 // ---- Example 15: Low-level surface access ----
-//   nurbs_interp_surface() returns a NURBS parameter list that can be
-//   passed directly to nurbs_vnf().
 //
 //   include <BOSL2/std.scad>
 //   include <BOSL2/nurbs.scad>
@@ -2618,7 +2404,8 @@ module debug_nurbs_interp_surface(points, degree, splinesteps=8,
 //       [[-30,-30,0],[0,-30,15],[30,-30,0]],
 //   ];
 //   result = nurbs_interp_surface(data, 2);
-//   vnf = nurbs_vnf(result, splinesteps=12);
+//   vnf = nurbs_vnf(result[2], result[1], splinesteps=12,
+//             knots=result[3], type=result[0]);
 //   vnf_polyhedron(vnf);
 //   color("red")
 //       for (row = data) for (pt = row)

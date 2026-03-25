@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 91
+// Development Version 90
 //////////////////////////////////////////////////////////////////////
 
 
@@ -1356,14 +1356,19 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot) =
         n_extra      = n_extra_der + n_extra_curv,
         M            = n + n_extra,   // total control points
 
-        // Uniform bar_knots: bar[j] = j*T/M.
-        // This produces a palindromic full knot vector via
-        // _bosl2_full_closed_knots (U[j]+U[K-j] = const), which is
-        // required for reflection-symmetric input to yield a symmetric
-        // solution.  Non-uniform bar_knots (from insertion or averaging)
-        // do NOT produce palindromic full knots and break symmetry.
-        T         = _avg_knots_periodic(raw_params, p)[0][n],
-        aug_bar   = [for (j = [0:1:M]) j * T / M],
+        // Compute unconstrained periodic knots, then insert one knot per
+        // constraint near the constraint parameter value.
+        unc_bar   = _fix_tiny_spans(_avg_knots_periodic(raw_params, p)[0], n),
+        T         = unc_bar[n],
+        ins_vals  = [for (spec = der_specs)  raw_params[spec[0]],
+                     for (spec = curv_specs) raw_params[spec[0]]],
+        aug_raw   = _fix_tiny_spans(
+                        _insert_constraint_knots(unc_bar, ins_vals, n, T), M),
+        // Symmetrize: enforce aug_bar[j] + aug_bar[M-j] = T so that the
+        // knot vector is palindromic under t → T−t.  This preserves any
+        // reflection symmetry in the input data + constraints.
+        aug_bar   = [for (j = [0:1:M])
+                        (aug_raw[j] + T - aug_raw[M - j]) / 2],
         U_full    = _bosl2_full_closed_knots(aug_bar, M, p),
 
         // Map raw params into active domain [aug_bar[p], aug_bar[p]+T].

@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 91
+// Development Version 86
 //////////////////////////////////////////////////////////////////////
 
 
@@ -357,48 +357,6 @@ function _fix_tiny_spans(bar_knots, n, eps=1e-6) =
                          each (i == absorb_k ? [merged[i], mid] : [merged[i]])]
     )
     _fix_tiny_spans(fixed, n, eps);
-
-
-// Insert constraint knots into unconstrained periodic bar_knots.
-//
-// For each derivative or curvature constraint, one extra knot is needed to
-// provide the additional DOF.  Instead of recomputing all knots from an
-// expanded parameter sequence (which shifts every knot and can break
-// symmetry), this function inserts each new knot near the constraint
-// parameter while keeping the original knots intact.
-//
-// bar_knots: unconstrained periodic knots [0, ..., T], n+1 entries.
-// vals:      parameter values at which constraints occur.
-// n:         number of original spans (len(bar_knots)-1).
-// T:         period (bar_knots[n]).
-//
-// Returns augmented bar_knots with n+1+len(vals) entries.
-
-function _insert_constraint_knots(bar_knots, vals, n, T) =
-    let(
-        eps = T / n * 1e-4,
-        new_knots = [for (v = vals)
-            let(
-                dists  = [for (b = bar_knots) abs(v - b)],
-                d_min  = min(dists)
-            )
-            // If v doesn't coincide with an existing knot, insert directly.
-            d_min >= eps ? v
-            // Otherwise, place at midpoint of the larger adjacent span.
-            : let(
-                j          = min_index(dists),
-                span_after = j < n ? bar_knots[j+1] - bar_knots[j]
-                                   : T - bar_knots[n-1],
-                span_before = j > 0 ? bar_knots[j] - bar_knots[j-1]
-                                    : bar_knots[1],
-                use_after  = span_after >= span_before,
-                j2         = use_after ? (j < n ? j : 0)
-                                       : (j > 0 ? j - 1 : n - 1)
-              )
-              (bar_knots[j2] + bar_knots[j2 + 1]) / 2
-        ]
-    )
-    sort([each bar_knots, each new_knots]);
 
 
 // Full periodic knot vector for basis evaluation.
@@ -1305,10 +1263,9 @@ function _nurbs_interp_closed_basic(points, p, method) =
 // eff_curv: list of n curvature specs (undef = unconstrained).
 //           dim=2: signed scalar κ or 2D vector.  dim≥3: curvature vector.
 //
-// Uses knot-insertion approach: compute the unconstrained periodic knots
-// first, then insert one knot per constraint near the constraint parameter.
-// This preserves the original knot structure and localizes the extra DOF,
-// avoiding the global knot shift of the expanded-parameter method.
+// Uses Method A (expanded-parameter knot averaging): for each constraint
+// at index k, duplicate raw_params[k] in an expanded sequence ũ of length M,
+// then re-run _avg_knots_periodic on ũ to get M+1 bar knots.  The
 // M = n + n_extra control points use standard BOSL2 periodic aliasing:
 // B_j(t) = N_j(t) + (j<p ? N_{j+M}(t) : 0), and likewise for derivatives.
 
@@ -1356,32 +1313,20 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot) =
         n_extra      = n_extra_der + n_extra_curv,
         M            = n + n_extra,   // total control points
 
-        // Uniform bar_knots: bar[j] = j*T/M.
-        // This produces a palindromic full knot vector via
-        // _bosl2_full_closed_knots (U[j]+U[K-j] = const), which is
-        // required for reflection-symmetric input to yield a symmetric
-        // solution.  Non-uniform bar_knots (from insertion or averaging)
-        // do NOT produce palindromic full knots and break symmetry.
-        T         = _avg_knots_periodic(raw_params, p)[0][n],
-        aug_bar   = [for (j = [0:1:M]) j * T / M],
-        U_full    = _bosl2_full_closed_knots(aug_bar, M, p),
+        // Expanded parameter sequence ũ: duplicate raw_params[k] once per
+        // constraint type at k (sort preserves monotonicity)
+        u_tilde = sort([
+            each raw_params,
+            for (spec = der_specs)  raw_params[spec[0]],
+            for (spec = curv_specs) raw_params[spec[0]]
+        ]),
 
-        // Map raw params into active domain [aug_bar[p], aug_bar[p]+T].
-        // Guard: nudge any shifted parameter that lands on (or very near) a
-        // knot value — same technique as _build_closed_system.
-        // The nudge direction must preserve palindromic symmetry: parameters
-        // below the center are nudged +eps, above the center −eps.
-        raw_shifted = add_scalar(raw_params, aug_bar[p]),
-        u_center    = aug_bar[p] + T / 2,
-        eps_knot    = T / M * 1e-6,
-        params      = [for (k = [0:1:n-1])
-            let(
-                u     = raw_shifted[k],
-                d_min = min([for (j = [0:1:M + 2*p]) abs(u - U_full[j])]),
-                sign  = u <= u_center ? 1 : -1
-            )
-            d_min < eps_knot ? u + sign * eps_knot : u
-        ],
+        // Periodic bar knots from expanded sequence: M+1 entries
+        aug_bar = _fix_tiny_spans(_avg_knots_periodic(u_tilde, p)[0], M),
+        U_full  = _bosl2_full_closed_knots(aug_bar, M, p),
+
+        // Map raw params into active domain [aug_bar[p], aug_bar[p]+T]
+        params = add_scalar(raw_params, aug_bar[p]),
 
         // Interpolation rows: aliased basis for M control points
         interp_rows = [for (k = [0:1:n-1])
@@ -1420,30 +1365,31 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot) =
 
 // Closed interpolation with per-point derivative and/or curvature constraints.
 //
-// Starts with rot=0 to preserve any reflection symmetry in the input;
-// the knot palindrome is centered at parameter 0, which aligns with the
-// symmetry axis only when rot=0.  If rot=0 produces excessive control-
-// point spread, all n rotations are tried (symmetry may be lost).
+// Applies the chord-ratio seam rotation for numerical conditioning; both the
+// data points and all constraint lists are rotated by the same offset.
+// If the initial rotation produces excessive control-point spread, all n
+// rotations are tried and the one with the smallest spread is selected.
 
 function _nurbs_interp_closed_constrained(points, p, method, eff_der, eff_curv) =
     let(
         n         = len(points),
-        // Start with rot=0 so the knot palindrome aligns with any
-        // reflection symmetry in the input data + constraints.
-        // (The chord-ratio heuristic can pick a rotation that
-        // misaligns the palindromic center, breaking symmetry.)
-        result0   = _closed_constrained_solve(points, p, method, eff_der, eff_curv, 0)
-    )
-    assert(!is_undef(result0),
-           "nurbs_interp (closed+constrained): singular system")
-    let(
-        ratio0    = _ctrl_point_ratio(points, result0[0]),
+        // Try rotation 0 first to preserve any geometric symmetry in the
+        // input data + constraints.  Fall back to the chord-ratio heuristic
+        // only if rot=0 is singular or ill-conditioned.
+        res0      = _closed_constrained_solve(points, p, method, eff_der, eff_curv, 0),
+        ratio0    = is_undef(res0) ? 1/0 : _ctrl_point_ratio(points, res0[0]),
         threshold = pow(2, p) / p
     )
-    ratio0 <= threshold ? result0
+    !is_undef(res0) && ratio0 <= threshold ? res0
     : let(
-        // Heuristic rotation produced excessive control-point spread.
-        // Try all rotations and pick the one with the smallest spread.
+        // rot=0 was singular or ill-conditioned — try heuristic rotation.
+        rot1    = _find_closed_rotation(points, n, p, method),
+        result1 = _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot1)
+    )
+    !is_undef(result1) && _ctrl_point_ratio(points, result1[0]) <= threshold ? result1
+    : let(
+        // Heuristic rotation also failed.  Try all rotations and pick
+        // the one with the smallest control-point spread.
         candidates = [for (r = [0:1:n-1])
                          let(res = _closed_constrained_solve(points, p, method,
                                        eff_der, eff_curv, r))
@@ -1578,7 +1524,6 @@ function _build_closed_system(params, p) =
         // near-uniform parameterization.  Nudge such parameters into the
         // interior of their knot span by a tiny relative amount.
         T          = bar_knots[n],
-        u_center   = bar_knots[p] + T / 2,
         eps_knot   = T / n * 1e-6,
         col_safe   = [for (k = [0:1:n-1])
             let(
@@ -1586,10 +1531,9 @@ function _build_closed_system(params, p) =
                 // Check distance to all knots in [0, T + bar_knots[p]].
                 dists = [for (j = [0:1:n + 2*p])
                              abs(u - U_full[j])],
-                d_min = min(dists),
-                sign  = u <= u_center ? 1 : -1
+                d_min = min(dists)
             )
-            d_min < eps_knot ? u + sign * eps_knot : u
+            d_min < eps_knot ? u + eps_knot : u
         ],
         N_mat      = _collocation_matrix_periodic(col_safe, n, p, U_full)
     )

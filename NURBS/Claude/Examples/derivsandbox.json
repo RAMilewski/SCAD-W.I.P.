@@ -1,0 +1,35 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "color1": "dodgerblue",
+            "color2": "cyan",
+            "method1": "centripetal",
+            "method2": "dynamic",
+            "type": "closed"
+        },
+        "New set 2": {
+            "color1": "dodgerblue",
+            "color2": "cyan",
+            "method1": "centripetal",
+            "method2": "fang",
+            "type": "clamped"
+        },
+        "New set 3": {
+            "color1": "dodgerblue",
+            "color2": "cyan",
+            "degree": "3",
+            "method1": "centripetal",
+            "method2": "fang",
+            "type": "closed"
+        },
+        "New set 4": {
+            "color1": "dodgerblue",
+            "color2": "cyan",
+            "degree": "3",
+            "method1": "centripetal",
+            "method2": "foley",
+            "type": "clamped"
+        }
+    }
+}
