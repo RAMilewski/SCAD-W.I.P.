@@ -19,7 +19,7 @@ l_arm = 66;     //Distance from the center of the iron to the center of the dril
 p_bolt = 5;     //Height of the square part of the carriage bolt. From ASME B18.5, Table 2
 d_bolt = 9.86;  //Diameter of the threaded shaft of the 3/8 inch carriage bolt.
 
-iron_clamp(); arm();  // This could be done as one continuous bit of code instead of two modules, but
+iron_clamp(); up(z_dim/6) arm();  // This could be done as one continuous bit of code instead of two modules, but
                         // multiply nesting tag scopes leaves you in a twisty little maze of code
                         // passages all the same.  It could be done with tag_scope(), but not by me.
 
@@ -39,14 +39,14 @@ module iron_clamp() {
 module arm() {
     diff() {
         conv_hull("keep") 
-            back(2.5) cyl(h = z_dim/2, d = 1.5 * dia - 1, rounding = 2, anchor = TOP){
-                back(l_arm) cyl(h = z_dim/2, d = w_dia + 4, rounding = 2);
+            back(2.5) cyl(h = z_dim * 2/3, d = 1.5 * dia - 1, rounding = 2, anchor = TOP){
+                back(l_arm) cyl(h = z_dim * 2/3, d = w_dia + 4, rounding = 2);
             }
         back(2.5) {
-            tag("remove") back(l_arm) cyl(d = d_bolt, h = z_dim/2, anchor = TOP); //bolt hole
-            tag("remove") back(l_arm) down(z_dim/2) cuboid([d_bolt,d_bolt,p_bolt], anchor = BOT); //bolt head hole
+            tag("remove") back(l_arm) cyl(d = d_bolt, h = z_dim * 2/3, anchor = TOP); //bolt hole
+            tag("remove") back(l_arm) down(z_dim * 2/3) cuboid([d_bolt,d_bolt,p_bolt], anchor = BOT); //bolt head hole
             tag("remove") back(l_arm) cyl(h = 1.25, d = w_dia, anchor = TOP);   //washer channel
-            tag("remove") cyl(h = z_dim/2, d = 1.5 * dia, anchor = TOP); //clamp cutout
+            tag("remove") cyl(h = z_dim * 2/3, d = 1.5 * dia, anchor = TOP); //clamp cutout
 
         }
     }

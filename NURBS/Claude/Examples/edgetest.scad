@@ -1,6 +1,6 @@
 include <BOSL2/std.scad>
 include <BOSL2/nurbs.scad>
-include <nurbs_interp.scad>
+include <../nurbs_interp.scad>
 
   data = [
        [[-50, 50,  0], [-16, 50,  0], [ 16, 50,  0], [30, 50,  0], [50, 50,  0]],

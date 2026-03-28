@@ -20,8 +20,8 @@ data = [[0,0], [0,9], [5,9], [80,65], [130,60], [140,42], [208,9], [214,9],
         [214,0], [189,0], [170,-17], [152,0], [52,0], [33,-17], [16,0],[0,0]];
 
 
-proto_deriv = [undef, undef, undef, [2,1.5], RIGHT, RIGHT, undef, undef, 
-                RIGHT, RIGHT, undef, RIGHT, undef, undef, undef, undef,
+proto_deriv = [undef, undef, undef, RIGHT, RIGHT, RIGHT+DOWN, undef, undef, 
+                RIGHT, LEFT, undef, RIGHT, RIGHT, undef, undef, undef,
                 undef, undef, undef, undef, undef, undef, undef, undef,
                 undef, undef, undef, undef, undef, undef, undef, undef];
 
