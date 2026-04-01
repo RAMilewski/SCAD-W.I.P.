@@ -363,3 +363,39 @@ Also:
 > "I had in mind that the user gives extra_pts=2 and it increases the number of control points by 2. I'm hoping that instead of having to poke the weirdness with a whole bunch of derivative constraints, that adding points can help."
 >
 > Approach: weighted-quantile / widest-span knot placement + d²C/dt²=0 smoothness rows.
+
+## v98
+Eliminate the current approach involving dc^2/dt^2. Implement the approach in note1.md and provide two options, first difference of control points and second difference of control points.
+
+## v99
+Add the integrated squared second derivative technique as additional option.
+
+## v100
+It seems like we should be able to get a solution in the underdetermined (singular) case by imposing the constraint that we just added. Why can't we? Yes [implement KKT fallback for all singular systems].
+
+## v101
+KKT system fails for closed constrained curves with extra_pts. Fix: add Tikhonov regularization to R matrix.
+
+## v102
+KKT still fails with ε=1e-10 regularization. Replaced indefinite KKT saddle-point system with Schur complement decomposition (two PD solves).
+
+## v103
+Schur complement still fails for closed constrained test case. Replaced with penalized normal equations (R + μ·A^T·A)·P = μ·A^T·Q — always SPD, no singular intermediate matrices.
+
+## v104
+User asked to investigate rank-deficiency. Diagnosed root cause: two data points sharing a knot span (Schoenberg-Whitney violation). Fix: auto-detect and split multi-occupied spans.
+
+## v105
+Penalized-only solve (v103-v104) misses two data points visually. Fix: try Schur complement first (exact interpolation now that span splitting ensures full-rank A), fall back to penalized only if needed.
+
+## v106
+v105 still misses data points — Schur complement was failing due to ill-conditioning from mixed row scales (curvature ~3000 vs interpolation ~0.7), falling back to approximate penalized solve. Fix: row equilibration.
+
+## v107
+v106 still misses points. Diagnosed: rot=0 had Schur=OK but high spread, so rotation search picked rot=9 which used penalized fallback (Schur=FAIL). Fix: rotation search only considers exact solutions; penalized is a last resort.
+
+## v108
+"(1) It's not OK to give answers that don't satisfy the constraints, so never use penalized normal equations. (2) Replace schur complement and penalized normal equations with null space method."
+
+## v109
+"Why is it still doing rotation searches?" / "Yes." (remove them)

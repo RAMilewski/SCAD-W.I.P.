@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 109
+// Development Version 100
 //////////////////////////////////////////////////////////////////////
 
 
@@ -419,38 +419,6 @@ function _widest_span_params(bar_knots, k) =
     [for (s = top_k) (bar_knots[s[1]] + bar_knots[s[1]+1]) / 2];
 
 
-// Find knot spans containing multiple data parameters and return
-// splitting midpoints.  Two data points in the same span cause a
-// rank-deficient collocation matrix; inserting a knot between them
-// restores full rank.
-//
-// bar_knots: sorted knot vector with n_spans+1 entries.
-// params:    sorted or unsorted data parameter values.
-//
-// Returns a list of splitting parameter values — one midpoint between
-// each consecutive pair of params that share a span.
-
-function _span_split_params(bar_knots, params) =
-    let(
-        n_spans = len(bar_knots) - 1,
-        sorted  = sort(params),
-        n_p     = len(sorted),
-        // For each sorted param, find its span index.
-        span_of = [for (t = sorted)
-            let(pos = [for (i = [0:1:n_spans-1])
-                           if (t >= bar_knots[i] &&
-                               (i < n_spans-1 ? t < bar_knots[i+1]
-                                              : t <= bar_knots[i+1])) i])
-            len(pos) > 0 ? pos[0] : n_spans - 1
-        ]
-    )
-    // Midpoints between consecutive sorted params sharing a span.
-    [for (i = [0:1:n_p-2])
-        if (span_of[i] == span_of[i+1])
-        (sorted[i] + sorted[i+1]) / 2
-    ];
-
-
 // Build one row of the L^T*L matrix for control-polygon regularization.
 // order=1: first-difference penalty (penalizes polygon length/variation).
 // order=2: second-difference penalty (penalizes polygon bending).
@@ -499,90 +467,6 @@ function _ltl_row(M, i, order, periodic=false) =
             : // abs(i-j) == 2
               (min(i,j) <= M-3 ? 1 : 0)         // r=min: (1)(1)
          ]);
-
-
-// Solve the constrained optimization  min P^T·R·P  s.t. A·P = rhs
-// via null-space method with pivoted QR of A^T.
-//
-// R   = M×M regularization matrix (positive semidefinite).
-// A   = N×M constraint matrix (interpolation + derivative + curvature).
-// rhs = N×dim right-hand side (data points + constraint vectors).
-//
-// Row equilibration scales each row of A (and rhs) to unit norm before
-// QR factorization for numerical stability (curvature rows can have
-// norms ~3000× larger than interpolation rows).
-//
-// Algorithm (see note2.md):
-//   1. Row-equilibrate: D = diag(||A_i||), Ã = D⁻¹A, Q̃ = D⁻¹·rhs
-//   2. Pivoted QR of Ã^T: Ã^T·Π = Q·[R_A; 0]
-//      Q1 = Q[:,0:r-1] spans row space of Ã (r = rank)
-//      Q2 = Q[:,r:M-1] spans null space of Ã
-//   3. Step A — particular solution satisfying Ã·x_p = Q̃ exactly:
-//      R_A^T · u = Π^T · Q̃,  then x_p = Q1 · u
-//   4. Step B — minimize regularization in null space (if M > r):
-//      (Q2^T · R_pd · Q2) · z = -Q2^T · R_pd · x_p
-//      P = x_p + Q2 · z
-//
-// Returns list of M control points, or undef on rank-deficient A.
-
-function _nullspace_solve(R, A, rhs, eps=1e-6) =
-    let(
-        M      = len(R),
-        N_rows = len(A),
-        dim    = len(rhs[0]),
-        // Row-equilibrate A and rhs for numerical stability.
-        row_sc = [for (i = [0:1:N_rows-1])
-                      let(rn = norm(A[i])) max(rn, 1e-15)],
-        A_eq   = [for (i = [0:1:N_rows-1])
-                      [for (j = [0:1:M-1]) A[i][j] / row_sc[i]]],
-        rhs_eq = [for (i = [0:1:N_rows-1])
-                      [for (d = [0:1:dim-1]) rhs[i][d] / row_sc[i]]],
-        // Pivoted QR of A_eq^T (M × N_rows):
-        //   A_eq^T = Q_full · R_qr · Perm^T
-        qr     = qr_factor(transpose(A_eq), pivot=true),
-        Q_full = qr[0],           // M × M orthogonal
-        R_qr   = qr[1],           // M × N_rows
-        Perm   = qr[2],           // N_rows × N_rows permutation
-        // N_rows × N_rows upper triangular block
-        R_tri  = submatrix(R_qr, [0:N_rows-1], [0:N_rows-1]),
-        // Check rank: all diagonals must be non-zero.
-        rank_ok = [for (i = [0:1:N_rows-1])
-                       if (approx(R_tri[i][i], 0)) i] == []
-    )
-    !rank_ok ? undef
-    : let(
-        // Q1 = first N_rows columns of Q (row-space basis), M × N_rows
-        Q1     = submatrix(Q_full, [0:M-1], [0:N_rows-1]),
-        // Step A: particular solution x_p satisfying A·x_p = rhs exactly.
-        // Solve R_tri^T · u = Perm^T · rhs_eq  (forward substitution)
-        Pt_rhs = transpose(Perm) * rhs_eq,
-        u      = back_substitute(R_tri, Pt_rhs, transpose=true)
-    )
-    u == [] ? undef
-    : let(
-        x_p = Q1 * u               // M × dim
-    )
-    // Square case (M == N_rows): null space is empty, x_p is the solution.
-    M == N_rows ? x_p
-    : let(
-        // Q2 = remaining M - N_rows columns (null-space basis)
-        Q2   = submatrix(Q_full, [0:M-1], [N_rows:M-1]),  // M × (M-N_rows)
-        // Step B: minimize x^T·R·x in the null space.
-        // Regularize R for strict positive-definiteness.
-        R_pd = [for (i = [0:1:M-1])
-                    [for (j = [0:1:M-1])
-                        R[i][j] + (i == j ? eps : 0)]],
-        // H = Q2^T · R_pd · Q2  ((M-N_rows) × (M-N_rows), SPD)
-        RQ2  = R_pd * Q2,
-        H    = transpose(Q2) * RQ2,
-        // g = Q2^T · R_pd · x_p   ((M-N_rows) × dim)
-        g    = transpose(Q2) * (R_pd * x_p),
-        // Solve H · z = -g
-        z    = linear_solve(H, -g)
-    )
-    // If H solve fails (degenerate), x_p alone still satisfies constraints.
-    z == [] ? x_p
-    : x_p + Q2 * z;
 
 
 // Gauss-Legendre quadrature nodes and weights on [-1,1].
@@ -1138,9 +1022,28 @@ function _nurbs_interp_clamped_basic(points, p, method, smooth=2) =
         control = linear_solve(N_mat, points),
         knots   = [0, each int_kn, 1]
     )
-    assert(control != [],
-           "nurbs_interp (clamped): singular collocation matrix")
-    [control, knots, 0];
+    control != []
+    ? [control, knots, 0]
+    : // Singular system — fall back to KKT regularization.
+      let(
+        A_T = transpose(N_mat),
+        R   = smooth <= 2
+            ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth)]
+            : _bending_energy_matrix(M, p, U_full),
+        K   = [for (i = [0:1:M + M - 1])
+                   i < M
+                   ? [each R[i], each A_T[i]]
+                   : [each N_mat[i - M],
+                      each [for (j = [0:1:M-1]) 0]]
+              ],
+        kkt_rhs = [each [for (i = [0:1:M-1]) repeat(0, dim)],
+                   each points],
+        sol     = linear_solve(K, kkt_rhs)
+      )
+      assert(sol != [],
+             "nurbs_interp (clamped): singular system (KKT fallback also failed)")
+      let(ctrl = [for (i = [0:1:M-1]) sol[i]])
+      [ctrl, knots, 0];
 
 
 // Assemble independently-solved clamped corner segments into one B-spline.
@@ -1305,7 +1208,7 @@ function _nurbs_interp_clamped_constrained(points, p, method, eff_der, eff_curv,
         _chk_curv_deg = assert(n_extra_curv == 0 || p >= 2,
                                "nurbs_interp: curvature constraints require degree >= 2"),
         n_constraint = n_extra_der + n_extra_curv,
-        M_pre        = n + 1 + n_constraint + extra_pts,
+        M            = n + 1 + n_constraint + extra_pts,   // total control points
 
         // Build knots: average data params, insert at constraint spans,
         // then insert extra_pts more at widest spans.
@@ -1318,19 +1221,8 @@ function _nurbs_interp_clamped_constrained(points, p, method, eff_der, eff_curv,
         extra_ts       = extra_pts == 0 ? []
                        : _widest_span_params(after_constr, extra_pts),
         aug_bar_raw    = _insert_constraint_knots(after_constr, extra_ts),
-        n_spans_pre    = len(aug_bar_raw) - 1,
-        aug_bar_pre    = _fix_tiny_spans(aug_bar_raw, n_spans_pre),
-
-        // Split any knot span that contains multiple data parameters.
-        // Without this, two data points in the same span produce a
-        // rank-deficient collocation matrix (Schoenberg-Whitney condition).
-        occ_splits     = _span_split_params(aug_bar_pre, params),
-        n_occ          = len(occ_splits),
-        M              = M_pre + n_occ,
-        aug_bar        = n_occ == 0 ? aug_bar_pre
-                       : _fix_tiny_spans(
-                             sort([each aug_bar_pre, each occ_splits]),
-                             n_spans_pre + n_occ),
+        n_spans        = len(aug_bar_raw) - 1,
+        aug_bar        = _fix_tiny_spans(aug_bar_raw, n_spans),
         int_kn         = [for (i = [1:1:len(aug_bar)-2]) aug_bar[i]],
         U_full         = _full_clamped_knots(int_kn, p),
 
@@ -1362,22 +1254,36 @@ function _nurbs_interp_clamped_constrained(points, p, method, eff_der, eff_curv,
 
         knots   = [0, each int_kn, 1]
     )
-    // When M == N_rows (square), try direct solve first.
-    // When M > N_rows (underdetermined from extra_pts or span splits),
-    // use null-space method: exact constraints + minimum-energy smoothing.
+    // Try direct solve first.  If singular (or extra_pts > 0 makes it
+    // underdetermined), solve via KKT: min ||R·P||² s.t. A·P = rhs.
     let(
-        direct = M == N_rows ? linear_solve(A_constr, rhs_constr) : []
+        direct = extra_pts == 0 ? linear_solve(A_constr, rhs_constr) : []
     )
     direct != []
     ? [direct, knots, 0]
     : let(
-        R    = smooth <= 2
-             ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth)]
-             : _bending_energy_matrix(M, p, U_full),
-        control = _nullspace_solve(R, A_constr, rhs_constr)
+        // Build KKT system:
+        // [R   A^T] [P]   [  0  ]
+        // [A    0 ] [Λ] = [rhs  ]
+        // where R = L^T*L (smooth=1,2) or bending-energy matrix (smooth=3).
+        A_T = transpose(A_constr),
+        R   = smooth <= 2
+            ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth)]
+            : _bending_energy_matrix(M, p, U_full),
+        K   = [for (i = [0:1:M + N_rows - 1])
+                   i < M
+                   ? [each R[i], each A_T[i]]
+                   : [each A_constr[i - M],
+                      each [for (j = [0:1:N_rows-1]) 0]]
+              ],
+        kkt_rhs = [each [for (i = [0:1:M-1]) repeat(0, dim)],
+                   each rhs_constr],
+        sol     = linear_solve(K, kkt_rhs)
       )
-      assert(!is_undef(control),
-             "nurbs_interp (clamped+constrained): rank-deficient constraint matrix")
+      assert(sol != [],
+             "nurbs_interp (clamped+constrained+KKT): singular system")
+      // Extract control points from first M rows of solution.
+      let(control = [for (i = [0:1:M-1]) sol[i]])
       [control, knots, 0];
 
 
@@ -1538,15 +1444,26 @@ function _closed_basic_solve(points, n, p, method, rot, smooth=2) =
         control    = linear_solve(N_mat, pts)
     )
     control != [] ? [control, bar_knots, rot]
-    : // Singular — fall back to constrained optimization.
+    : // Singular — fall back to KKT regularization.
       let(
-        M    = n,
-        R    = smooth <= 2
-             ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth, periodic=true)]
-             : _bending_energy_matrix(M, p, U_full, periodic=true),
-        ctrl = _nullspace_solve(R, N_mat, pts)
+        M   = n,
+        A_T = transpose(N_mat),
+        R   = smooth <= 2
+            ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth, periodic=true)]
+            : _bending_energy_matrix(M, p, U_full, periodic=true),
+        K   = [for (i = [0:1:M + M - 1])
+                   i < M
+                   ? [each R[i], each A_T[i]]
+                   : [each N_mat[i - M],
+                      each [for (j = [0:1:M-1]) 0]]
+              ],
+        kkt_rhs = [each [for (i = [0:1:M-1]) repeat(0, dim)],
+                   each pts],
+        sol     = linear_solve(K, kkt_rhs)
       )
-      is_undef(ctrl) ? undef : [ctrl, bar_knots, rot];
+      sol == [] ? undef
+      : let(ctrl = [for (i = [0:1:M-1]) sol[i]])
+        [ctrl, bar_knots, rot];
 
 
 // Control-point spread ratio: max extent of control points divided by
@@ -1661,9 +1578,9 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot,
         _chk_curv_deg = assert(n_extra_curv == 0 || p >= 2,
                                "nurbs_interp: curvature constraints require degree >= 2"),
         n_constraint = n_extra_der + n_extra_curv,
-        M_pre        = n + n_constraint + extra_pts,
+        M            = n + n_constraint + extra_pts,   // total control points
 
-        // Build bar_knots: standard periodic averaging of N data
+        // Build M bar_knots: standard periodic averaging of N data
         // params, then insert knots for constraints and extra_pts.
         base_bar       = _avg_knots_periodic(raw_params, p)[0],
         constraint_idxs = [for (spec = der_specs) spec[0],
@@ -1673,18 +1590,7 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot,
         extra_ts       = extra_pts == 0 ? []
                        : _widest_span_params(after_constr, extra_pts),
         aug_bar_raw    = _insert_constraint_knots(after_constr, extra_ts),
-        aug_bar_pre    = _fix_tiny_spans(aug_bar_raw, M_pre),
-
-        // Split any knot span that contains multiple data parameters.
-        // Without this, two data points in the same span produce a
-        // rank-deficient collocation matrix (§9.2.1 Schoenberg-Whitney).
-        occ_splits     = _span_split_params(aug_bar_pre, raw_params),
-        n_occ          = len(occ_splits),
-        M              = M_pre + n_occ,
-        aug_bar        = n_occ == 0 ? aug_bar_pre
-                       : _fix_tiny_spans(
-                             sort([each aug_bar_pre, each occ_splits]),
-                             M),
+        aug_bar        = _fix_tiny_spans(aug_bar_raw, M),
         T              = aug_bar[M],
         U_full         = _bosl2_full_closed_knots(aug_bar, M, p),
 
@@ -1734,21 +1640,31 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot,
                       for (spec = der_specs)  spec[1],
                       for (spec = curv_specs) spec[1]]
     )
-    // When M == N_rows (square), try direct solve first.
-    // When M > N_rows (underdetermined from extra_pts or span splits),
-    // use null-space method: exact constraints + minimum-energy smoothing.
+    // Try direct solve first.  If singular (or extra_pts > 0 makes it
+    // underdetermined), solve via KKT: min ||R·P||² s.t. A·P = rhs.
     let(
-        direct = M == N_rows ? linear_solve(A_constr, rhs_constr) : []
+        direct = extra_pts == 0 ? linear_solve(A_constr, rhs_constr) : []
     )
     direct != []
     ? [direct, aug_bar, rot]
     : let(
-        R    = smooth <= 2
-             ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth, periodic=true)]
-             : _bending_energy_matrix(M, p, U_full, periodic=true),
-        ctrl = _nullspace_solve(R, A_constr, rhs_constr)
+        A_T = transpose(A_constr),
+        R   = smooth <= 2
+            ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth, periodic=true)]
+            : _bending_energy_matrix(M, p, U_full, periodic=true),
+        K   = [for (i = [0:1:M + N_rows - 1])
+                   i < M
+                   ? [each R[i], each A_T[i]]
+                   : [each A_constr[i - M],
+                      each [for (j = [0:1:N_rows-1]) 0]]
+              ],
+        kkt_rhs = [each [for (i = [0:1:M-1]) repeat(0, dim)],
+                   each rhs_constr],
+        sol     = linear_solve(K, kkt_rhs)
       )
-      is_undef(ctrl) ? undef : [ctrl, aug_bar, rot];
+      sol == [] ? undef
+      : let(control = [for (i = [0:1:M-1]) sol[i]])
+        [control, aug_bar, rot];
 
 
 // Closed interpolation with per-point derivative and/or curvature constraints.
@@ -1761,16 +1677,37 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot,
 function _nurbs_interp_closed_constrained(points, p, method, eff_der, eff_curv,
                                            extra_pts=0, smooth=2) =
     let(
-        // rot=0: knot palindrome aligns with any reflection symmetry
-        // in the input data + constraints.  Null-space method guarantees
-        // exact interpolation and bending-energy minimization prevents
-        // oscillation, so no rotation search is needed.
-        result = _closed_constrained_solve(points, p, method, eff_der, eff_curv,
-                     0, extra_pts, smooth)
+        n         = len(points),
+        // Start with rot=0 so the knot palindrome aligns with any
+        // reflection symmetry in the input data + constraints.
+        // (The chord-ratio heuristic can pick a rotation that
+        // misaligns the palindromic center, breaking symmetry.)
+        result0   = _closed_constrained_solve(points, p, method, eff_der, eff_curv, 0, extra_pts, smooth)
     )
-    assert(!is_undef(result),
-           "nurbs_interp (closed+constrained): rank-deficient constraint matrix")
-    result;
+    assert(!is_undef(result0),
+           "nurbs_interp (closed+constrained): singular system")
+    let(
+        ratio0    = _ctrl_point_ratio(points, result0[0]),
+        threshold = pow(2, p) / p
+    )
+    ratio0 <= threshold ? result0
+    : let(
+        // Heuristic rotation produced excessive control-point spread.
+        // Try all rotations and pick the one with the smallest spread.
+        candidates = [for (r = [0:1:n-1])
+                         let(res = _closed_constrained_solve(points, p, method,
+                                       eff_der, eff_curv, r, extra_pts, smooth))
+                         if (!is_undef(res))
+                         [_ctrl_point_ratio(points, res[0]), res]],
+        _chk = assert(len(candidates) > 0,
+                       "nurbs_interp (closed+constrained): all rotations produce singular systems"),
+        best_idx = min_index([for (c = candidates) c[0]]),
+        best     = candidates[best_idx][1],
+        _echo    = echo(str("nurbs_interp (closed+constrained): rotation search chose ",
+                            best[2], " (spread ratio ",
+                            candidates[best_idx][0], ")"))
+    )
+    best;
 
 
 // =====================================================================

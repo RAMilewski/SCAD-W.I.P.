@@ -301,3 +301,74 @@
 - When `extra_pts > 0` and no other constraints exist, the basic paths redirect to the constrained solvers (which handle the extra DOFs).
 - Reverted v96's midpoint-refinement (`_refined` parameter removed).
 - Fixed stale comment in `_closed_constrained_solve` that referenced quantile resampling.
+
+## v98
+- Replaced d²C/dt²=0 smoothness rows for `extra_pts` with KKT constrained optimization from note1.md. When `extra_pts > 0`, the underdetermined system (M > N_rows) is solved as: min ||L*P||² s.t. A*P = Q, yielding exact interpolation with minimum control-polygon roughness.
+- Added `smooth=` parameter (default 2): 1 = first-difference penalty (minimizes control polygon length/variation), 2 = second-difference penalty (minimizes control polygon bending).
+- New helper `_ltl_row(M, i, order, periodic)`: builds one row of the L^T*L regularization matrix. Supports both clamped (boundary-adapted) and periodic (circulant) variants for first- and second-difference operators.
+- KKT system: [(L^T*L, A^T); (A, 0)] * [P; Λ] = [0; rhs]. Solved via `linear_solve()`; control points extracted from first M rows.
+- Removed `_widest_span_midpoints()` (only used by the eliminated smoothness-row approach).
+- Removed degree >= 2 requirement for `extra_pts` (KKT approach works at any degree).
+- `smooth=` propagated through all public API: `nurbs_interp()`, `nurbs_interp_curve()`, `debug_nurbs_interp()`, and all internal dispatch/solver functions.
+
+## v99
+- Added `smooth=3`: integrated squared second derivative of the curve (true bending energy, ∫|C′′(t)|²dt). This minimizes actual curve curvature energy rather than control-polygon proxies. Requires degree >= 2.
+- New helper `_gauss_legendre(n)`: returns Gauss-Legendre quadrature nodes and weights on [-1,1] for n = 2..5 points. Exact for polynomials up to degree 2n-1.
+- New helper `_bending_energy_matrix(M, p, U_full, periodic)`: computes the M×M matrix R where R[j][k] = ∫ B′′_j(t) B′′_k(t) dt via Gauss-Legendre quadrature over each knot span. Supports both clamped and periodic (aliased) basis functions.
+- Uses max(2, p-1) Gauss points per span (exact for p ≤ 6). Precomputes all second derivatives at quad points for efficiency.
+- Updated `smooth=` assert to accept 1, 2, or 3. Added degree >= 2 check for smooth=3.
+
+## v100
+- KKT regularization fallback for singular systems: all four solve paths (`_nurbs_interp_clamped_basic`, `_nurbs_interp_clamped_constrained`, `_closed_basic_solve`, `_closed_constrained_solve`) now attempt a direct `linear_solve()` first, and if it returns `[]` (singular), automatically retry via the KKT system with the `smooth=` regularizer.
+- This makes the solver more robust: any singular/underdetermined system is resolved by picking the minimum-energy interpolant instead of failing with an assertion.
+- Propagated `smooth=` parameter to `_nurbs_interp_clamped_basic`, `_closed_basic_solve`, and `_nurbs_interp_closed_basic` so the fallback can use the user's chosen regularizer.
+- The constrained solvers no longer gate on `extra_pts > 0` to decide the solve strategy; the direct solve is always attempted first and KKT is the unified fallback.
+
+## v101
+- Fixed KKT system singularity: added Tikhonov regularization (ε·I, ε=1e-10) to the R matrix in all four KKT solve paths. The periodic second-difference L^T*L is positive semidefinite (rank M-1, null space = constants), which left the KKT saddle-point system indefinite with near-zero pivots that caused BOSL2's `linear_solve()` to fail. The tiny diagonal perturbation makes R strictly positive definite, stabilizing the solve without meaningfully affecting the solution.
+- New helper `_regularize(R, eps)`: adds ε to the diagonal of a square matrix.
+
+## v102
+- Replaced indefinite KKT saddle-point system with Schur complement decomposition. The KKT matrix [R, A^T; A, 0] is symmetric indefinite, which BOSL2's `linear_solve()` cannot reliably handle. The Schur complement approach decomposes the problem into two positive-definite solves that `linear_solve()` handles robustly:
+  1. Solve R·Z = A^T (R is PD after ε·I regularization)
+  2. Form S = A·Z (Schur complement, PD)
+  3. Solve S·Λ = rhs
+  4. P = Z·Λ
+- New helper `_kkt_solve(R, A, rhs, eps)`: implements the Schur complement approach. All four KKT sites now call this instead of building the saddle-point matrix directly.
+- Removed `_regularize()` (replaced by inline ε·I inside `_kkt_solve`).
+- Increased default regularization to ε=1e-6 (1e-10 was too small to stabilize pivots).
+
+## v103
+- Replaced Schur complement decomposition in `_kkt_solve` with **penalized normal equations**: min P^T·R·P + μ·‖A·P − rhs‖², yielding the SPD system (R + μ·A^T·A)·P = μ·A^T·rhs.
+- The Schur complement S = A·R⁻¹·A^T was singular when the constraint matrix A was numerically rank-deficient. The new formulation avoids forming S entirely — a single M×M SPD solve replaces the two-step Schur decomposition.
+- μ=1e8 gives interpolation accuracy ~1e-6 relative to data scale (negligible for visualization).
+- Removed ε·I regularization of R (no longer needed; the μ·A^T·A term ensures the system matrix is SPD).
+
+## v104
+- **Root cause found**: rank-deficient collocation matrix caused by two data points in the same knot span. Constraint knot insertion only targets constrained parameters; unconstrained data points can share a span, violating the Schoenberg-Whitney condition (at most one evaluation per span).
+- New helper `_span_split_params(bar_knots, params)`: detects knot spans containing multiple data parameters and returns midpoint splitting values.
+- Both `_closed_constrained_solve` and `_nurbs_interp_clamped_constrained` now call `_span_split_params` after constraint/extra knot insertion. If any span has multiple params, splitting knots are inserted, increasing M and making the system underdetermined — solved exactly via penalized normal equations.
+- Changed direct-solve guard from `extra_pts == 0` to `M == N_rows` so that span-split-induced extra columns also trigger the KKT path.
+- Removed diagnostic echo statements from v103.
+
+## v105
+- `_kkt_solve` now tries **Schur complement first** (exact interpolation), falls back to **penalized normal equations** only if S is singular. v103-v104's penalized-only approach traded smoothness for interpolation accuracy, causing the curve to miss data points in sharp-turn regions.
+- With v104's span splitting ensuring A has full row rank, the Schur complement S = A·R⁻¹·A^T is now SPD and the exact path succeeds. The penalized fallback is retained as a safety net for edge cases.
+
+## v106
+- Added **row equilibration** to `_kkt_solve`: each row of A (and corresponding rhs) is scaled to unit norm before forming the Schur complement. This fixes the conditioning problem caused by curvature rows having norms ~3000× larger than interpolation rows (~0.7).
+- Row equilibration preserves the exact solution (P_scaled = P_original by algebraic identity: D cancels in P = R⁻¹·A^T·D⁻¹·(D⁻¹·A·R⁻¹·A^T·D⁻¹)⁻¹·D⁻¹·Q = R⁻¹·A^T·(A·R⁻¹·A^T)⁻¹·Q).
+- The penalized fallback also uses equilibrated A for balanced constraint weighting.
+
+## v107
+- **Root cause of missed points**: rot=0 achieved exact interpolation (Schur=OK) but had high spread ratio, triggering the rotation search. The rotation search picked rot=9 which had low spread (1.20) but used the penalized fallback (Schur=FAIL) — so the curve smoothed past data points instead of interpolating them.
+- `_kkt_solve` now accepts `fallback=` parameter: when false, returns undef on Schur failure instead of falling back to penalized.
+- `_closed_constrained_solve` passes `fallback=` through to `_kkt_solve`.
+- `_nurbs_interp_closed_constrained` rotation search now uses `fallback=false` — only exact (Schur complement) solutions are considered. If no exact rotation exists, a second pass with `fallback=true` picks the best penalized solution.
+- Removed diagnostic echo statements.
+
+## v108
+- Replaced Schur complement + penalized normal equations with null-space method via pivoted QR of A^T. New `_nullspace_solve()` guarantees exact constraint satisfaction by construction: Step A computes a particular solution in the row space of A via QR back-substitution; Step B minimizes bending energy in the null space via a small SPD system. Removed `_kkt_solve()`, all `fallback=` parameters, and all penalized normal equation code paths. Uses BOSL2's `qr_factor()`, `back_substitute()`, and `submatrix()`. Rotation search for closed constrained curves simplified (no more exact-vs-penalized two-pass logic).
+
+## v109
+- Removed rotation search from closed constrained interpolation. Null-space method guarantees exact interpolation and bending-energy minimization prevents oscillation, so trying multiple rotations is unnecessary. Always uses rot=0 to preserve reflection symmetry.

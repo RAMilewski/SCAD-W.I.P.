@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 109
+// Development Version 108
 //////////////////////////////////////////////////////////////////////
 
 
@@ -1761,16 +1761,36 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot,
 function _nurbs_interp_closed_constrained(points, p, method, eff_der, eff_curv,
                                            extra_pts=0, smooth=2) =
     let(
-        // rot=0: knot palindrome aligns with any reflection symmetry
-        // in the input data + constraints.  Null-space method guarantees
-        // exact interpolation and bending-energy minimization prevents
-        // oscillation, so no rotation search is needed.
-        result = _closed_constrained_solve(points, p, method, eff_der, eff_curv,
-                     0, extra_pts, smooth)
+        n         = len(points),
+        // Start with rot=0 so the knot palindrome aligns with any
+        // reflection symmetry in the input data + constraints.
+        result0   = _closed_constrained_solve(points, p, method, eff_der, eff_curv,
+                        0, extra_pts, smooth)
     )
-    assert(!is_undef(result),
-           "nurbs_interp (closed+constrained): rank-deficient constraint matrix")
-    result;
+    assert(!is_undef(result0),
+           "nurbs_interp (closed+constrained): singular system")
+    let(
+        ratio0    = _ctrl_point_ratio(points, result0[0]),
+        threshold = pow(2, p) / p
+    )
+    ratio0 <= threshold ? result0
+    : let(
+        // Spread too high — try all rotations.  Null-space method
+        // guarantees exact interpolation; pick lowest spread.
+        candidates = [for (r = [0:1:n-1])
+                          let(res = _closed_constrained_solve(points, p, method,
+                                        eff_der, eff_curv, r, extra_pts, smooth))
+                          if (!is_undef(res))
+                          [_ctrl_point_ratio(points, res[0]), res]],
+        _chk = assert(len(candidates) > 0,
+                       "nurbs_interp (closed+constrained): all rotations produce rank-deficient systems"),
+        best_idx = min_index([for (c = candidates) c[0]]),
+        best     = candidates[best_idx][1],
+        _echo    = echo(str("nurbs_interp (closed+constrained): rotation search chose ",
+                            best[2], " (spread ratio ",
+                            candidates[best_idx][0], ")"))
+      )
+      best;
 
 
 // =====================================================================

@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 109
+// Development Version 107
 //////////////////////////////////////////////////////////////////////
 
 
@@ -502,30 +502,32 @@ function _ltl_row(M, i, order, periodic=false) =
 
 
 // Solve the constrained optimization  min P^T·R·P  s.t. A·P = rhs
-// via null-space method with pivoted QR of A^T.
+// via Schur complement decomposition with row equilibration.
 //
 // R   = M×M regularization matrix (positive semidefinite).
 // A   = N×M constraint matrix (interpolation + derivative + curvature).
 // rhs = N×dim right-hand side (data points + constraint vectors).
 //
 // Row equilibration scales each row of A (and rhs) to unit norm before
-// QR factorization for numerical stability (curvature rows can have
-// norms ~3000× larger than interpolation rows).
+// forming the Schur complement.  This is essential because curvature
+// rows can have norms ~3000× larger than interpolation rows, causing
+// S = A·R⁻¹·A^T to be ill-conditioned.  Equilibration preserves the
+// exact solution: P_scaled = P_original (easily verified algebraically).
 //
-// Algorithm (see note2.md):
-//   1. Row-equilibrate: D = diag(||A_i||), Ã = D⁻¹A, Q̃ = D⁻¹·rhs
-//   2. Pivoted QR of Ã^T: Ã^T·Π = Q·[R_A; 0]
-//      Q1 = Q[:,0:r-1] spans row space of Ã (r = rank)
-//      Q2 = Q[:,r:M-1] spans null space of Ã
-//   3. Step A — particular solution satisfying Ã·x_p = Q̃ exactly:
-//      R_A^T · u = Π^T · Q̃,  then x_p = Q1 · u
-//   4. Step B — minimize regularization in null space (if M > r):
-//      (Q2^T · R_pd · Q2) · z = -Q2^T · R_pd · x_p
-//      P = x_p + Q2 · z
+// Algorithm:
+//   1. D = diag(||A_row_i||),  Ã = D⁻¹A,  Q̃ = D⁻¹Q
+//   2. R_pd = R + ε·I
+//   3. Z = R_pd⁻¹ · Ã^T
+//   4. S = Ã · Z                     (well-conditioned Schur complement)
+//   5. Λ = S⁻¹ · Q̃
+//   6. P = Z · Λ
 //
-// Returns list of M control points, or undef on rank-deficient A.
+// When fallback=true (default), falls back to penalized normal
+// equations if S is singular.  When fallback=false, returns undef
+// on Schur failure (caller handles the fallback).
+// Returns list of M control points, or undef on failure.
 
-function _nullspace_solve(R, A, rhs, eps=1e-6) =
+function _kkt_solve(R, A, rhs, eps=1e-6, fallback=true) =
     let(
         M      = len(R),
         N_rows = len(A),
@@ -537,52 +539,57 @@ function _nullspace_solve(R, A, rhs, eps=1e-6) =
                       [for (j = [0:1:M-1]) A[i][j] / row_sc[i]]],
         rhs_eq = [for (i = [0:1:N_rows-1])
                       [for (d = [0:1:dim-1]) rhs[i][d] / row_sc[i]]],
-        // Pivoted QR of A_eq^T (M × N_rows):
-        //   A_eq^T = Q_full · R_qr · Perm^T
-        qr     = qr_factor(transpose(A_eq), pivot=true),
-        Q_full = qr[0],           // M × M orthogonal
-        R_qr   = qr[1],           // M × N_rows
-        Perm   = qr[2],           // N_rows × N_rows permutation
-        // N_rows × N_rows upper triangular block
-        R_tri  = submatrix(R_qr, [0:N_rows-1], [0:N_rows-1]),
-        // Check rank: all diagonals must be non-zero.
-        rank_ok = [for (i = [0:1:N_rows-1])
-                       if (approx(R_tri[i][i], 0)) i] == []
+        // Regularize R to strictly positive-definite.
+        R_pd   = [for (i = [0:1:M-1])
+                      [for (j = [0:1:M-1])
+                          R[i][j] + (i == j ? eps : 0)]],
+        A_eq_T = transpose(A_eq),
+        // Z = R_pd⁻¹ · Ã^T  (M × N_rows)
+        Z      = linear_solve(R_pd, A_eq_T)
     )
-    !rank_ok ? undef
+    assert(Z != [],
+           "nurbs_interp (KKT): R solve failed — regularization matrix is singular")
+    let(
+        // Schur complement S = Ã · Z  (N_rows × N_rows, well-conditioned)
+        S = [for (i = [0:1:N_rows-1])
+                [for (j = [0:1:N_rows-1])
+                    sum([for (k = [0:1:M-1]) A_eq[i][k] * Z[k][j]])
+                ]
+            ],
+        Lambda = linear_solve(S, rhs_eq)
+    )
+    Lambda != []
+    ? // Schur complement succeeded — exact interpolation.
+      [for (i = [0:1:M-1])
+          [for (d = [0:1:dim-1])
+              sum([for (j = [0:1:N_rows-1]) Z[i][j] * Lambda[j][d]])
+          ]
+      ]
+    : // S is singular.
+      !fallback ? undef
     : let(
-        // Q1 = first N_rows columns of Q (row-space basis), M × N_rows
-        Q1     = submatrix(Q_full, [0:M-1], [0:N_rows-1]),
-        // Step A: particular solution x_p satisfying A·x_p = rhs exactly.
-        // Solve R_tri^T · u = Perm^T · rhs_eq  (forward substitution)
-        Pt_rhs = transpose(Perm) * rhs_eq,
-        u      = back_substitute(R_tri, Pt_rhs, transpose=true)
-    )
-    u == [] ? undef
-    : let(
-        x_p = Q1 * u               // M × dim
-    )
-    // Square case (M == N_rows): null space is empty, x_p is the solution.
-    M == N_rows ? x_p
-    : let(
-        // Q2 = remaining M - N_rows columns (null-space basis)
-        Q2   = submatrix(Q_full, [0:M-1], [N_rows:M-1]),  // M × (M-N_rows)
-        // Step B: minimize x^T·R·x in the null space.
-        // Regularize R for strict positive-definiteness.
-        R_pd = [for (i = [0:1:M-1])
-                    [for (j = [0:1:M-1])
-                        R[i][j] + (i == j ? eps : 0)]],
-        // H = Q2^T · R_pd · Q2  ((M-N_rows) × (M-N_rows), SPD)
-        RQ2  = R_pd * Q2,
-        H    = transpose(Q2) * RQ2,
-        // g = Q2^T · R_pd · x_p   ((M-N_rows) × dim)
-        g    = transpose(Q2) * (R_pd * x_p),
-        // Solve H · z = -g
-        z    = linear_solve(H, -g)
-    )
-    // If H solve fails (degenerate), x_p alone still satisfies constraints.
-    z == [] ? x_p
-    : x_p + Q2 * z;
+          mu      = 1e8,
+          A_eq_TA = [for (i = [0:1:M-1])
+                        [for (j = [0:1:M-1])
+                            sum([for (k = [0:1:N_rows-1])
+                                A_eq_T[i][k] * A_eq[k][j]])
+                        ]],
+          A_eq_Trhs = [for (i = [0:1:M-1])
+                          [for (d = [0:1:dim-1])
+                              sum([for (k = [0:1:N_rows-1])
+                                  A_eq_T[i][k] * rhs_eq[k][d]])
+                          ]],
+          sys     = [for (i = [0:1:M-1])
+                        [for (j = [0:1:M-1])
+                            R[i][j] + mu * A_eq_TA[i][j]
+                        ]],
+          rhs_sys = [for (i = [0:1:M-1])
+                        [for (d = [0:1:dim-1])
+                            mu * A_eq_Trhs[i][d]
+                        ]],
+          P = linear_solve(sys, rhs_sys)
+      )
+      P == [] ? undef : P;
 
 
 // Gauss-Legendre quadrature nodes and weights on [-1,1].
@@ -1138,9 +1145,18 @@ function _nurbs_interp_clamped_basic(points, p, method, smooth=2) =
         control = linear_solve(N_mat, points),
         knots   = [0, each int_kn, 1]
     )
-    assert(control != [],
-           "nurbs_interp (clamped): singular collocation matrix")
-    [control, knots, 0];
+    control != []
+    ? [control, knots, 0]
+    : // Singular system — fall back to constrained optimization.
+      let(
+        R    = smooth <= 2
+             ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth)]
+             : _bending_energy_matrix(M, p, U_full),
+        ctrl = _kkt_solve(R, N_mat, points)
+      )
+      assert(!is_undef(ctrl),
+             "nurbs_interp (clamped): singular system (KKT fallback also failed)")
+      [ctrl, knots, 0];
 
 
 // Assemble independently-solved clamped corner segments into one B-spline.
@@ -1364,7 +1380,7 @@ function _nurbs_interp_clamped_constrained(points, p, method, eff_der, eff_curv,
     )
     // When M == N_rows (square), try direct solve first.
     // When M > N_rows (underdetermined from extra_pts or span splits),
-    // use null-space method: exact constraints + minimum-energy smoothing.
+    // solve via penalized normal equations: min P^T·R·P + μ·||A·P−Q||².
     let(
         direct = M == N_rows ? linear_solve(A_constr, rhs_constr) : []
     )
@@ -1374,10 +1390,10 @@ function _nurbs_interp_clamped_constrained(points, p, method, eff_der, eff_curv,
         R    = smooth <= 2
              ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth)]
              : _bending_energy_matrix(M, p, U_full),
-        control = _nullspace_solve(R, A_constr, rhs_constr)
+        control = _kkt_solve(R, A_constr, rhs_constr)
       )
       assert(!is_undef(control),
-             "nurbs_interp (clamped+constrained): rank-deficient constraint matrix")
+             "nurbs_interp (clamped+constrained+KKT): singular system")
       [control, knots, 0];
 
 
@@ -1544,7 +1560,7 @@ function _closed_basic_solve(points, n, p, method, rot, smooth=2) =
         R    = smooth <= 2
              ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth, periodic=true)]
              : _bending_energy_matrix(M, p, U_full, periodic=true),
-        ctrl = _nullspace_solve(R, N_mat, pts)
+        ctrl = _kkt_solve(R, N_mat, pts)
       )
       is_undef(ctrl) ? undef : [ctrl, bar_knots, rot];
 
@@ -1619,7 +1635,7 @@ function _nurbs_interp_closed_basic(points, p, method, smooth=2) =
 // B_j(t) = N_j(t) + (j<p ? N_{j+M}(t) : 0), and likewise for derivatives.
 
 function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot,
-                                    extra_pts=0, smooth=2) =
+                                    extra_pts=0, smooth=2, fallback=true) =
     let(
         n         = len(points),
         dim       = len(points[0]),
@@ -1736,7 +1752,7 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot,
     )
     // When M == N_rows (square), try direct solve first.
     // When M > N_rows (underdetermined from extra_pts or span splits),
-    // use null-space method: exact constraints + minimum-energy smoothing.
+    // solve via penalized normal equations: min P^T·R·P + μ·||A·P−Q||².
     let(
         direct = M == N_rows ? linear_solve(A_constr, rhs_constr) : []
     )
@@ -1746,7 +1762,7 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot,
         R    = smooth <= 2
              ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth, periodic=true)]
              : _bending_energy_matrix(M, p, U_full, periodic=true),
-        ctrl = _nullspace_solve(R, A_constr, rhs_constr)
+        ctrl = _kkt_solve(R, A_constr, rhs_constr, fallback=fallback)
       )
       is_undef(ctrl) ? undef : [ctrl, aug_bar, rot];
 
@@ -1761,16 +1777,58 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot,
 function _nurbs_interp_closed_constrained(points, p, method, eff_der, eff_curv,
                                            extra_pts=0, smooth=2) =
     let(
-        // rot=0: knot palindrome aligns with any reflection symmetry
-        // in the input data + constraints.  Null-space method guarantees
-        // exact interpolation and bending-energy minimization prevents
-        // oscillation, so no rotation search is needed.
-        result = _closed_constrained_solve(points, p, method, eff_der, eff_curv,
-                     0, extra_pts, smooth)
+        n         = len(points),
+        // Start with rot=0 so the knot palindrome aligns with any
+        // reflection symmetry in the input data + constraints.
+        result0   = _closed_constrained_solve(points, p, method, eff_der, eff_curv,
+                        0, extra_pts, smooth)
     )
-    assert(!is_undef(result),
-           "nurbs_interp (closed+constrained): rank-deficient constraint matrix")
-    result;
+    assert(!is_undef(result0),
+           "nurbs_interp (closed+constrained): singular system")
+    let(
+        ratio0    = _ctrl_point_ratio(points, result0[0]),
+        threshold = pow(2, p) / p
+    )
+    ratio0 <= threshold ? result0
+    : let(
+        // Spread too high — try all rotations.  Use fallback=false so
+        // only exact (Schur complement) solutions are returned; penalized
+        // solutions have artificially low spread because they smooth past
+        // data points rather than truly interpolating them.
+        exact_candidates = [for (r = [0:1:n-1])
+                               let(res = _closed_constrained_solve(points, p, method,
+                                             eff_der, eff_curv, r, extra_pts, smooth,
+                                             fallback=false))
+                               if (!is_undef(res))
+                               [_ctrl_point_ratio(points, res[0]), res]]
+    )
+    len(exact_candidates) > 0
+    ? let(
+        best_idx = min_index([for (c = exact_candidates) c[0]]),
+        best     = exact_candidates[best_idx][1],
+        _echo    = echo(str("nurbs_interp (closed+constrained): rotation search chose ",
+                            best[2], " (spread ratio ",
+                            exact_candidates[best_idx][0], ")"))
+      )
+      best
+    : // No rotation produced an exact solution — fall back to penalized
+      // for all rotations and pick the best spread.
+      let(
+        fallback_candidates = [for (r = [0:1:n-1])
+                                  let(res = _closed_constrained_solve(points, p, method,
+                                                eff_der, eff_curv, r, extra_pts, smooth,
+                                                fallback=true))
+                                  if (!is_undef(res))
+                                  [_ctrl_point_ratio(points, res[0]), res]],
+        _chk = assert(len(fallback_candidates) > 0,
+                       "nurbs_interp (closed+constrained): all rotations produce singular systems"),
+        best_idx = min_index([for (c = fallback_candidates) c[0]]),
+        best     = fallback_candidates[best_idx][1],
+        _echo    = echo(str("nurbs_interp (closed+constrained): rotation search (penalized) chose ",
+                            best[2], " (spread ratio ",
+                            fallback_candidates[best_idx][0], ")"))
+      )
+      best;
 
 
 // =====================================================================

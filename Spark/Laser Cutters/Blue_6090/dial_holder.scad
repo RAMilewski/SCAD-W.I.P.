@@ -5,7 +5,7 @@ $fn = 72;
 wall = 3;
 zdim = 12;   //was 8
 d1 = 9.6;
-d2 = 19.9;
+d2 = 18;
 bridge = [50-d1/2-d2/2-2*wall+2, 1.5 * wall, zdim];
 
 //bottom_half(s = 200, z = zdim/2)
