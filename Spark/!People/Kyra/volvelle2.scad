@@ -17,7 +17,7 @@ fillet = 1;         // [0.25:0.25:2]
 /* [Edge Fluting] */
 edgeflute = true;   // [true,false]
 depth = 0.6;        // [0:0.1:3]
-count = 36;         // [4:1:100]
+count = 20;         // [4:1:100]
 
 /* [[Show Part] */
 top = true;        // [true,false]

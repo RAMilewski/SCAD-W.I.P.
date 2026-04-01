@@ -399,3 +399,6 @@ v106 still misses points. Diagnosed: rot=0 had Schur=OK but high spread, so rota
 
 ## v109
 "Why is it still doing rotation searches?" / "Yes." (remove them)
+
+## v110
+"Modify the curvature code so that it accepts BOSL2 directions (UP, DOWN, etc) the way we can for derivatives."

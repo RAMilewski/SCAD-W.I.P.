@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 109
+// Development Version 110
 //////////////////////////////////////////////////////////////////////
 
 
@@ -116,6 +116,8 @@ function _force_deriv_dim(deriv, dim) =
 //              Scalar (dim=2): positive = CCW (left), negative = CW (right).
 //              Vector: magnitude = |κ|; the perpendicular projection onto
 //              the plane normal to tang_dir provides the direction only.
+//              For dim=2 curves, accepts 3D BOSL2 direction constants
+//              (UP, DOWN, LEFT, RIGHT, etc.) — projected to 2D same as deriv=.
 // tang_dir   = tangent direction at the point (need not be normalized).
 // dim        = spatial dimension (len(points[0])).
 // v2         = |C'(t)|² at the constrained point.
@@ -128,8 +130,12 @@ function _curv_to_d2(curv_spec, tang_dir, dim, v2) =
       curv_spec * n_hat * v2
     : // Vector form (any dim, including 2D): magnitude from the input vector,
       // direction from the perpendicular projection.
-      assert(is_vector(curv_spec) && len(curv_spec) >= 1 && len(curv_spec) <= dim,
-             str("nurbs_interp: curvature constraint must be a signed scalar (2D) or a vector of dimension 1–", dim))
+      // Accepts 3D BOSL2 direction constants (UP, DOWN, etc.) for 2D curves
+      // via _force_deriv_dim projection, same as derivative constraints.
+      assert(is_vector(curv_spec) && len(curv_spec) >= 1 &&
+             (len(curv_spec) <= dim || (dim == 2 && len(curv_spec) == 3)),
+             str("nurbs_interp: curvature constraint must be a signed scalar (2D) or a vector of dimension 1–", dim,
+                 " (3D BOSL2 constants like UP/DOWN accepted for 2D curves)"))
       let(
           cv      = _force_deriv_dim(curv_spec, dim),
           mag     = norm(cv),

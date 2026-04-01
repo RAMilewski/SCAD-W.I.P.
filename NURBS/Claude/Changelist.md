@@ -372,3 +372,6 @@
 
 ## v109
 - Removed rotation search from closed constrained interpolation. Null-space method guarantees exact interpolation and bending-energy minimization prevents oscillation, so trying multiple rotations is unnecessary. Always uses rot=0 to preserve reflection symmetry.
+
+## v110
+- Curvature vector constraints now accept 3D BOSL2 direction constants (UP, DOWN, LEFT, RIGHT, etc.) for 2D curves, matching the existing derivative behavior. Relaxed assert in `_curv_to_d2()` to allow len=3 when dim=2; projection handled by existing `_force_deriv_dim()`.
