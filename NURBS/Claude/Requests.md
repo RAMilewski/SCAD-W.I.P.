@@ -402,3 +402,6 @@ v106 still misses points. Diagnosed: rot=0 had Schur=OK but high spread, so rota
 
 ## v110
 "Modify the curvature code so that it accepts BOSL2 directions (UP, DOWN, etc) the way we can for derivatives."
+
+## v111
+"Can we have surfaces accept extra_pts which could be a scalar (applies to both directions) or a pair [ep_u,ep_v] that applies to the two directions separately. And then it would need to accept smooth as well"

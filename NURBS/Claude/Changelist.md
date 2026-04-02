@@ -375,3 +375,6 @@
 
 ## v110
 - Curvature vector constraints now accept 3D BOSL2 direction constants (UP, DOWN, LEFT, RIGHT, etc.) for 2D curves, matching the existing derivative behavior. Relaxed assert in `_curv_to_d2()` to allow len=3 when dim=2; projection handled by existing `_force_deriv_dim()`.
+
+## v111
+- `extra_pts=` and `smooth=` for `nurbs_interp_surface()`, `nurbs_interp_vnf()`, and `debug_nurbs_interp_surface()`. Scalar applies to both u and v; list `[u,v]` sets each independently. Extended `_build_clamped_system()`, `_build_closed_system()`, and `_build_clamped_system_with_derivs()` with `extra_pts=` parameter: augments knot vector at widest spans, returns wider (non-square) collocation matrix. Surface solve sites dispatch to `_nullspace_solve()` when system is underdetermined. Not compatible with `u_edges`/`v_edges` (asserted).
