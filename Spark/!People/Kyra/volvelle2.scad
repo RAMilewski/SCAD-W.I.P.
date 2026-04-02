@@ -9,7 +9,10 @@ topcorner = 1;      //[0:0.25:3.5]
 
 /* [Snap] */
 dsnap = 6;
+<<<<<<< Updated upstream
 snapgap = 1;        // [0.5:0.1:4]
+=======
+snapgap = 1;        // [0.5:.1:4]
 teeth = 18;         // [3:1:18]
 toothgap = 0.5;     // [0.5:0.1:1.5]  
 fillet = 1;         // [0.25:0.25:2]
