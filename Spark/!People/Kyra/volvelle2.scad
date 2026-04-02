@@ -38,7 +38,7 @@ if (top) {
     if (!edgeflute) { top(); } else { top_half(s = 200) top(); }
 }
 
-if (bottom) {back_half() bottom(); }
+if (bottom) { bottom(); }
    
 
 
