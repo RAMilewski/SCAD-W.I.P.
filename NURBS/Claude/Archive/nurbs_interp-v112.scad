@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 115
+// Development Version 112
 //////////////////////////////////////////////////////////////////////
 
 
@@ -549,14 +549,12 @@ function _nullspace_solve(R, A, rhs, eps=1e-6) =
                     [for (j = [0:1:M-1])
                         R[i][j] + (i == j ? eps : 0)]],
         // H = Q2^T · R_pd · Q2  (n_ns × n_ns, SPD)
-        // Symmetrize to counteract floating-point round-off.
         RQ2  = R_pd * Q2,
-        H_raw = transpose(Q2) * RQ2,
-        H    = (H_raw + transpose(H_raw)) / 2,
+        H    = transpose(Q2) * RQ2,
         // g = Q2^T · R_pd · x_p   (n_ns × dim)
         g    = transpose(Q2) * (R_pd * x_p),
-        // Solve H · z = -g  (H is SPD → Cholesky is fastest)
-        z    = linear_solve(H, -g, method="cholesky")
+        // Solve H · z = -g
+        z    = linear_solve(H, -g)
     )
     // If H solve fails (degenerate), x_p alone still satisfies constraints.
     z == [] ? x_p
@@ -1890,9 +1888,10 @@ function _build_clamped_system(params, p, extra_pts=0) =
         occ_splits  = _span_split_params(aug_bar_raw, params),
         n_occ       = len(occ_splits),
         M           = n + 1 + extra_pts + n_occ,
-        aug_bar_merged = n_occ == 0 ? aug_bar_raw
-                       : sort([each aug_bar_raw, each occ_splits]),
-        aug_bar     = _fix_tiny_spans(aug_bar_merged, len(aug_bar_merged) - 1),
+        aug_bar     = n_occ == 0 ? _fix_tiny_spans(aug_bar_raw, n + 1 + extra_pts)
+                    : _fix_tiny_spans(
+                          sort([each aug_bar_raw, each occ_splits]),
+                          M),
         aug_int     = [for (i = [1:1:len(aug_bar)-2]) aug_bar[i]],
         U_full      = _full_clamped_knots(aug_int, p),
         N_mat       = _collocation_matrix(params, n, p, U_full),
@@ -1927,9 +1926,10 @@ function _build_closed_system(params, p, extra_pts=0) =
         occ_splits  = _span_split_params(aug_bar_raw, params),
         n_occ       = len(occ_splits),
         M           = n + extra_pts + n_occ,
-        aug_bar_merged = n_occ == 0 ? aug_bar_raw
-                       : sort([each aug_bar_raw, each occ_splits]),
-        aug_bar     = _fix_tiny_spans(aug_bar_merged, len(aug_bar_merged) - 1),
+        aug_bar     = n_occ == 0 ? _fix_tiny_spans(aug_bar_raw, n + extra_pts)
+                    : _fix_tiny_spans(
+                          sort([each aug_bar_raw, each occ_splits]),
+                          M),
         T           = aug_bar[M],
         U_full      = _bosl2_full_closed_knots(aug_bar, M, p),
         raw_shifted = add_scalar(params, aug_bar[p]),
@@ -1977,9 +1977,11 @@ function _build_clamped_system_with_derivs(params, p, has_sd, has_ed, extra_pts=
                       : _span_split_params(aug_bar_raw, params),
         n_occ         = len(occ_splits),
         M             = n + 1 + n_extra + extra_pts + n_occ,
-        aug_bar_merged = n_occ == 0 ? aug_bar_raw
-                       : sort([each aug_bar_raw, each occ_splits]),
-        aug_bar       = _fix_tiny_spans(aug_bar_merged, len(aug_bar_merged) - 1),
+        aug_bar       = n_occ == 0
+                      ? _fix_tiny_spans(aug_bar_raw, n + 1 + n_extra + extra_pts)
+                      : _fix_tiny_spans(
+                            sort([each aug_bar_raw, each occ_splits]),
+                            M),
         int_kn      = [for (i = [1:1:len(aug_bar)-2]) aug_bar[i]],
         U_full      = _full_clamped_knots(int_kn, p),
         interp_rows = [for (k = [0:1:n])

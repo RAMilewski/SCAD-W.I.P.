@@ -405,3 +405,15 @@ v106 still misses points. Diagnosed: rot=0 had Schur=OK but high spread, so rota
 
 ## v111
 "Can we have surfaces accept extra_pts which could be a scalar (applies to both directions) or a pair [ep_u,ep_v] that applies to the two directions separately. And then it would need to accept smooth as well"
+
+## v112
+"Bosl2's linear_solve() has been updated. Read lines 486 - 586 of linalg.scad. nurbs_interp.scad to take advantage of the changes. Make extra_pts work with corners. It seems like it needs to propagate to the subsegments, generally rounding up, but assigning zero extra points on linear segments (and I think maybe quadratic if smooth is not 1 because otherwise it doesn't work). Extra_points should be banned entirely when degree is 1."
+
+## v113
+"All my tests with surfaces are failing with: WARNING: undefined operation (undefined - number) in file ../nurbs_interp.scad, line 345"
+
+## v114
+"BOSL2's linear_solve() has been updated again. It now supports cholesky as well as QR and lu. Are you sure you're using the right method everywhere?"
+
+## v115
+"linear_solve() has been reworked yet again. QR should now be competitive with LU for speed. Take another look at how you're using linear_solve. Going forward if you see things that are badly implemented elsewhere in BOSL2, please notify me before you code a replacement as a work-around."

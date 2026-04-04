@@ -3,7 +3,7 @@ include<BOSL2/nurbs.scad>
 include<../nurbs_interp.scad>
 
 
-method="centripetal";   // [length,centripetal,dynamic,foley,quadratic,lockyer]
+method="centripetal";   // [length,centripetal,dynamic,foley]
 degree = 3;             // [2:1:8]
 
 surf1=

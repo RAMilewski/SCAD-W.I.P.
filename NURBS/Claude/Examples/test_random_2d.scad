@@ -22,7 +22,7 @@ color("red") move_copies(data3d) sphere(r=.5, $fn=16);
 path = nurbs_interp_curve(data3d, 3, splinesteps=32, method="centripetal", type=type);
 color("dodgerblue") stroke(path, closed = closed_stroke, width=.2);
 
-path2 = nurbs_interp_curve(data3d, 3, splinesteps=32, method="lockyer", type=type);
+path2 = nurbs_interp_curve(data3d, 3, splinesteps=32, method="foley", type=type);
 color("gold") stroke(path2, closed = closed_stroke, width=.2);
 
 path3 = smooth_path(data3d, splinesteps = 32);

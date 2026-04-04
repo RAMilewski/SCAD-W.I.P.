@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 115
+// Development Version 114
 //////////////////////////////////////////////////////////////////////
 
 
@@ -767,7 +767,7 @@ function _elevate_once_clamped(ctrl, p, xknots) =
         ],
 
         // Solve for new control points.
-        Q = linear_solve(A, C_vals)
+        Q = linear_solve(A, C_vals, method="lu")
     )
     assert(Q != [],
            "nurbs_elevate_degree: singular collocation system (should not happen)")
@@ -1116,7 +1116,7 @@ function _nurbs_interp_clamped_basic(points, p, method, smooth=2) =
         int_kn  = _avg_knots_interior(params, p),
         U_full  = _full_clamped_knots(int_kn, p),
         N_mat   = _collocation_matrix(params, n, p, U_full),
-        control = linear_solve(N_mat, points),
+        control = linear_solve(N_mat, points, method="lu"),
         knots   = [0, each int_kn, 1]
     )
     assert(control != [],
@@ -2072,7 +2072,7 @@ function _solve_with_edges(systems, data, params, edge_idxs, p,
                 rhs      = concat(seg_data,
                                   seg_sd ? [start_deriv] : [],
                                   seg_ed ? [end_deriv]   : []),
-                ctrl = linear_solve(N_mat, rhs)
+                ctrl = linear_solve(N_mat, rhs, method="lu")
             )
             assert(ctrl != [],
                    str("nurbs_interp_surface: singular edge-segment system for rows/cols ",
@@ -2609,7 +2609,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
                             ? [_force_deriv_dim(v_edge2_deriv_eff[k], dim) * v_path_lens[k]]
                             : []))
                 ns_v ? _nullspace_solve(R_reg_v, N_v, rhs)
-                     : linear_solve(N_v, rhs)
+                     : linear_solve(N_v, rhs, method="lu")
             ],
 
         v_knots  = has_ve ? R_raw[0][1] : v_sys[1],
@@ -2640,7 +2640,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
                               has_svd_eff ? [zero_v] : [],
                               has_evd_eff ? [zero_v] : []))
                       ns_v ? _nullspace_solve(R_reg_v, N_v, _rhs)
-                           : linear_solve(N_v, _rhs)
+                           : linear_solve(N_v, _rhs, method="lu")
                   : undef,
         T_u_end   = has_eud_eff
                   ? has_ve
@@ -2652,7 +2652,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
                               has_svd_eff ? [zero_v] : [],
                               has_evd_eff ? [zero_v] : []))
                       ns_v ? _nullspace_solve(R_reg_v, N_v, _rhs)
-                           : linear_solve(N_v, _rhs)
+                           : linear_solve(N_v, _rhs, method="lu")
                   : undef,
 
         // ----- Build u-direction system -----
@@ -2704,7 +2704,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
                         has_sud_eff ? [T_u_start[j]] : [],
                         has_eud_eff ? [T_u_end[j]]   : []))
                 ns_u ? _nullspace_solve(R_reg_u, N_u, rhs)
-                     : linear_solve(N_u, rhs)
+                     : linear_solve(N_u, rhs, method="lu")
             ],
 
         u_knots  = has_ue ? P_T_raw[0][1] : u_sys[1],

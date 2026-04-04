@@ -1,5 +1,5 @@
-# nurbs_interp.scad — Version Changelist
 
+# nurbs_interp.scad — Version Changelist
 ## v1
 - Initial version: Clamped-only B-spline curve interpolation (Piegl & Tiller Ch. 9). Functions: `_nip()` (Cox-de Boor basis), `_interp_params()` (chord-length/centripetal parameterization), `_avg_knots()` (interior knot averaging, eq 9.8), `_full_clamped_knots()`, `_collocation_matrix()`, `nurbs_interp()` (main solver), `nurbs_interp_curve()` (convenience). Supports degree selection and centripetal parameterization.
 
@@ -376,5 +376,17 @@
 ## v110
 - Curvature vector constraints now accept 3D BOSL2 direction constants (UP, DOWN, LEFT, RIGHT, etc.) for 2D curves, matching the existing derivative behavior. Relaxed assert in `_curv_to_d2()` to allow len=3 when dim=2; projection handled by existing `_force_deriv_dim()`.
 
-## v111
-- `extra_pts=` and `smooth=` for `nurbs_interp_surface()`, `nurbs_interp_vnf()`, and `debug_nurbs_interp_surface()`. Scalar applies to both u and v; list `[u,v]` sets each independently. Extended `_build_clamped_system()`, `_build_closed_system()`, and `_build_clamped_system_with_derivs()` with `extra_pts=` parameter: augments knot vector at widest spans, returns wider (non-square) collocation matrix. Surface solve sites dispatch to `_nullspace_solve()` when system is underdetermined. Not compatible with `u_edges`/`v_edges` (asserted).
+## v113
+- Fixed `_fix_tiny_spans` out-of-bounds bug in `_build_clamped_system()` and `_build_clamped_system_with_derivs()`: v111 introduced `extra_pts` support by passing the control-point count M as the span count to `_fix_tiny_spans`, but clamped xknots have only M-p spans. Used `len(bar_knots)-1` instead. The `_with_derivs` variant was hit even with `extra_pts=0` whenever flat_edges or boundary derivatives were active in surface interpolation.
+
+## v114
+- Switched `linear_solve()` to use BOSL2's new `method=` parameter for optimal solver selection:
+  - **LU** (`method="lu"`) for all square systems where failure is asserted (collocation matrices, degree elevation, surface per-row/column solves) — ~30x faster than QR.
+  - **Cholesky** (`method="cholesky"`) for the SPD reduced system H in `_nullspace_solve()` — ~5x faster than LU.
+  - **QR** (default) retained for: (1) underdetermined systems in `_nullspace_solve()` Step A (only QR supports m<n), (2) systems that check for `[]` return on singular and fall back (LU's `lu_factor` returns `undef` instead of `[]`).
+- Symmetrized H matrix in `_nullspace_solve()` via `(H + transpose(H)) / 2` before Cholesky to counteract floating-point asymmetry from matrix multiplication.
+
+## v115
+- Reverted all `method="lu"` calls back to default QR: BOSL2 QR factorization was significantly sped up and is now competitive with LU. Removed unnecessary method selection complexity.
+- Kept `method="cholesky"` only for the SPD reduced system H in `_nullspace_solve()` where Cholesky remains ~5x faster.
+- All three methods (QR, LU, Cholesky) now return `[]` on singular/non-SPD in updated BOSL2, so the fallback-vs-assert distinction from v114 is no longer needed.

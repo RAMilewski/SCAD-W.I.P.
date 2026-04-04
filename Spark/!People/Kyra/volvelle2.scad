@@ -9,10 +9,7 @@ topcorner = 1;      //[0:0.25:3.5]
 
 /* [Snap] */
 dsnap = 6;
-<<<<<<< Updated upstream
 snapgap = 1;        // [0.5:0.1:4]
-=======
-snapgap = 1;        // [0.5:.1:4]
 teeth = 18;         // [3:1:18]
 toothgap = 0.5;     // [0.5:0.1:1.5]  
 fillet = 1;         // [0.25:0.25:2]
@@ -52,7 +49,7 @@ module top() {
             position(BOT) down(1) tag("remove") pie_slice(ang = 360/segments, d=dmax-5, h = zmax+wall, anchor = BOT);
             position(BOT) up(wall) tag("remove") cyl(d = dmax - 2 * wall, h = zmax-.99, anchor = BOT );
             position(BOT) tag("keep") cyl(d = dsnap, h = zmax-0.5, anchor = BOT)
-                position(TOP) zscale(.75) torus(d_maj = 6, d_min = 1, anchor = TOP);
+                position(TOP)   zscale(0.85) torus(d_maj = 6, d_min = 1, anchor = TOP);
         }
     }
 }

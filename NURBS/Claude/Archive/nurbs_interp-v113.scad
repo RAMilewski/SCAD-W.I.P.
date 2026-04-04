@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 115
+// Development Version 113
 //////////////////////////////////////////////////////////////////////
 
 
@@ -549,14 +549,12 @@ function _nullspace_solve(R, A, rhs, eps=1e-6) =
                     [for (j = [0:1:M-1])
                         R[i][j] + (i == j ? eps : 0)]],
         // H = Q2^T · R_pd · Q2  (n_ns × n_ns, SPD)
-        // Symmetrize to counteract floating-point round-off.
         RQ2  = R_pd * Q2,
-        H_raw = transpose(Q2) * RQ2,
-        H    = (H_raw + transpose(H_raw)) / 2,
+        H    = transpose(Q2) * RQ2,
         // g = Q2^T · R_pd · x_p   (n_ns × dim)
         g    = transpose(Q2) * (R_pd * x_p),
-        // Solve H · z = -g  (H is SPD → Cholesky is fastest)
-        z    = linear_solve(H, -g, method="cholesky")
+        // Solve H · z = -g
+        z    = linear_solve(H, -g)
     )
     // If H solve fails (degenerate), x_p alone still satisfies constraints.
     z == [] ? x_p
