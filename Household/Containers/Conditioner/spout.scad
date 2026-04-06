@@ -4,10 +4,11 @@ include<BOSL2/std.scad>
 include<BOSL2/bottlecaps.scad>
 
 part = "Spout"; // [Spout, Cap, Stand]
+standwall = 20;
 
 /* [Hidden] */
 $fn = 64;
-$slop = 0.5;
+$slop = 0.1;
 wall = 1.5;
 dia1 = 15;
 dia2 = 28;
@@ -18,7 +19,7 @@ dia3 = 60;
 
 if (part == "Spout") spout();
 if (part == "Cap") cap(wall);
-if (part == "Stand") cap(25);
+if (part == "Stand") cap(standwall);
 
 
 

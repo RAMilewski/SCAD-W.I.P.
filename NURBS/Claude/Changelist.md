@@ -390,3 +390,6 @@
 - Reverted all `method="lu"` calls back to default QR: BOSL2 QR factorization was significantly sped up and is now competitive with LU. Removed unnecessary method selection complexity.
 - Kept `method="cholesky"` only for the SPD reduced system H in `_nullspace_solve()` where Cholesky remains ~5x faster.
 - All three methods (QR, LU, Cholesky) now return `[]` on singular/non-SPD in updated BOSL2, so the fallback-vs-assert distinction from v114 is no longer needed.
+
+## v116
+- Removed `_bosl2_full_closed_knots()` workaround and unused `_full_periodic_knots()`. Replaced with `_full_closed_knots()`, a thin wrapper around BOSL2's internal `_extend_knot_vector()`. Since nurbs_interp.scad will merge into nurbs.scad, calling BOSL2 internals directly is appropriate.

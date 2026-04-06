@@ -417,3 +417,6 @@ v106 still misses points. Diagnosed: rot=0 had Schur=OK but high spread, so rota
 
 ## v115
 "linear_solve() has been reworked yet again. QR should now be competitive with LU for speed. Take another look at how you're using linear_solve. Going forward if you see things that are badly implemented elsewhere in BOSL2, please notify me before you code a replacement as a work-around."
+
+## v116
+"nurbs_interp.scad will eventually be merged into nurbs.scad so it's ok to use _extend_knot_vector() and any other nurbs.scad internal function."
