@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 133
+// Development Version 130
 //////////////////////////////////////////////////////////////////////
 
 
@@ -1068,7 +1068,7 @@ function _nurbs_interp_clamped(points, degree, method,
         // Must be interior points; cannot coincide with curvature constraints.
         nan_corners    = is_undef(eff_der) ? []
                        : [for (k = [0:1:n]) if (is_nan(eff_der[k])) k],
-        explicit_corners = default(corners, []),
+        explicit_corners = is_undef(corners) ? [] : corners,
         corner_idxs    = deduplicate(sort(concat(nan_corners, explicit_corners))),
         has_corners    = len(corner_idxs) > 0,
         bad_corner_end = [for (k = corner_idxs) if (k == 0 || k == n) k],
@@ -1223,7 +1223,7 @@ function _nurbs_interp_clamped_corners(points, p, method, eff_der, eff_curv, cor
                           sp >= 3 || (sp == 2 && smooth == 1) ? 1 : 0],
         total_eligible = max(1, sum(eligible)),
         // Round up per-segment allocation so total >= extra_pts.
-        seg_extra  = extra_pts == 0 ? repeat(0, n_segs)
+        seg_extra  = extra_pts == 0 ? [for (s = [0:1:n_segs-1]) 0]
                    : [for (s = [0:1:n_segs-1])
                           eligible[s] == 0 ? 0
                           : ceil(extra_pts * eligible[s] / total_eligible)],
@@ -1400,7 +1400,7 @@ function _nurbs_interp_closed(points, degree, method, deriv, curvature,
         // Detect C0 corners from NaN entries in deriv and/or corners= list.
         nan_corners      = is_undef(deriv) ? []
                          : [for (k = [0:1:n-1]) if (is_nan(deriv[k])) k],
-        explicit_corners = default(corners, []),
+        explicit_corners = is_undef(corners) ? [] : corners,
         corner_idxs      = deduplicate(sort(concat(nan_corners, explicit_corners))),
         has_corners      = len(corner_idxs) > 0,
 
@@ -1842,8 +1842,8 @@ module debug_nurbs_interp(points, degree, splinesteps=16, method="centripetal",
                           curvature=curvature, start_curvature=start_curvature,
                           end_curvature=end_curvature, corners=corners,
                           extra_pts=extra_pts, smooth=smooth);
-    ds = default(data_size, 1);
-    sz = default(size, 3 * width);
+    ds = is_undef(data_size) ? 1 : data_size;
+    sz = is_undef(size)      ? 3 * width : size;
 
     curve = nurbs_curve(result, splinesteps=splinesteps);
 
@@ -2037,7 +2037,7 @@ function _build_clamped_system_with_derivs(params, p, has_sd, has_ed, extra_pts=
 // system includes a derivative row.
 
 function _build_edge_systems(params, p, edge_idxs,
-                              has_sd=false, has_ed=false, extra_pts=0) =
+                              has_sd=false, has_ed=false) =
     let(
         n          = len(params) - 1,
         seg_bounds = [0, each edge_idxs, n],
@@ -2062,13 +2062,10 @@ function _build_edge_systems(params, p, edge_idxs,
             n_pts   = len(local_p),
             seg_sd  = has_sd && s == 0          && n_pts >= seg_p + 1,
             seg_ed  = has_ed && s == n_segs - 1 && n_pts >= seg_p + 1,
-            // extra_pts only applies when degree >= 2; silently skip for
-            // degree-reduced (seg_p < 2) segments.
-            seg_ep  = seg_p >= 2 ? extra_pts : 0,
             sys     = (seg_sd || seg_ed)
                     ? _build_clamped_system_with_derivs(local_p, seg_p,
-                                                        seg_sd, seg_ed, seg_ep)
-                    : _build_interp_system(local_p, seg_p, "clamped", seg_ep)
+                                                        seg_sd, seg_ed)
+                    : _build_interp_system(local_p, seg_p, "clamped")
         )
         [sys[0], sys[1], seg_p, i0, i1, seg_sd, seg_ed]
     ];
@@ -2087,12 +2084,11 @@ function _build_edge_systems(params, p, edge_idxs,
 // end_deriv    = derivative vector at end of last segment (undef if none)
 
 function _solve_with_edges(systems, data, params, edge_idxs, p,
-                            start_deriv=undef, end_deriv=undef, smooth=3) =
+                            start_deriv=undef, end_deriv=undef) =
     let(
         raw_segments = [for (sys = systems)
             let(
                 N_mat    = sys[0],
-                knots    = sys[1],
                 i0       = sys[3],
                 i1       = sys[4],
                 seg_p    = sys[2],
@@ -2102,28 +2098,14 @@ function _solve_with_edges(systems, data, params, edge_idxs, p,
                 rhs      = concat(seg_data,
                                   seg_sd ? [start_deriv] : [],
                                   seg_ed ? [end_deriv]   : []),
-                M        = len(N_mat[0]),
-                N_rows   = len(rhs),
-                // When M > N_rows the segment system is underdetermined (extra_pts).
-                // Use null-space method: exact interpolation + minimum bending energy.
-                ctrl = M > N_rows
-                     ? let(
-                         int_kn     = [for (i = [1:1:len(knots)-2]) knots[i]],
-                         U_full     = _full_clamped_knots(int_kn, seg_p),
-                         eff_smooth = (smooth == 3 && seg_p < 2) ? 2 : smooth,
-                         R          = eff_smooth <= 2
-                                    ? [for (i = [0:1:M-1]) _ltl_row(M, i, eff_smooth)]
-                                    : _bending_energy_matrix(M, seg_p, U_full)
-                       )
-                       _nullspace_solve(R, N_mat, rhs)
-                     : linear_solve(N_mat, rhs)
+                ctrl = linear_solve(N_mat, rhs)
             )
-            assert(ctrl != [] && !is_undef(ctrl),
+            assert(ctrl != [],
                    str("nurbs_interp_surface: singular edge-segment system for rows/cols ",
                        i0, "-", i1, " (", i1-i0+1, " points, degree ", seg_p,
                        seg_sd ? ", start deriv" : "",
                        seg_ed ? ", end deriv" : "", ")"))
-            [ctrl, knots, seg_p]
+            [ctrl, sys[1], seg_p]
         ],
         // Degree-elevate short segments to full degree p.
         segments = [for (seg = raw_segments)
@@ -2224,7 +2206,7 @@ function _apex_tangents(N, apex, ring) =
             d_perp = d - (d * N_hat) * N_hat,
             n_perp = norm(d_perp)
         )
-        n_perp > 1e-12 ? mag * d_perp / n_perp : repeat(0, len(N))
+        n_perp > 1e-12 ? mag * d_perp / n_perp : [for (i = [0:1:len(N)-1]) 0]
     ];
 
 
@@ -2233,10 +2215,10 @@ function _coplanar_inward_tangents(scales, edge, ring, periodic=false) =
         n     = len(edge),
         dim   = len(edge[0]),
         P     = _pts_plane_normal(edge),
-        zero  = repeat(0, dim),
-        sc    = is_num(scales) ? repeat(scales, n) : scales
+        zero  = [for (i = [0:1:dim-1]) 0],
+        sc    = is_num(scales) ? [for (i = [0:1:n-1]) scales] : scales
     )
-    is_undef(P) ? repeat(zero, n)
+    is_undef(P) ? [for (j = [0:1:n-1]) zero]
     : let(
         P_hat    = P / norm(P),
         // Polygon area vector = Σ cross(edge[i], edge[(i+1)%n]).
@@ -2406,10 +2388,10 @@ function _surface_params_v(points, method, closed_v) =
 //   ---
 //   method = parameterization method: "length", "centripetal", "dynamic", "foley" (centripetal + deflection-angle correction), or "fang" (centripetal + osculating-circle correction).  Default: "dynamic"
 //   type = "clamped"/"closed", or [u_type, v_type].  Default: "clamped"
-//   u_edge1_deriv = derivative specification for ∂S/∂u along the u=0 boundary (first row edge).  Either a single vector (applied uniformly to all n_cols columns) or a list of n_cols vectors (one per column).  Requires type_u="clamped".  Vectors scaled by per-column u-direction chord length (pass unit vectors for natural speed).  Default: undef
-//   u_edge2_deriv = derivative specification for ∂S/∂u along the u=1 boundary.  Single vector or list of n_cols vectors.  Default: undef
-//   v_edge1_deriv = derivative specification for ∂S/∂v along the v=0 boundary (first column edge).  Single vector or list of n_rows vectors (one per row).  Requires type_v="clamped".  Vectors scaled by per-row v-direction chord length.  Default: undef
-//   v_edge2_deriv = derivative specification for ∂S/∂v along the v=1 boundary.  Single vector or list of n_rows vectors.  Default: undef
+//   u_edge1_deriv = list of n_cols derivative vectors for ∂S/∂u along the u=0 boundary (first row edge).  One 3D vector per data column.  Requires type_u="clamped".  Vectors scaled by per-column u-direction chord length (pass unit vectors for natural speed).  Default: undef
+//   u_edge2_deriv = list of n_cols vectors for ∂S/∂u along the u=1 boundary.  Default: undef
+//   v_edge1_deriv = list of n_rows derivative vectors for ∂S/∂v along the v=0 boundary (first column edge).  One 3D vector per data row.  Requires type_v="clamped".  Vectors scaled by per-row v-direction chord length.  Default: undef
+//   v_edge2_deriv = list of n_rows vectors for ∂S/∂v along the v=1 boundary.  Default: undef
 //   normal1 = axis vector for a degenerate start edge where all boundary points are the same point (e.g. a cone apex).  The code auto-detects whether the apex is at u=0 (first row) or v=0 (first column).  Direction defines the surface symmetry axis; the derivative fan lies perpendicular to this axis.  Magnitude sets the derivative scale.  Cannot be combined with flat_end1= or the corresponding explicit *_deriv=.  Default: undef
 //   normal2 = axis vector for a degenerate end edge (last row or last column all identical).  Auto-detects u=1 vs v=1.  Default: undef
 //   flat_end1 = scale factor (scalar or per-point list) for a coplanar start edge.  All points in the first row or first column must be coplanar and span a 2D plane (not collinear).  The code auto-detects whether the coplanar edge is u=0 (first row) or v=0 (first column).  At each edge point the derivative is directed inward (toward the polygon centroid, perpendicular to the edge tangent, within the edge plane).  Positive = closes inward, negative = flares outward.  A scalar is broadcast to all edge points; a list length must equal n_cols for a u=0 edge or n_rows for a v=0 edge.  Cannot be combined with normal1=, flat_edges=, or the corresponding explicit *_deriv= on the same edge.  Default: undef
@@ -2417,7 +2399,7 @@ function _surface_params_v(points, method, closed_v) =
 //   flat_edges = 4-element list [start_u, end_u, start_v, end_v] of scale factors for outward derivatives at each boundary edge.  Each entry is a scalar (uniform) or a list (per-point, length must equal n_cols for u-edges, n_rows for v-edges).  Set an entry to undef to leave that edge unconstrained.  Requires coplanar boundary edges and type="clamped" in the affected direction.  Cannot be combined with explicit *_deriv= or *_normal= on the same edge.  Default: undef
 //   u_edges = list (or singleton) of interior row indices where C0 creases run in the v-direction.  Creates sharp edges across the surface at the specified rows.  When type_u="closed", the surface is internally cut at the first crease row and solved as clamped; the closed surface is reconstructed by repeating that row as both u=0 and u=1 boundaries.  Compatible with flat_edges= and boundary derivatives in the u-direction.  Default: undef
 //   v_edges = list (or singleton) of interior column indices where C0 creases run in the u-direction.  Creates sharp edges across the surface at the specified columns.  When type_v="closed", the surface is internally cut at the first crease column and solved as clamped; the closed surface is reconstructed by repeating that column as both v=0 and v=1 boundaries.  Compatible with flat_edges= and boundary derivatives in the v-direction.  Default: undef
-//   extra_pts = number of extra control points beyond the data-determined minimum.  Scalar applies to both directions; list [ep_u, ep_v] sets each independently.  Extra knots are placed at the widest knot spans within each segment.  The underdetermined system is solved via null-space method (exact interpolation with minimum bending energy).  Requests beyond the number of available knot spans are silently clamped — no failure, just no additional effect.  Compatible with u_edges/v_edges: extra knots are distributed independently within each segment.  Default: 0
+//   extra_pts = number of extra control points beyond the data-determined minimum.  Scalar applies to both directions; list [ep_u, ep_v] sets each independently.  Extra knots are placed at the widest knot spans.  The underdetermined system is solved via null-space method (exact interpolation with minimum bending energy).  Requests beyond the number of available knot spans are silently clamped — no failure, just no additional effect.  Not compatible with u_edges/v_edges.  Default: 0
 //   smooth = regularization for extra_pts: 1 = first-difference, 2 = second-difference, 3 = bending energy.  Scalar or list [smooth_u, smooth_v].  Default: 3
 //
 // Returns:
@@ -2502,17 +2484,6 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
         n_rows = len(points),
         n_cols = len(points[0]),
         dim    = len(points[0][0]),
-        // Scalar-vector promotion: if the caller passes a single vector instead of
-        // a list of vectors, repeat() it to the required length.  A single vector
-        // is detected as a list whose first element is a number, not a list.
-        u_edge1_deriv = is_undef(u_edge1_deriv) || is_list(u_edge1_deriv[0]) ? u_edge1_deriv
-                      : repeat(u_edge1_deriv, n_cols),
-        u_edge2_deriv = is_undef(u_edge2_deriv) || is_list(u_edge2_deriv[0]) ? u_edge2_deriv
-                      : repeat(u_edge2_deriv, n_cols),
-        v_edge1_deriv = is_undef(v_edge1_deriv) || is_list(v_edge1_deriv[0]) ? v_edge1_deriv
-                      : repeat(v_edge1_deriv, n_rows),
-        v_edge2_deriv = is_undef(v_edge2_deriv) || is_list(v_edge2_deriv[0]) ? v_edge2_deriv
-                      : repeat(v_edge2_deriv, n_rows),
         // Treat an all-undef derivative list the same as undef.
         has_sud = !is_undef(u_edge1_deriv) && num_defined(u_edge1_deriv) > 0,
         has_eud = !is_undef(u_edge2_deriv) && num_defined(u_edge2_deriv) > 0,
@@ -2598,6 +2569,10 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
            "nurbs_interp_surface: extra_pts in u-direction requires u-degree >= 2")
     assert(ep_v == 0 || p_v >= 2,
            "nurbs_interp_surface: extra_pts in v-direction requires v-degree >= 2")
+    assert(ep_u == 0 || !has_ue,
+           "nurbs_interp_surface: extra_pts in u-direction is not supported with u_edges")
+    assert(ep_v == 0 || !has_ve,
+           "nurbs_interp_surface: extra_pts in v-direction is not supported with v_edges")
     assert(n_rows >= p_u + 1,
            str("nurbs_interp_surface: need at least ", p_u+1,
                " rows for u-degree ", p_u, ", got ", n_rows))
@@ -2866,8 +2841,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
         v_edge_sys = has_ve
                    ? _build_edge_systems(v_params, p_v, ve_norm,
                                           has_sd=has_svd_eff,
-                                          has_ed=has_evd_eff,
-                                          extra_pts=ep_v) : undef,
+                                          has_ed=has_evd_eff) : undef,
         v_sys   = has_ve ? undef
                 : (has_svd_eff || has_evd_eff)
                 ? _build_clamped_system_with_derivs(v_params, p_v, has_svd_eff, has_evd_eff, ep_v)
@@ -2901,8 +2875,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
                         : undef,
                     end_deriv = has_evd_eff
                         ? _force_deriv_dim(v_edge2_deriv_eff[k], dim) * v_path_lens[k]
-                        : undef,
-                    smooth = smooth_v)]
+                        : undef)]
             : undef,
         R = has_ve
             ? [for (r = R_raw) r[0]]
@@ -2928,7 +2901,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
         // must express them in the v B-spline control basis — done by solving
         // the same v-system.  When v_edges is active, project through the
         // edge-aware segmented system instead.
-        zero_v = repeat(0, dim),
+        zero_v = [for (d = [0:1:dim-1]) 0],
         _su_der_data = has_sud_eff
             ? [for (l = [0:1:n_cols-1])
                 _force_deriv_dim(u_edge1_deriv_eff[l], dim) * u_path_lens[l]]
@@ -2942,8 +2915,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
                     ? _solve_with_edges(v_edge_sys, _su_der_data,
                                         v_params, ve_norm, p_v,
                           start_deriv = has_svd_eff ? zero_v : undef,
-                          end_deriv   = has_evd_eff ? zero_v : undef,
-                          smooth      = smooth_v)[0]
+                          end_deriv   = has_evd_eff ? zero_v : undef)[0]
                     : let(_rhs = concat(_su_der_data,
                               has_svd_eff ? [zero_v] : [],
                               has_evd_eff ? [zero_v] : []))
@@ -2955,8 +2927,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
                     ? _solve_with_edges(v_edge_sys, _eu_der_data,
                                         v_params, ve_norm, p_v,
                           start_deriv = has_svd_eff ? zero_v : undef,
-                          end_deriv   = has_evd_eff ? zero_v : undef,
-                          smooth      = smooth_v)[0]
+                          end_deriv   = has_evd_eff ? zero_v : undef)[0]
                     : let(_rhs = concat(_eu_der_data,
                               has_svd_eff ? [zero_v] : [],
                               has_evd_eff ? [zero_v] : []))
@@ -2969,8 +2940,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
         u_edge_sys = has_ue
                    ? _build_edge_systems(u_params, p_u, ue_norm,
                                           has_sd=has_sud_eff,
-                                          has_ed=has_eud_eff,
-                                          extra_pts=ep_u) : undef,
+                                          has_ed=has_eud_eff) : undef,
         u_sys   = has_ue ? undef
                 : (has_sud_eff || has_eud_eff)
                 ? _build_clamped_system_with_derivs(u_params, p_u, has_sud_eff, has_eud_eff, ep_u)
@@ -3004,8 +2974,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
                 _solve_with_edges(u_edge_sys, R_T[j],
                                   u_params, ue_norm, p_u,
                     start_deriv = has_sud_eff ? T_u_start[j] : undef,
-                    end_deriv   = has_eud_eff ? T_u_end[j]   : undef,
-                    smooth      = smooth_u)]
+                    end_deriv   = has_eud_eff ? T_u_end[j]   : undef)]
             : undef,
         P_T  = has_ue
             ? [for (r = P_T_raw) r[0]]

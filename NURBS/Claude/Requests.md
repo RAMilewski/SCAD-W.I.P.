@@ -3,6 +3,9 @@
 Reconstructed from conversation logs. Versions v1–v7 predate available logs;
 requests are inferred from the Changelist. Quoted text is the user's prompt.
 
+> **Ordering rule**: entries are in ascending version order (v1 at top, latest at bottom).
+> New entries MUST be appended at the END of this file. Do not prepend.
+
 ---
 
 ## v1
@@ -420,3 +423,55 @@ v106 still misses points. Diagnosed: rot=0 had Schur=OK but high spread, so rota
 
 ## v116
 "nurbs_interp.scad will eventually be merged into nurbs.scad so it's ok to use _extend_knot_vector() and any other nurbs.scad internal function."
+
+## v117
+"Now we can use normal1 and normal2 only when the end points are are all the same.   Change to code to accept them if the points at each end are colinear."
+
+## v118
+"That was an error on my part.   I meant if the points at each end are coplanar, not colinear.  Roll back if you need to, but this should be v118."
+
+## v119
+"when the points at the end edge are all the same point, do what you were doing before.   When the points are coplanar, derivatives should be oriented so that a positive value causes the shape to close inward and a negative value causes it to flare outward.  Maybe is_polygon_clockwise() can help with this.   normal1 and normal2 should be arrays."
+
+## v120
+"Return normal1 and normal2 to previous behavior for points. Allow a vector, not a list. Add flat_end1 and flat_end2 that do what normal1 and normal2 were doing for coplanar ends in the latest version. And the sign interpretation of (current) normal1 and normal2 is backwards. The flat_end1 and flat_end2 feature would require that the end curve be coplanar and also that it define a plane, so not collinear, because the derivative has to live in that plane."
+
+## v121
+"The sign is correct at flat_end1, but mis-interpreted at flat_end2."
+
+## v122
+"The sign on flat_end1 and flat_end2 are backwards. Positive should point in and negative should point out. flat_end1 and flat_end2 should only be allowed on surfaces closed in one direction and clamped in the other. Extra points is not working on surfaces, it should."
+
+## v123
+"For flat_end1 and flat_end2, positive values should cause the shape to curl inwards towards the interior of the polygon. The centroid is not a robust way to find the polygon interior, but if the polygon is projected onto the plane that contains it and is then found to be clockwise then the interior is always on the right side as you traverse the polygon in the projected space. Is this fact being properly exploited? Or are you using some other equivalent method that finds the polygon interior and orients towards that? We're sometimes seeing 'failed: nurbs_interp_surface: flat_end1 is ambiguous — both u=0 and v=0 edges are coplanar; use u_edge1_deriv or v_edge1_deriv explicitly'. It should work like normal1 and normal2 where it has to be closed in one direction and that defines which edges are the 'ends'."
+
+## v124
+"The sign for flat_end1 is wrong."
+
+## v125
+"Revert KKT method to nullspace which was faster/more accurate. Flip sign at end1. 'The direction of the derivative for flat_end1 is reversed from what we need. Reverse this direction.' extra_pts doesn't work for surfaces (fails while building colocation matrix for the [clamped,closed] case and a different way for the fully clamped case--maybe this is a failed solve?)"
+
+## v126
+"Implement your proposed method for the moon problem, and implement the M fix. is it possible to set extra_pts too high so that it causes some kind of failure? (Should there be a max value for extra_pts?)"
+
+## v127
+"Look at smooth.scad in Examples and Examples/Images/smooth.png. When smooth=2 why is the interior exposed?"
+
+## v128
+"Look at smooth2.png. The interior is still showing in smooth.scad when smooth=2. Why?"
+
+## v129
+"clamped.scad fails with ERROR: Assertion '(!has_ve || (type_v == \"clamped\"))' failed ... Can you just cut the shape and turn it into a clamped-clamped case internally?"
+
+## v130
+"Set the smooth default to 3. Why are extra points not permitted in the u direction of surfaces?"
+
+## v131
+"I'm a little confused. It sounds like it says you can use extra_pts in the v direction with edges but not the u direction? I find that I get an error if I give extra_pts in either direction.
+debug_nurbs_interp_surface(select(blob8,1,-2), 3, v_edges=[4,9], u_edges=2,type=[\"clamped\",\"closed\"],extra_pts=[0,3],smooth=3,data_size=0,splinesteps=[32,16]);"
+
+## v132
+"Allow, but don't require, edge derivative specifications such as u_edge1_deriv be a single 3-vector in which case it should use repeat() to expand it to the correct length."
+
+## v133
+"Look carefully at the functions available in geometry.scad, lists.scad, and vectors.scad and make sure nurbs_interp.scad doesn't re-implement functions available in those files. Simplify the code using functions found in lists.scad and vectors.scad, and particularly consider using repeat(), is_vector and force_list(). Also consider where default() found in utility.scad might be used to simplify the code."

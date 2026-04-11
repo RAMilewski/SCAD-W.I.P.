@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 133
+// Development Version 131
 //////////////////////////////////////////////////////////////////////
 
 
@@ -1068,7 +1068,7 @@ function _nurbs_interp_clamped(points, degree, method,
         // Must be interior points; cannot coincide with curvature constraints.
         nan_corners    = is_undef(eff_der) ? []
                        : [for (k = [0:1:n]) if (is_nan(eff_der[k])) k],
-        explicit_corners = default(corners, []),
+        explicit_corners = is_undef(corners) ? [] : corners,
         corner_idxs    = deduplicate(sort(concat(nan_corners, explicit_corners))),
         has_corners    = len(corner_idxs) > 0,
         bad_corner_end = [for (k = corner_idxs) if (k == 0 || k == n) k],
@@ -1223,7 +1223,7 @@ function _nurbs_interp_clamped_corners(points, p, method, eff_der, eff_curv, cor
                           sp >= 3 || (sp == 2 && smooth == 1) ? 1 : 0],
         total_eligible = max(1, sum(eligible)),
         // Round up per-segment allocation so total >= extra_pts.
-        seg_extra  = extra_pts == 0 ? repeat(0, n_segs)
+        seg_extra  = extra_pts == 0 ? [for (s = [0:1:n_segs-1]) 0]
                    : [for (s = [0:1:n_segs-1])
                           eligible[s] == 0 ? 0
                           : ceil(extra_pts * eligible[s] / total_eligible)],
@@ -1400,7 +1400,7 @@ function _nurbs_interp_closed(points, degree, method, deriv, curvature,
         // Detect C0 corners from NaN entries in deriv and/or corners= list.
         nan_corners      = is_undef(deriv) ? []
                          : [for (k = [0:1:n-1]) if (is_nan(deriv[k])) k],
-        explicit_corners = default(corners, []),
+        explicit_corners = is_undef(corners) ? [] : corners,
         corner_idxs      = deduplicate(sort(concat(nan_corners, explicit_corners))),
         has_corners      = len(corner_idxs) > 0,
 
@@ -1842,8 +1842,8 @@ module debug_nurbs_interp(points, degree, splinesteps=16, method="centripetal",
                           curvature=curvature, start_curvature=start_curvature,
                           end_curvature=end_curvature, corners=corners,
                           extra_pts=extra_pts, smooth=smooth);
-    ds = default(data_size, 1);
-    sz = default(size, 3 * width);
+    ds = is_undef(data_size) ? 1 : data_size;
+    sz = is_undef(size)      ? 3 * width : size;
 
     curve = nurbs_curve(result, splinesteps=splinesteps);
 
@@ -2224,7 +2224,7 @@ function _apex_tangents(N, apex, ring) =
             d_perp = d - (d * N_hat) * N_hat,
             n_perp = norm(d_perp)
         )
-        n_perp > 1e-12 ? mag * d_perp / n_perp : repeat(0, len(N))
+        n_perp > 1e-12 ? mag * d_perp / n_perp : [for (i = [0:1:len(N)-1]) 0]
     ];
 
 
@@ -2233,10 +2233,10 @@ function _coplanar_inward_tangents(scales, edge, ring, periodic=false) =
         n     = len(edge),
         dim   = len(edge[0]),
         P     = _pts_plane_normal(edge),
-        zero  = repeat(0, dim),
-        sc    = is_num(scales) ? repeat(scales, n) : scales
+        zero  = [for (i = [0:1:dim-1]) 0],
+        sc    = is_num(scales) ? [for (i = [0:1:n-1]) scales] : scales
     )
-    is_undef(P) ? repeat(zero, n)
+    is_undef(P) ? [for (j = [0:1:n-1]) zero]
     : let(
         P_hat    = P / norm(P),
         // Polygon area vector = Σ cross(edge[i], edge[(i+1)%n]).
@@ -2406,10 +2406,10 @@ function _surface_params_v(points, method, closed_v) =
 //   ---
 //   method = parameterization method: "length", "centripetal", "dynamic", "foley" (centripetal + deflection-angle correction), or "fang" (centripetal + osculating-circle correction).  Default: "dynamic"
 //   type = "clamped"/"closed", or [u_type, v_type].  Default: "clamped"
-//   u_edge1_deriv = derivative specification for ∂S/∂u along the u=0 boundary (first row edge).  Either a single vector (applied uniformly to all n_cols columns) or a list of n_cols vectors (one per column).  Requires type_u="clamped".  Vectors scaled by per-column u-direction chord length (pass unit vectors for natural speed).  Default: undef
-//   u_edge2_deriv = derivative specification for ∂S/∂u along the u=1 boundary.  Single vector or list of n_cols vectors.  Default: undef
-//   v_edge1_deriv = derivative specification for ∂S/∂v along the v=0 boundary (first column edge).  Single vector or list of n_rows vectors (one per row).  Requires type_v="clamped".  Vectors scaled by per-row v-direction chord length.  Default: undef
-//   v_edge2_deriv = derivative specification for ∂S/∂v along the v=1 boundary.  Single vector or list of n_rows vectors.  Default: undef
+//   u_edge1_deriv = list of n_cols derivative vectors for ∂S/∂u along the u=0 boundary (first row edge).  One 3D vector per data column.  Requires type_u="clamped".  Vectors scaled by per-column u-direction chord length (pass unit vectors for natural speed).  Default: undef
+//   u_edge2_deriv = list of n_cols vectors for ∂S/∂u along the u=1 boundary.  Default: undef
+//   v_edge1_deriv = list of n_rows derivative vectors for ∂S/∂v along the v=0 boundary (first column edge).  One 3D vector per data row.  Requires type_v="clamped".  Vectors scaled by per-row v-direction chord length.  Default: undef
+//   v_edge2_deriv = list of n_rows vectors for ∂S/∂v along the v=1 boundary.  Default: undef
 //   normal1 = axis vector for a degenerate start edge where all boundary points are the same point (e.g. a cone apex).  The code auto-detects whether the apex is at u=0 (first row) or v=0 (first column).  Direction defines the surface symmetry axis; the derivative fan lies perpendicular to this axis.  Magnitude sets the derivative scale.  Cannot be combined with flat_end1= or the corresponding explicit *_deriv=.  Default: undef
 //   normal2 = axis vector for a degenerate end edge (last row or last column all identical).  Auto-detects u=1 vs v=1.  Default: undef
 //   flat_end1 = scale factor (scalar or per-point list) for a coplanar start edge.  All points in the first row or first column must be coplanar and span a 2D plane (not collinear).  The code auto-detects whether the coplanar edge is u=0 (first row) or v=0 (first column).  At each edge point the derivative is directed inward (toward the polygon centroid, perpendicular to the edge tangent, within the edge plane).  Positive = closes inward, negative = flares outward.  A scalar is broadcast to all edge points; a list length must equal n_cols for a u=0 edge or n_rows for a v=0 edge.  Cannot be combined with normal1=, flat_edges=, or the corresponding explicit *_deriv= on the same edge.  Default: undef
@@ -2502,17 +2502,6 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
         n_rows = len(points),
         n_cols = len(points[0]),
         dim    = len(points[0][0]),
-        // Scalar-vector promotion: if the caller passes a single vector instead of
-        // a list of vectors, repeat() it to the required length.  A single vector
-        // is detected as a list whose first element is a number, not a list.
-        u_edge1_deriv = is_undef(u_edge1_deriv) || is_list(u_edge1_deriv[0]) ? u_edge1_deriv
-                      : repeat(u_edge1_deriv, n_cols),
-        u_edge2_deriv = is_undef(u_edge2_deriv) || is_list(u_edge2_deriv[0]) ? u_edge2_deriv
-                      : repeat(u_edge2_deriv, n_cols),
-        v_edge1_deriv = is_undef(v_edge1_deriv) || is_list(v_edge1_deriv[0]) ? v_edge1_deriv
-                      : repeat(v_edge1_deriv, n_rows),
-        v_edge2_deriv = is_undef(v_edge2_deriv) || is_list(v_edge2_deriv[0]) ? v_edge2_deriv
-                      : repeat(v_edge2_deriv, n_rows),
         // Treat an all-undef derivative list the same as undef.
         has_sud = !is_undef(u_edge1_deriv) && num_defined(u_edge1_deriv) > 0,
         has_eud = !is_undef(u_edge2_deriv) && num_defined(u_edge2_deriv) > 0,
@@ -2928,7 +2917,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
         // must express them in the v B-spline control basis — done by solving
         // the same v-system.  When v_edges is active, project through the
         // edge-aware segmented system instead.
-        zero_v = repeat(0, dim),
+        zero_v = [for (d = [0:1:dim-1]) 0],
         _su_der_data = has_sud_eff
             ? [for (l = [0:1:n_cols-1])
                 _force_deriv_dim(u_edge1_deriv_eff[l], dim) * u_path_lens[l]]

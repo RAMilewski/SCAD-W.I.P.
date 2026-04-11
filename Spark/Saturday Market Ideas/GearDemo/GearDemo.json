@@ -7,6 +7,16 @@
             "spread": "121",
             "teeth": "50",
             "thickness": "8"
+        },
+        "New set 2": {
+            "$fn": "144",
+            "backing": "20",
+            "mod": "1",
+            "part": "ring",
+            "shaft_diam": "4",
+            "spread": "120",
+            "teeth": "90",
+            "thickness": "4"
         }
     }
 }

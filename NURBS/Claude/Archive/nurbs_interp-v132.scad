@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 133
+// Development Version 132
 //////////////////////////////////////////////////////////////////////
 
 
@@ -1068,7 +1068,7 @@ function _nurbs_interp_clamped(points, degree, method,
         // Must be interior points; cannot coincide with curvature constraints.
         nan_corners    = is_undef(eff_der) ? []
                        : [for (k = [0:1:n]) if (is_nan(eff_der[k])) k],
-        explicit_corners = default(corners, []),
+        explicit_corners = is_undef(corners) ? [] : corners,
         corner_idxs    = deduplicate(sort(concat(nan_corners, explicit_corners))),
         has_corners    = len(corner_idxs) > 0,
         bad_corner_end = [for (k = corner_idxs) if (k == 0 || k == n) k],
@@ -1223,7 +1223,7 @@ function _nurbs_interp_clamped_corners(points, p, method, eff_der, eff_curv, cor
                           sp >= 3 || (sp == 2 && smooth == 1) ? 1 : 0],
         total_eligible = max(1, sum(eligible)),
         // Round up per-segment allocation so total >= extra_pts.
-        seg_extra  = extra_pts == 0 ? repeat(0, n_segs)
+        seg_extra  = extra_pts == 0 ? [for (s = [0:1:n_segs-1]) 0]
                    : [for (s = [0:1:n_segs-1])
                           eligible[s] == 0 ? 0
                           : ceil(extra_pts * eligible[s] / total_eligible)],
@@ -1400,7 +1400,7 @@ function _nurbs_interp_closed(points, degree, method, deriv, curvature,
         // Detect C0 corners from NaN entries in deriv and/or corners= list.
         nan_corners      = is_undef(deriv) ? []
                          : [for (k = [0:1:n-1]) if (is_nan(deriv[k])) k],
-        explicit_corners = default(corners, []),
+        explicit_corners = is_undef(corners) ? [] : corners,
         corner_idxs      = deduplicate(sort(concat(nan_corners, explicit_corners))),
         has_corners      = len(corner_idxs) > 0,
 
@@ -1842,8 +1842,8 @@ module debug_nurbs_interp(points, degree, splinesteps=16, method="centripetal",
                           curvature=curvature, start_curvature=start_curvature,
                           end_curvature=end_curvature, corners=corners,
                           extra_pts=extra_pts, smooth=smooth);
-    ds = default(data_size, 1);
-    sz = default(size, 3 * width);
+    ds = is_undef(data_size) ? 1 : data_size;
+    sz = is_undef(size)      ? 3 * width : size;
 
     curve = nurbs_curve(result, splinesteps=splinesteps);
 
@@ -2224,7 +2224,7 @@ function _apex_tangents(N, apex, ring) =
             d_perp = d - (d * N_hat) * N_hat,
             n_perp = norm(d_perp)
         )
-        n_perp > 1e-12 ? mag * d_perp / n_perp : repeat(0, len(N))
+        n_perp > 1e-12 ? mag * d_perp / n_perp : [for (i = [0:1:len(N)-1]) 0]
     ];
 
 
@@ -2233,10 +2233,10 @@ function _coplanar_inward_tangents(scales, edge, ring, periodic=false) =
         n     = len(edge),
         dim   = len(edge[0]),
         P     = _pts_plane_normal(edge),
-        zero  = repeat(0, dim),
-        sc    = is_num(scales) ? repeat(scales, n) : scales
+        zero  = [for (i = [0:1:dim-1]) 0],
+        sc    = is_num(scales) ? [for (i = [0:1:n-1]) scales] : scales
     )
-    is_undef(P) ? repeat(zero, n)
+    is_undef(P) ? [for (j = [0:1:n-1]) zero]
     : let(
         P_hat    = P / norm(P),
         // Polygon area vector = Σ cross(edge[i], edge[(i+1)%n]).
@@ -2928,7 +2928,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
         // must express them in the v B-spline control basis — done by solving
         // the same v-system.  When v_edges is active, project through the
         // edge-aware segmented system instead.
-        zero_v = repeat(0, dim),
+        zero_v = [for (d = [0:1:dim-1]) 0],
         _su_der_data = has_sud_eff
             ? [for (l = [0:1:n_cols-1])
                 _force_deriv_dim(u_edge1_deriv_eff[l], dim) * u_path_lens[l]]

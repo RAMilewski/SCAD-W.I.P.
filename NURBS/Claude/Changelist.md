@@ -1,5 +1,9 @@
 
 # nurbs_interp.scad — Version Changelist
+
+> **Ordering rule**: entries are in ascending version order (v1 at top, latest at bottom).
+> New entries MUST be appended at the END of this file.  Do not prepend.
+
 ## v1
 - Initial version: Clamped-only B-spline curve interpolation (Piegl & Tiller Ch. 9). Functions: `_nip()` (Cox-de Boor basis), `_interp_params()` (chord-length/centripetal parameterization), `_avg_knots()` (interior knot averaging, eq 9.8), `_full_clamped_knots()`, `_collocation_matrix()`, `nurbs_interp()` (main solver), `nurbs_interp_curve()` (convenience). Supports degree selection and centripetal parameterization.
 
@@ -393,3 +397,85 @@
 
 ## v116
 - Removed `_bosl2_full_closed_knots()` workaround and unused `_full_periodic_knots()`. Replaced with `_full_closed_knots()`, a thin wrapper around BOSL2's internal `_extend_knot_vector()`. Since nurbs_interp.scad will merge into nurbs.scad, calling BOSL2 internals directly is appropriate.
+
+## v117
+- `normal1=`/`normal2=` now accept collinear boundary edges (all points in the row/column lie on a line) in addition to the previous all-identical (apex) requirement.
+- Added `_is_collinear_pts(pts, eps)` helper: checks collinearity by projecting each point onto the first-to-last direction and measuring perpendicular distance.
+- Replaced `_apex_tangents(N, apex, ring)` with `_edge_tangents(N, edge, ring)` where `edge` is the full list of boundary points. For the apex case (all same) the result is identical; for a collinear (straight) edge each derivative is computed from its own edge point toward the adjacent ring point, projected perpendicular to the normal.
+- Updated degeneracy detection, assert messages, and doc comments to use "collinear" terminology.
+
+## v118
+- Corrected v117: `normal1=`/`normal2=` now accept **coplanar** boundary edges (not merely collinear).
+- Replaced `_is_collinear_pts()` with `_is_coplanar_pts(pts, eps)`: finds the first three non-collinear points, computes their plane normal via cross product, then checks all remaining points satisfy |dot(pt-p0, nhat)| < eps.  2D points and collinear point sets trivially return true.
+- Updated degeneracy detection, assert messages, and doc comments to use "coplanar" terminology.
+- `_edge_tangents()` unchanged (already correct for the coplanar case).
+
+## v119
+- `normal1=`/`normal2=` reworked: now accept a per-point scalar scale array (or a single scalar broadcast to all edge points).
+- **Apex sub-case** (all boundary points identical): direction computed same as before — fans outward from apex, axis auto-computed from ring plane normal via new `_pts_plane_normal()` helper.  Positive scale = outward.
+- **Coplanar sub-case** (boundary points coplanar, not all identical): new `_coplanar_inward_tangents()` computes the polygon edge inward normal at each point (perpendicular to edge tangent, in the edge plane, toward centroid).  Positive scale = closes inward, negative = flares outward.  Falls back to ring direction when centroid is ambiguous (collinear boundary).
+- Added `_pts_plane_normal(pts)` helper: returns 3D plane normal for a set of 3D coplanar points (undef if collinear), or [0,0,1] for 2D.
+- Renamed `_apex_fan_tangents()` / removed `_edge_tangents()` (v118 intermediate).
+- Added apex-detection booleans (`start_u_apex`, etc.) and scale-broadcast lets (`n1_u`, `n1_v`, `n2_u`, `n2_v`).
+- Added array-length assertions for non-scalar `normal1`/`normal2`.
+
+## v120
+- Restored `normal1=`/`normal2=` to v116 vector interface: must be a 3D axis vector (direction + magnitude); only valid for apex edges where all boundary points are the same point (cone tip).  Removed per-point scalar array behavior.  `_apex_tangents(N, apex, ring)` restored exactly.
+- Added `flat_end1=`/`flat_end2=` parameters: scalar or per-point list for coplanar non-collinear start/end boundary edges.  Auto-detects u=0/v=0 direction (u-row takes priority).  Uses `_coplanar_inward_tangents()` with positive=inward, negative=outward.  End edges NOT negated — positive always closes inward for both start and end (fixes sign issue from v119).
+- Added `periodic=false` parameter to `_coplanar_inward_tangents()`: when true (closed v/u direction), uses wrapped central differences at j=0 and j=n-1 for consistent edge tangent at the periodic join point.  Fixes the derivative discontinuity at the seam.
+- Removed `_apex_fan_tangents()` and the n1_u/n1_v/n2_u/n2_v broadcast intermediates.
+- Updated all assertions, doc comments, and convenience functions (`nurbs_interp_vnf()`, `debug_nurbs_interp_surface()`).
+
+## v121
+- Fixed `flat_end2=` sign: negated the result of `_coplanar_inward_tangents()` for end edges (u=1 and v=1), matching the same parametric convention as `normal2=`.  `∂S/∂u` at u=1 points outward, so the inward vector must be negated for positive scale to correctly close the surface inward.  User-facing sign convention (positive=inward) is now consistent between `flat_end1` and `flat_end2`.
+
+## v122
+- **`flat_end1`/`flat_end2` sign fix**: Both signs were backwards.  Changed `_coplanar_inward_tangents()` to orient toward the ring (adjacent interior row/column) rather than the polygon centroid — more robust for non-convex boundaries (e.g. star polygons).  Removed the end-edge negation (`[for (v = ...) -v]`) added in v121 for both u and v flat_end2 call sites; no negation is needed because positive scale always produces derivatives pointing toward the surface interior (= closing inward) at both start and end boundaries.
+- **`flat_end1`/`flat_end2` type restriction**: Added assertions requiring that `flat_end1`/`flat_end2` only be used on surfaces that are clamped in one direction and closed in the other.  Surfaces that are clamped in both directions have no closed boundary for the flat_end to apply to.
+- **`extra_pts` on surfaces**: Replaced the `_nullspace_solve()` implementation — the old version called `null_space(A)` which is fragile with BOSL2's current implementation.  New approach uses the KKT saddle-point system: `[R+ε·I  A^T; A  0][x; λ] = [0; b]` solved by `linear_solve` directly.  This is mathematically equivalent (minimizes `x^T·R·x` subject to `A·x = b`) and avoids SVD-based null-space computation entirely.  Surface `extra_pts` now works reliably.
+
+## v123
+- **`_coplanar_inward_tangents` orientation fix**: Replaced ring-direction orientation (v122) with polygon winding order. Computes area vector = Σ cross(edge[i], edge[(i+1)%n]); if it aligns with P_hat the polygon is CCW (viewed from P_hat) and interior is to the LEFT — `cross(P_hat, T3)` points inward. If opposed (CW), negate. This is fully robust for any non-convex polygon (star shapes, etc.) and does not require a "ring" reference for orientation.
+- **`flat_end1`/`flat_end2` direction detection**: Replaced geometry-based auto-detection (which triggered the "ambiguous" error when both boundary edges were coplanar) with type-based detection: `type_u="clamped"` → flat_end applies to row boundaries (u-direction); `type_v="clamped"` → column boundaries (v-direction). This matches the `normal1`/`normal2` convention — the closed direction uniquely defines which edges are the "ends." Removed the "ambiguous" assertions; added coplanar validation only for the relevant edge.
+
+## v124
+- **`flat_end1`/`flat_end2` sign fix (test.scad)**: `type=["closed","clamped"]` was wrong for blob3 data (star rings stacked in height). The correct type is `["clamped","closed"]`: height direction is clamped (clear start/end boundaries), ring direction is closed (forms a smooth loop). With the wrong type, `flat_end1` applied to the first *column* (a non-planar spiral), causing the coplanarity assertion to fire or — in older OpenSCAD — producing garbage tangents.  With `["clamped","closed"]`, `flat_end1` correctly applies to the first row (coplanar star ring at z=0), and the sign convention is correct: positive closes inward, negative flares outward.
+- **Improved coplanarity assertion messages**: `fe1_ok`/`fe2_ok` assertions now report which boundary was checked (u=0 first row, v=0 first column, etc.) and, for the v-direction case, suggest swapping the type order as a fix.
+- **Stale comment fix**: Updated the `_coplanar_inward_tangents` call-site comment to say "polygon winding order" instead of "ring-direction reference" (leftover from v122).
+
+## v125
+- **Reverted `_nullspace_solve` to null-space method** (was KKT saddle-point in v124): Step A computes minimum-norm particular solution x_p via `linear_solve(A, rhs)`; Step B finds null-space basis Q2 via BOSL2 `null_space(A)`, forms H = Q2ᵀ·R·Q2 (n_ns × n_ns), solves H·z = −Q2ᵀ·R·x_p via Cholesky, returns x_p + Q2·z.  Faster and more accurate than KKT because the reduced H system is much smaller than the (M+N)×(M+N) KKT system.  Updated doc comment, "Bending-energy regularization matrix" comment, and `extra_pts=` doc string to remove "KKT" references.
+- **Flipped sign of `flat_end1` derivative** at both u-direction (has_fe1_u) and v-direction (has_fe1_v) call sites: wrap `_coplanar_inward_tangents(flat_end1, ...)` result in `[for (v = ...) -v]`.  The function returns the outward direction for the start boundary; negating gives the correct inward derivative so that positive `flat_end1` closes inward.  Updated call-site comment.  `flat_end2` unchanged.
+- **Fixed `extra_pts` for surface interpolation**: `_build_clamped_system` and `_build_closed_system` were calling `_collocation_matrix` / `_collocation_matrix_periodic` with a single `n` controlling both row and column count, producing n×n square matrices instead of n×M rectangular ones when extra_pts > 0.  Both extra_pts branches now build the matrix inline: clamped uses `[for (k=0..n)][for (j=0..M-1)]`, closed uses `[for (k=0..n-1)][for (j=0..M-1)]` with periodic wrapping `j + M`.  The `_build_clamped_system_with_derivs` path was already correct (already used M-1 for j).
+
+## v126
+- **`_coplanar_inward_tangents`: angle-bisector method** replaces chord-average tangent. Previously the per-point tangent T was `edge[j+1] - edge[j-1]` (length-weighted, biased by non-uniform spacing). Now each adjacent edge's unit normal is computed independently (`cross(P_hat, seg/|seg|)`, with the winding-order sign applied), and their sum is normalized: `bisect = n1 + n2; result = bisect/|bisect|`. This is the miter direction — length-independent, so non-uniform sampling has no effect. Handles degenerate edges (|seg| < 1e-12) by using the other edge's normal alone.
+- **`extra_pts` M overcounting fix** at all 5 computation sites: `_build_clamped_system`, `_build_closed_system`, `_build_clamped_system_with_derivs`, `_nurbs_interp_clamped_constrained`, `_closed_constrained_solve`. Previously `M` was computed using the requested `extra_pts` value directly, but `_widest_span_params` silently caps at the available span count, so M was too large when the cap triggered. Fixed by using `len(extra_ts)` (the actual number of knots inserted) instead of `extra_pts`. In `_closed_constrained_solve`, M_pre is now derived from `len(aug_bar_raw) - 1` so it always matches the actual knot vector length. Without this fix, `select(blob3,2,-2)` with `extra_pts=2` fails because the 1-span u-direction only inserts 1 extra knot but M was computed as if 2 were inserted, producing a rank-deficient matrix.
+- **`extra_pts` docstrings updated** in both `nurbs_interp()` and `nurbs_interp_surface()`: added note that requests beyond the available span count are silently clamped — no failure occurs, excess extra_pts simply has no additional effect.
+
+## v127
+- **`_widest_span_params`: evenly-spread selection for equal-width spans**. Previously, when all candidate spans had equal width (common for uniformly-parameterized closed curves like the blob3 star ring), the sort's lexicographic tiebreaker always selected the k highest-indexed spans. For a closed curve with n=18 equal spans and k=4, this placed all 4 extra knots at parameter positions ≈0.806, 0.861, 0.917, 0.972 — clustered in the last 22% of the period, right at the seam. The smooth=2 circulant regularization (which treats control-point indices as uniformly spaced) then sees a region with 8 control points packed into 22% of the parameter range. A localized fold can form at the seam because smooth=2 (second-difference) penalizes localized bumps weakly — the bump interior has near-zero second-difference even while geometrically large. smooth=1 suppresses this because a localized bump pays a large first-difference penalty at its edges. Fix: when `n_eq >= k_eff` (all k picks come from equal-width spans), replace the sort with evenly-spread stratified selection: span index `floor(g*n/k_eff)` for g=0..k_eff-1. For n=18, k=4 this gives spans 0, 4, 9, 13 at midpoints ≈0.028, 0.25, 0.528, 0.75 — evenly distributed around the parameterization. When the k widest spans are not all equal, the standard widest-first selection is preserved.
+
+## v128
+- **`_widest_span_params`: centred-stratified selection for equal-width spans** (follow-up to v127). v127 used `floor(g*n/k_eff)` which for n=18, k=4 gave spans 0, 4, 9, 13. Span 0 is adjacent to the seam of the periodic parameterization. `_extend_knot_vector` wraps span widths across the seam: span n-1 (width 1/18) wraps into the pre-region, span 0 (now width 0.028 after knot insertion) wraps into the post-region. These different widths make basis functions slightly asymmetric at the seam; the null-space solver can't fully regularize this away, leaving a visible fold. Fix: change the index to `floor((2*g+1)*n/(2*k_eff)) % n` (centroid of the g-th equal-width quantile). For n=18, k=4 this gives spans 2, 6, 11, 15 — none at the boundary. Both span 0 and span 17 keep their original width 1/18, the periodic extension is smooth, and the seam artifact is eliminated.
+
+## v129
+- **`v_edges`/`u_edges` on closed surfaces**: Previously these required `type_v="clamped"` / `type_u="clamped"` respectively and asserted otherwise. Now, when `v_edges` is given for a `type_v="closed"` surface, a preamble let block detects the case and internally cuts the surface: columns are rotated so the first crease column becomes index 0, that column is appended again at the end (n_cols+1 total), and `nurbs_interp_surface` is called recursively with `type_v="clamped"`. Remaining crease indices are remapped into the rotated coordinate system: `(original - rot + n_cols) % n_cols`, with `j==0` filtered (seam is already C0). The same transform is applied symmetrically for `u_edges` on `type_u="closed"`. The returned NURBS parameter list has `type="clamped"` in the cut direction; the surface closes geometrically because the first and last boundary rows/columns are identical data points. Updated doc comments for `u_edges=` and `v_edges=`.
+
+## v130
+- **`smooth` default changed from 2 to 3** in all public and internal functions: `nurbs_interp()`, `nurbs_interp_curve()`, `debug_nurbs_interp()`, `nurbs_interp_surface()`, `nurbs_interp_vnf()`, `debug_nurbs_interp_surface()`, and all internal helpers (`_nurbs_interp_clamped_basic/constrained/corners`, `_nurbs_interp_closed_basic/constrained/corners`, `_closed_basic_solve`, `_closed_constrained_solve`). `smooth=3` (true bending energy, ∫|C''(t)|²dt) is the geometrically correct regularization for non-uniform knot spacing; `smooth=2` (circulant second-difference) is only correct when control points are uniformly spaced, which is rarely the case with extra_pts. Updated both doc strings.
+
+## v131
+- **`extra_pts` now compatible with `u_edges`/`v_edges`**: Previously `extra_pts > 0` with `u_edges` or `v_edges` asserted and failed. The infrastructure (`_build_edge_systems`, `_solve_with_edges`) only supported square systems (exact interpolation). Now `_build_edge_systems` accepts `extra_pts=0` and passes it per-segment to `_build_interp_system` / `_build_clamped_system_with_derivs` (silently skipping for degree-reduced `seg_p < 2` segments). `_solve_with_edges` accepts `smooth=3` and detects the underdetermined case (`M > N_rows`): builds the per-segment regularization matrix R (using bending energy for `smooth=3`, with fallback to second-difference when `seg_p < 2`) and calls `_nullspace_solve`. All `_build_edge_systems` and `_solve_with_edges` call sites in `nurbs_interp_surface` updated to pass `ep_v`/`ep_u` and `smooth_v`/`smooth_u`. The two blocking asserts removed. Doc string for `extra_pts=` updated: "Compatible with u_edges/v_edges: extra knots are distributed independently within each segment."
+
+## v132
+- **Scalar-vector promotion for `u_edge1_deriv`, `u_edge2_deriv`, `v_edge1_deriv`, `v_edge2_deriv`**: Previously these required a full list of per-column or per-row vectors. Now a single vector may be passed; it is automatically expanded via `repeat()` to the required length (n_cols for u-direction, n_rows for v-direction). Detection: if the first element of the supplied value is a number (not a list), it is treated as a single vector. Added at the top of the normal-path `let()` block, after `n_rows`/`n_cols` are established, so all downstream `has_*` checks and asserts see the already-expanded list. Updated doc strings for all four parameters.
+
+## v133
+- **BOSL2 simplifications — `repeat()`, `default()`**: Replaced manual list-comprehension idioms with BOSL2 equivalents throughout.
+  - `repeat(0, n)` replaces `[for (i = [0:1:n-1]) 0]` at 4 sites: zero-vector in `_apex_tangents`, `zero` in `_coplanar_inward_tangents`, `zero_v` in surface pass 1.5, and the `seg_extra` fallback in `_nurbs_interp_clamped_corners`.
+  - `repeat(scales, n)` replaces `[for (i = [0:1:n-1]) scales]` in `_coplanar_inward_tangents` scalar scale expansion.
+  - `repeat(zero, n)` replaces `[for (j = [0:1:n-1]) zero]` in `_coplanar_inward_tangents` collinear fallback.
+  - `default(corners, [])` replaces `is_undef(corners) ? [] : corners` at 2 sites (clamped and closed paths).
+  - `default(data_size, 1)` and `default(size, 3 * width)` replace `is_undef()` ternaries in `debug_nurbs_interp`.
+  No behavioral changes.

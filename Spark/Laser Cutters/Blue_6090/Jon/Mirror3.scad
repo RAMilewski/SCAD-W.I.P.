@@ -28,9 +28,9 @@ module holder() {
 module stamp() {
     cuboid(stamp, rounding = 3, edges = "Z", anchor = BOT)
         position(TOP){
-            xcopies(n=3, spacing = 11) cuboid([1,stamp.y,1], anchor = BOT);
-            ycopies(n=3, spacing = 11) cuboid([stamp.x,1,1], anchor = BOT);
-            tube(id = aperture, wall = 1, h = 1, anchor = BOT);
+            xcopies(n=3, spacing = 11) cuboid([0.75,stamp.y,1.5], anchor = BOT);
+            ycopies(n=3, spacing = 11) cuboid([stamp.x,0.75,1.5], anchor = BOT);
+            tube(id = aperture, wall = 0.75, h = 1.5, anchor = BOT);
         }
 }
 
