@@ -475,3 +475,9 @@ debug_nurbs_interp_surface(select(blob8,1,-2), 3, v_edges=[4,9], u_edges=2,type=
 
 ## v133
 "Look carefully at the functions available in geometry.scad, lists.scad, and vectors.scad and make sure nurbs_interp.scad doesn't re-implement functions available in those files. Simplify the code using functions found in lists.scad and vectors.scad, and particularly consider using repeat(), is_vector and force_list(). Also consider where default() found in utility.scad might be used to simplify the code."
+
+## v135
+"remove nurbs_interp_vnf.  merge nurbs_interp_surface and debug_nurbs_interp_surface under the single name nurbs_interp_surface.  The function version of nurbs_interp_surface remains unchanged.  The module form of nurbs_interp_surface runs the function form to create the spline and then passes it to the module nurbs_vnf() to create the geometry.  The module nurbs_interp_surface should pass through splinesteps (with same default of 16), the 3 caps parameters, reverse, style and triangulate.  the module nurbs_interp_surface should still support data_size, but the default should be size zero to produce no data points."
+
+## v134
+"extend nurbs_elevate_degree to support 'closed' and 'open' types so that this function is fully general."

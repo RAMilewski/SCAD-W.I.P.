@@ -22,7 +22,7 @@ if (part == "rack")   rack1();
 if (part == "all") {
     left(65) gear90(); 
     right(65) back(10) { 
-        ring();
+        //ring();
         fwd(20)  gear45();
         back(25) gear30();
     }
@@ -33,10 +33,13 @@ if (part == "all") {
 
 
 module gear90() { 
-    spur_gear(mod=mod, teeth=teeth, thickness=thickness, shaft_diam=shaft_diam){
-        zrot(arrow_shift) position(TOP){
-            back(mod*teeth/2.5 - 0.5) yscale(2) zrot(-30)  #cyl(d = 8,  h = z_text, anchor = BOT, $fn = 3);
-            fwd(mod*teeth/5) #text3d("90", font = font,  h = z_text, size = 8, anchor = BOT);
+    diff() {
+        spur_gear(mod=mod, teeth=teeth, thickness=thickness, shaft_diam=shaft_diam){
+            zrot(arrow_shift) position(TOP){
+                back(mod*teeth/2.5 - 0.5) yscale(2) zrot(-30)  #cyl(d = 8,  h = z_text, anchor = BOT, $fn = 3);
+                fwd(mod*teeth/5) #text3d("90", font = font,  h = z_text, size = 8, anchor = BOT);
+            }
+            position(BOT) tag("remove") #cyl(h = 1.6, d = 9, anchor = BOT);
         }
     }
 }

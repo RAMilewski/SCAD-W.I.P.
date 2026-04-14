@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 135
+// Development Version 134
 //////////////////////////////////////////////////////////////////////
 
 
@@ -2458,7 +2458,7 @@ function _surface_params_v(points, method, closed_v) =
 // Function: nurbs_interp_surface()
 // Synopsis: Finds NURBS surface control points that interpolate a grid of data points.
 // Topics: NURBS Surfaces, Interpolation
-// See Also: nurbs_vnf(), nurbs_interp()
+// See Also: nurbs_vnf(), nurbs_interp(), nurbs_interp_vnf()
 //
 // Usage:
 //   result = nurbs_interp_surface(points, degree, [method=], [type=],
@@ -2529,7 +2529,7 @@ function _surface_params_v(points, method, closed_v) =
 //     vnf = nurbs_vnf(result, splinesteps=8);
 //     vnf_polyhedron(vnf);
 //   .
-//   Or use the module form of nurbs_interp_surface() for direct rendering.
+//   Or use the convenience function nurbs_interp_vnf().
 //   .
 //   The u_edges= and v_edges= parameters create C0 discontinuity edges
 //   across the surface — sharp creases where the surface is continuous
@@ -3170,84 +3170,81 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
     [[type_u, type_v], [p_u, p_v], P, [u_knots, v_knots], undef, undef];
 
 
-// Module: nurbs_interp_surface()
-// Synopsis: Renders a NURBS surface interpolating a grid of data points.
+// Function: nurbs_interp_vnf()
+// Synopsis: Generates a VNF for a surface interpolating a grid of data points.
 // Topics: NURBS Surfaces, Interpolation
-// See Also: nurbs_vnf(), nurbs_interp()
+// See Also: nurbs_interp_surface(), nurbs_vnf()
 //
 // Usage:
-//   nurbs_interp_surface(points, degree, [splinesteps=],
-//       [method=], [type=], [style=], [reverse=], [triangulate=],
-//       [caps=], [cap1=], [cap2=],
-//       [u_edge1_deriv=], [u_edge2_deriv=], [v_edge1_deriv=], [v_edge2_deriv=],
-//       [normal1=], [normal2=], [flat_end1=], [flat_end2=], [flat_edges=],
-//       [u_edges=], [v_edges=],
-//       [extra_pts=], [smooth=],
-//       [data_color=], [data_size=]);
+//   vnf = nurbs_interp_vnf(points, degree, [splinesteps],
+//             [method=], [type=], [style=],
+//             [u_edge1_deriv=], [u_edge2_deriv=], [v_edge1_deriv=], [v_edge2_deriv=],
+//             [normal1=], [normal2=], [flat_edges=],
+//             [u_edges=], [v_edges=]);
 //
 // Description:
-//   Module form of nurbs_interp_surface().  Calls the function form to
-//   compute the NURBS surface, passes the result to nurbs_vnf() to build
-//   the mesh, and renders it with vnf_polyhedron().  Optionally draws the
-//   input data points as spheres when data_size > 0.
-//   .
-//   All interpolation parameters are identical to the function form.
-//   splinesteps, style, reverse, triangulate, caps, cap1, and cap2
-//   are passed through to nurbs_vnf().
-//
-// Arguments:
-//   points = rectangular grid of 3D data points (list of rows)
-//   degree = NURBS degree: scalar or [u_degree, v_degree]
-//   ---
-//   splinesteps = number of evaluated points per knot span per direction.  Default: 16
-//   method = parameterization method.  Default: "centripetal"
-//   type = "clamped"/"closed", or [u_type, v_type].  Default: "clamped"
-//   style = nurbs_vnf() triangulation style.  Default: "default"
-//   reverse = if true, reverses face normals.  Default: false
-//   triangulate = if true, triangulates all quads.  Default: false
-//   caps = if true, caps both open ends.  Default: undef
-//   cap1 = if true, caps the first open end.  Default: undef
-//   cap2 = if true, caps the second open end.  Default: undef
-//   u_edge1_deriv = ∂S/∂u along u=0 boundary.  Single vector or list of n_cols vectors.  Default: undef
-//   u_edge2_deriv = ∂S/∂u along u=1 boundary.  Single vector or list of n_cols vectors.  Default: undef
-//   v_edge1_deriv = ∂S/∂v along v=0 boundary.  Single vector or list of n_rows vectors.  Default: undef
-//   v_edge2_deriv = ∂S/∂v along v=1 boundary.  Single vector or list of n_rows vectors.  Default: undef
-//   normal1 = axis vector for degenerate start edge (apex normal).  Default: undef
-//   normal2 = axis vector for degenerate end edge (apex normal).  Default: undef
-//   flat_end1 = scale factor for coplanar start edge inward derivative.  Default: undef
-//   flat_end2 = scale factor for coplanar end edge inward derivative.  Default: undef
-//   flat_edges = [start_u, end_u, start_v, end_v] outward-derivative scales.  Default: undef
-//   u_edges = interior row indices for C0 creases in v-direction.  Default: undef
-//   v_edges = interior column indices for C0 creases in u-direction.  Default: undef
-//   extra_pts = extra control points beyond data minimum.  Default: 0
-//   smooth = regularization for extra_pts (1/2/3).  Default: 3
-//   data_color = color for data point spheres.  Default: "red"
-//   data_size = radius of data point spheres; 0 suppresses them.  Default: 0
+//   Convenience function that computes the NURBS surface interpolation
+//   and immediately generates a VNF for rendering.  Equivalent to
+//   passing the nurbs_interp_surface() result to nurbs_vnf().
 
-module nurbs_interp_surface(points, degree,
-                            splinesteps=16, method="centripetal", type="clamped",
-                            style="default", reverse=false, triangulate=false,
-                            caps=undef, cap1=undef, cap2=undef,
-                            u_edge1_deriv=undef, u_edge2_deriv=undef,
-                            v_edge1_deriv=undef, v_edge2_deriv=undef,
-                            normal1=undef, normal2=undef,
-                            flat_end1=undef, flat_end2=undef,
-                            flat_edges=undef,
-                            u_edges=undef, v_edges=undef,
-                            extra_pts=0, smooth=3,
-                            data_color="red", data_size=0) {
-    result = nurbs_interp_surface(points, degree,
-                 method=method, type=type,
-                 u_edge1_deriv=u_edge1_deriv, u_edge2_deriv=u_edge2_deriv,
-                 v_edge1_deriv=v_edge1_deriv, v_edge2_deriv=v_edge2_deriv,
-                 normal1=normal1, normal2=normal2,
-                 flat_end1=flat_end1, flat_end2=flat_end2,
-                 flat_edges=flat_edges,
-                 u_edges=u_edges, v_edges=v_edges,
-                 extra_pts=extra_pts, smooth=smooth);
-    vnf_polyhedron(nurbs_vnf(result, splinesteps=splinesteps, style=style,
-                             reverse=reverse, triangulate=triangulate,
-                             caps=caps, cap1=cap1, cap2=cap2));
+function nurbs_interp_vnf(points, degree, splinesteps=8,
+                          method="centripetal", type="clamped",
+                          style="default",
+                          u_edge1_deriv=undef, u_edge2_deriv=undef,
+                          v_edge1_deriv=undef, v_edge2_deriv=undef,
+                          normal1=undef, normal2=undef,
+                          flat_end1=undef, flat_end2=undef,
+                          flat_edges=undef,
+                          u_edges=undef, v_edges=undef,
+                          extra_pts=0, smooth=3) =
+    let(
+        result = nurbs_interp_surface(points, degree,
+                     method=method, type=type,
+                     u_edge1_deriv=u_edge1_deriv, u_edge2_deriv=u_edge2_deriv,
+                     v_edge1_deriv=v_edge1_deriv, v_edge2_deriv=v_edge2_deriv,
+                     normal1=normal1, normal2=normal2,
+                     flat_end1=flat_end1, flat_end2=flat_end2,
+                     flat_edges=flat_edges,
+                     u_edges=u_edges, v_edges=v_edges,
+                     extra_pts=extra_pts, smooth=smooth)
+    )
+    nurbs_vnf(result, splinesteps=splinesteps, style=style);
+
+
+// Module: debug_nurbs_interp_surface()
+// Synopsis: Visualizes surface interpolation with data points and surface.
+// See Also: nurbs_interp_surface(), nurbs_interp_vnf()
+//
+// Usage:
+//   debug_nurbs_interp_surface(points, degree, [splinesteps=],
+//       [method=], [type=], [style=],
+//       [u_edge1_deriv=], [u_edge2_deriv=], [v_edge1_deriv=], [v_edge2_deriv=],
+//       [normal1=], [normal2=], [flat_edges=],
+//       [u_edges=], [v_edges=],
+//       [data_color=], [data_size=]);
+
+module debug_nurbs_interp_surface(points, degree, splinesteps=8,
+                                  method="centripetal", type="clamped",
+                                  style="default",
+                                  u_edge1_deriv=undef, u_edge2_deriv=undef,
+                                  v_edge1_deriv=undef, v_edge2_deriv=undef,
+                                  normal1=undef, normal2=undef,
+                                  flat_end1=undef, flat_end2=undef,
+                                  flat_edges=undef,
+                                  u_edges=undef, v_edges=undef,
+                                  extra_pts=0, smooth=2,
+                                  data_color="red", data_size=0.5) {
+    vnf = nurbs_interp_vnf(points, degree, splinesteps=splinesteps,
+              method=method, type=type, style=style,
+              u_edge1_deriv=u_edge1_deriv, u_edge2_deriv=u_edge2_deriv,
+              v_edge1_deriv=v_edge1_deriv, v_edge2_deriv=v_edge2_deriv,
+              normal1=normal1, normal2=normal2,
+              flat_end1=flat_end1, flat_end2=flat_end2,
+              flat_edges=flat_edges,
+              u_edges=u_edges, v_edges=v_edges,
+              extra_pts=extra_pts, smooth=smooth);
+    vnf_polyhedron(vnf);
+
     if (data_size > 0)
         color(data_color)
             for (row = points)
@@ -3403,7 +3400,7 @@ module nurbs_interp_surface(points, degree,
 //       [[-50,-16, 20], [-16,-16,  35], [ 16,-16,  40], [50,-16, 15], [80,-16, 25]],
 //       [[-50,-50,  0], [-16,-50,  10], [ 16,-50,  20], [50,-50,  0], [80,-50,  5]],
 //   ];
-//   nurbs_interp_surface(data, 3, splinesteps=8);
+//   debug_nurbs_interp_surface(data, 3, splinesteps=8);
 //
 //
 // ---- Example 12: Different degrees per direction ----
@@ -3418,7 +3415,8 @@ module nurbs_interp_surface(points, degree,
 //           [for (v = [-40:20:40])
 //               [v, u, 15*sin(u*3)*cos(v*3)]]
 //   ];
-//   nurbs_interp_surface(data, [2,3], splinesteps=8);
+//   vnf = nurbs_interp_vnf(data, [2,3], splinesteps=8);
+//   vnf_polyhedron(vnf);
 //
 //
 // ---- Example 13: Surface closed in one direction (tube) ----
@@ -3439,8 +3437,9 @@ module nurbs_interp_surface(points, degree,
 //           let(a = i * 360/6)
 //           [r*cos(a), r*sin(a), u]]
 //   ];
-//   nurbs_interp_surface(data, 3, splinesteps=8,
+//   vnf = nurbs_interp_vnf(data, 3, splinesteps=8,
 //             type=["clamped","closed"]);
+//   vnf_polyhedron(vnf);
 //
 //
 // ---- Example 14: Surface closed in both directions (torus) ----
@@ -3480,8 +3479,9 @@ module nurbs_interp_surface(points, degree,
 //            (R + r*cos(theta))*sin(phi),
 //            r*sin(theta)]]
 //   ];
-//   nurbs_interp_surface(data, 3, splinesteps=12,
+//   vnf = nurbs_interp_vnf(data, 3, splinesteps=12,
 //             type=["closed","closed"]);
+//   vnf_polyhedron(vnf);
 //
 //
 // ---- Example 15: Low-level surface access ----
