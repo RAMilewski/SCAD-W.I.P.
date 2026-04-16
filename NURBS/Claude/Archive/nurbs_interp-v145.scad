@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 149
+// Development Version 145
 //////////////////////////////////////////////////////////////////////
 
 
@@ -472,9 +472,6 @@ function _widest_span_params(bar_knots, k) =
     let(
         n      = len(bar_knots) - 1,
         k_eff  = min(k, n),
-        _echo  = k > n ? echo(str("nurbs_interp: extra_pts=", k,
-                                  " exceeds the number of available knot spans (", n,
-                                  "); reduced to ", n, ".")) : 0,
         spans  = [for (i = [0:1:n-1]) bar_knots[i+1] - bar_knots[i]],
         w_max  = max(spans),
         // Count spans at the maximum width (within floating-point tolerance).
@@ -1089,130 +1086,93 @@ function nurbs_elevate_degree(control, degree, knots,
 // Function: nurbs_interp()
 // Synopsis: Finds NURBS control points that interpolate through given data points.
 // Topics: NURBS Curves, Interpolation
-// See Also: nurbs_curve(), debug_nurbs(), nurbs_interp_curve(), debug_nurbs_interp()
+// See Also: nurbs_curve(), debug_nurbs(), nurbs_interp_curve()
 //
 // Usage:
 //   result = nurbs_interp(points, degree, [method=], [type=],
 //                         [deriv=], [start_deriv=], [end_deriv=],
 //                         [curvature=], [start_curvature=], [end_curvature=],
-//                         [corners=], [extra_pts=], [smooth=]);
+//                         [corners=]);
 //
 // Description:
-//   Given a list of data points and a B-spline degree, computes a smooth curve
-//   that passes exactly through every data point.  Data points may be 2D or 3D
-//   (or any higher dimension).  Returns a BOSL2 NURBS parameter list of the form
-//   `[type, degree, control_points, knots, undef, undef]` that can be passed
-//   directly to `nurbs_curve()`, `debug_nurbs()`, `nurbs_vnf()`, etc.
+//   Given a list of data points and a NURBS degree, computes the control
+//   points and knot vector for a NURBS curve that passes exactly through
+//   every data point.  Points may be of any dimension (1D and up); the
+//   interpolation math is dimension-agnostic.  Returns a NURBS parameter
+//   list that can be passed directly to nurbs_curve(), debug_nurbs(), etc.
 //   .
-//   **Curve types** (`type=`):
+//   Two curve types are supported:
 //   .
-//   - `"clamped"` (default) — curve starts at `points[0]` and ends at
-//     `points[n]`.  Tangent directions and curvature may be constrained at
-//     any data point.
-//   - `"closed"` — smooth closed loop through all points.  Do **not** repeat
-//     the first point at the end.  For closed curves with `corners=`, the
-//     returned `type` is `"clamped"` because the curve is internally converted
-//     to a clamped B-spline that starts and ends at the first corner.
+//   "clamped" (default): Curve starts at the first point and ends at
+//   the last point.  Optionally constrain tangent directions at any data
+//   point with deriv=, and curvature at any data point with curvature=.
 //   .
-//   **Parameterization** (`method=`):
+//   "closed": Smooth closed loop through all points.  Do NOT repeat the
+//   first point at the end.
 //   .
-//   Before solving for control points, each data point is assigned a parameter
-//   value $t_k$ that controls how "far along" the curve it sits.  The choice of
-//   method can significantly affect smoothness, especially for unevenly spaced
-//   or sharply turning data.
+//   Derivative constraints (deriv=):
 //   .
-//   - `"length"` — parameter values are proportional to cumulative chord length
-//     (straight-line distances between consecutive points).  Simple and fast, but
-//     can produce oscillations when point spacing is very uneven.
-//   - `"centripetal"` — parameter increments are proportional to the square root
-//     of chord length ($\Delta t_k \propto \|\Delta\mathbf{p}_k\|^{0.5}$), giving
-//     better results than chord-length for typical datasets (Lee 1989).
-//   - `"dynamic"` (default) — like centripetal, but the exponent 0.5 is replaced
-//     by a per-chord value chosen based on local spacing variation.  Long chords
-//     get a smaller exponent and short chords a larger one, compressing the
-//     influence of outliers.  Generally the best all-round choice (Balta et al. 2020).
-//   - `"foley"` — centripetal base, augmented by corrections at each point that
-//     are proportional to the local turn angle.  Sharp bends pull parameter values
-//     closer together, which tends to reduce overshoot at corners (Foley & Neilson 1987).
-//   - `"fang"` — centripetal base, augmented by a correction based on the radius
-//     of the osculating circle at each point.  Handles mixed straight-and-curved
-//     segments particularly well (Fang & Hung 2013).
+//   deriv[k] specifies the desired tangent direction (and relative speed)
+//   at the k-th data point.  Each derivative vector is automatically scaled
+//   by the total chord length of the data, so a unit vector produces motion
+//   at natural arc-length speed and a vector of magnitude 2 produces twice
+//   that speed.  BOSL2 named constants (UP, DOWN, LEFT, RIGHT, BACK, FWD)
+//   are accepted for 2D curves; the 3D vector is projected onto the data
+//   plane (XZ if Y=0, XY otherwise).
+//   start_deriv= and end_deriv= are shorthand equivalents for specifying
+//   deriv[0] and deriv[n] respectively.
 //   .
-//   **Derivative constraints** (`deriv=`, `start_deriv=`, `end_deriv=`):
+//   Curvature constraints (curvature=):
 //   .
-//   `deriv[k]` specifies the tangent direction (and speed) the curve must have
-//   as it passes through `points[k]`.  The vector is automatically scaled by the
-//   total chord length, so a unit vector gives natural arc-length speed; magnitude
-//   2 gives twice that speed.  Leave `deriv[k] = undef` to leave that point
-//   unconstrained.  `start_deriv=` and `end_deriv=` are shorthands for
-//   `deriv[0]` and `deriv[n]` on clamped curves.  BOSL2 direction constants
-//   (`UP`, `DOWN`, `LEFT`, `RIGHT`, `BACK`, `FWD`) are accepted for 2D curves.
+//   curvature[k] specifies the desired curvature at the k-th data point.  Each
+//   curvature-constrained point MUST also have a derivative constraint
+//   (deriv[k], start_deriv=, or end_deriv=); the derivative defines the tangent
+//   direction needed to orient the curvature normal.  For 2D curves, supply
+//   a signed scalar κ (positive = left/CCW, negative = right/CW) or a 2D
+//   vector pointing in the desired normal direction.  For 3D curves, supply a
+//   vector whose direction is the desired normal and whose magnitude is |κ|;
+//   any component along the tangent is automatically removed.  Curvature
+//   constraints are supported for both "clamped" and "closed" curve types.
+//   They require degree >= 2; most useful at degree >= 3.  start_curvature= and
+//   end_curvature= are shorthand equivalents for curvature[0] and curvature[n] (clamped only).
 //   .
-//   **Curvature constraints** (`curvature=`, `start_curvature=`, `end_curvature=`):
+//   C0 corners (corners=):
 //   .
-//   `curvature[k]` pins the curvature $\kappa$ of the curve at `points[k]`.
-//   Every curvature-constrained point **must** also have a derivative constraint
-//   at the same index, because the tangent direction is needed to define the
-//   curvature normal.  Requires `degree >= 2`.
-//   .
-//   - For 2D curves: supply a signed scalar $\kappa$ (positive = left/CCW, negative
-//     = right/CW), or a 2D vector whose direction is the desired normal and whose
-//     magnitude is $|\kappa|$.
-//   - For 3D curves: supply a vector whose direction is the desired curvature
-//     normal and whose magnitude is $|\kappa|$; any component parallel to the
-//     tangent is automatically removed.
-//   .
-//   `start_curvature=` and `end_curvature=` are shorthands for `curvature[0]`
-//   and `curvature[n]` on clamped curves.
-//   .
-//   **C0 corners** (`corners=`):
-//   .
-//   `corners=` is a list of interior point indices where the curve is allowed to
-//   have a sharp crease — it passes through the point but the tangent direction
-//   can jump.  The same effect can be achieved by setting `deriv[k] = 0/0` (NaN)
-//   at those indices; both syntaxes may be used together.
-//   .
-//   **Extra control points** (`extra_pts=`, `smooth=`):
-//   .
-//   By default, the solver uses exactly as many control points as are needed to
-//   satisfy the interpolation and constraint conditions, which gives a unique
-//   solution.  Adding `extra_pts=N` inserts N additional knots, making the
-//   system underdetermined — there are infinitely many curves that still pass
-//   through all the data points.  The solver picks the one that best satisfies
-//   a smoothness criterion chosen by `smooth=`:
-//   .
-//   - `smooth=1` — minimises the sum of squared differences between consecutive
-//     control points.  This tends to keep the control polygon short and reduces
-//     large-scale variation in the curve.
-//   - `smooth=2` — minimises the sum of squared second differences of the control
-//     points.  This penalises bending in the control polygon, generally producing
-//     a fairer, less wiggly curve than `smooth=1`.
-//   - `smooth=3` (default) — minimises the integrated squared second derivative
-//     $\int \|\mathbf{C}''(t)\|^2 \, dt$, often called the *bending energy* of
-//     the curve.  Unlike `smooth=2`, which only looks at the control polygon,
-//     this criterion acts directly on the curve shape and is the most
-//     mathematically principled choice for smooth interpolation.  Requires
-//     `degree >= 2`.
-//   .
-//   If you request more extra control points than the solver has room to insert
-//   (limited by the number of available knot spans), the count is silently reduced
-//   and a warning is echoed.
+//   corners= lists interior point indices where the curve should have C0
+//   continuity (positional continuity only — the curve passes through the
+//   point but may have a sharp crease).  This is equivalent to setting
+//   deriv[k] = 0/0 (NaN) at those indices; both syntaxes may be used
+//   together and their indices are merged.  Supported for both "clamped"
+//   and "closed" curve types.  For "closed" curves, the problem is
+//   internally converted to a clamped B-spline that starts and ends at
+//   the first corner point.
 //
 // Arguments:
-//   points = List of data points to interpolate (2D, 3D, or any higher dimension).
-//   degree = Degree of the B-spline curve.  Degree 3 (cubic) is the most common choice.
+//   points = list of data points to interpolate (any dimension >= 1)
+//   degree = degree of the B-spline curve (commonly 3)
 //   ---
-//   method    = Parameterization method: `"length"`, `"centripetal"`, `"dynamic"`, `"foley"`, or `"fang"`.  See Description for details.  Default: `"dynamic"`
-//   type      = Curve type: `"clamped"` (open arc) or `"closed"` (smooth loop).  Default: `"clamped"`
-//   deriv     = Per-point tangent constraints; a list with `undef` entries for unconstrained points.  Cannot be combined with `start_deriv=`/`end_deriv=`.  Default: `undef`
-//   start_deriv    = Tangent vector at `points[0]`; shorthand for `deriv[0]`.  Clamped only.  Default: `undef`
-//   end_deriv      = Tangent vector at `points[n]`; shorthand for `deriv[n]`.  Clamped only.  Default: `undef`
-//   curvature = Per-point curvature constraints; each entry must be paired with a non-`undef` `deriv` entry at the same index.  Cannot be combined with `start_curvature=`/`end_curvature=`.  Default: `undef`
-//   start_curvature = Curvature at `points[0]`; shorthand for `curvature[0]`.  Requires `start_deriv=` or `deriv[0]`.  Clamped only.  Default: `undef`
-//   end_curvature   = Curvature at `points[n]`; shorthand for `curvature[n]`.  Requires `end_deriv=` or `deriv[n]`.  Clamped only.  Default: `undef`
-//   corners   = List of interior point indices where sharp C0 corner joints are permitted.  Equivalent to `deriv[k]=0/0`.  Default: `undef`
-//   extra_pts = Number of extra control points to add for additional freedom; see Description.  Default: `0`
-//   smooth    = Smoothness criterion used when `extra_pts > 0`: `1`, `2`, or `3`; see Description.  Default: `3`
+//   method = parameterization method: "length" (chord-length), "centripetal" (square-root exponent, Lee 1989), "dynamic" (per-chord dynamic exponent, Balta et al. 2020), "foley" (centripetal + deflection-angle correction, Foley & Neilson 1987), or "fang" (centripetal + osculating-circle correction, Fang & Hung 2013).  Default: "dynamic"
+//   type = "clamped" or "closed".  Default: "clamped"
+//   deriv = list of tangent vectors, one per data point; undef entries are unconstrained.  Both curve types supported.  Cannot be combined with start_deriv=/end_deriv=.  Vectors are scaled by total chord length internally; pass unit vectors for natural speed.  BOSL2 direction constants (UP, DOWN, LEFT, RIGHT, BACK, FWD) accepted for 2D curves.  Default: undef
+//   start_deriv = tangent at start point; shorthand for deriv[0].  Clamped only.  Default: undef
+//   end_deriv = tangent at end point; shorthand for deriv[n].  Clamped only.  Default: undef
+//   curvature = list of curvature constraints, one per data point; undef entries are unconstrained.  2D curves: signed scalar κ (positive=CCW/left, negative=CW/right) or a 2D vector (direction = desired normal, magnitude = |κ|).  3D curves: vector (direction = normal, magnitude = |κ|; any tangential component is projected out).  Both clamped and closed types.  Each curvature[k] requires a corresponding non-undef deriv[k].  Cannot be combined with start_curvature=/end_curvature=.  Default: undef
+//   start_curvature = curvature at start point; shorthand for curvature[0].  Requires start_deriv= or deriv[0].  Clamped only.  Default: undef
+//   end_curvature = curvature at end point; shorthand for curvature[n].  Requires end_deriv= or deriv[n].  Clamped only.  Default: undef
+//   corners = list of interior point indices where C0 corner joints (sharp creases) should occur.  Equivalent to setting deriv[k]=0/0 at those indices.  Both clamped and closed.  Default: undef
+//   extra_pts = number of extra control points to add beyond what data and constraints require.  Extra knots are placed at midpoints of the widest knot spans.  The underdetermined system is solved via null-space method: exact interpolation with minimum control-polygon roughness.  Requests beyond the number of available knot spans are silently clamped — no failure, just no additional effect.  Default: 0
+//   smooth = regularization for extra_pts: 1 = first-difference of control points (minimizes polygon length/variation), 2 = second-difference of control points (minimizes polygon bending), 3 = integrated squared second derivative of the curve ∫|C''(t)|²dt (true bending energy; requires degree >= 2).  Default: 3
+//
+// Returns:
+//   A BOSL2 NURBS parameter list: [type, degree, control_points, knots, mult, weights].
+//   Can be passed directly to nurbs_curve(), nurbs_vnf(), debug_nurbs(), etc.
+//   type   = effective NURBS type ("clamped" or "closed").  For closed
+//            curves with corners, the effective type is "clamped".
+//   degree = the B-spline degree used.
+//   control_points = list of control points.
+//   knots  = BOSL2-format knot vector.
+//   mult   = undef (uniform multiplicities).
+//   weights = undef (B-spline interpolation; no rational weights).
 
 function nurbs_interp(points, degree, method="centripetal", type="clamped",
                       deriv=undef, start_deriv=undef, end_deriv=undef,
@@ -2033,82 +1993,68 @@ function nurbs_interp_curve(points, degree, splinesteps=16,
 // =====================================================================
 
 // Module: debug_nurbs_interp()
-// Synopsis: Calls {{nurbs_interp()}} and displays the curve with informative overlays.
+// Synopsis: Visualizes NURBS interpolation: curve, control polygon, derivative arrows, curvature overlays, data points.
 // Topics: NURBS Curves, Interpolation, Debugging
 // See Also: nurbs_interp(), nurbs_interp_curve(), debug_nurbs()
 //
 // Usage:
 //   debug_nurbs_interp(points, degree, [splinesteps=], [method=],
 //                      [type=], [deriv=], [start_deriv=], [end_deriv=],
-//                      [curvature=], [start_curvature=], [end_curvature=],
-//                      [corners=], [extra_pts=], [smooth=],
-//                      [width=], [size=], [data_size=], [data_index=],
-//                      [show_control=], [control_index=], [show_knots=], [knots=],
+//                      [curvature=], [start_curvature=], [end_curvature=], [corners=],
+//                      [extra_pts=], [smooth=],
+//                      [width=], [size=], [data_size=],
+//                      [show_control=], [show_knots=], [knots=],
 //                      [show_deriv=], [show_curvature=]);
 //
 // Description:
-//   Calls {{nurbs_interp()}} with the supplied arguments and renders the
-//   resulting curve together with a set of visual overlays that help you
-//   understand and debug your interpolation.  All interpolation arguments
-//   are passed through unchanged; see {{nurbs_interp()}} for their full
-//   descriptions.  The overlays are rendered in this order:
+//   Calls `nurbs_interp()` with the supplied arguments, then delegates curve /
+//   control polygon / knot rendering to `debug_nurbs()` and adds overlays:
 //   .
-//   **Data points** — red circle (2D) or sphere (3D) markers at each input point.
-//   When `data_index=true` (the default), the index of each point is printed
-//   in red next to its marker, offset so it does not overlap the dot.
-//   Suppressed entirely when `data_size=0`.
+//   * **Corner marks** — black markers at every C0 corner (NaN derivative entry).
+//     2D: 45°-rotated square stroke (`rect`, half curve `width`).
+//     3D: octahedron wireframe.
+//   * **Derivative arrows** — black, half curve `width`, `endcap2="arrow2"`.
+//     Arrow length = `norm(deriv) * path_length(points)/n`, preserving relative
+//     magnitudes with a geometry-proportional scale.  Shown when `show_deriv=true`.
+//   * **Curvature osculating circles / cylinders** — `color([0,1,0,0.1])`.
+//     2-D: circle of radius 1/κ centred at the osculating centre.
+//     3-D: cylinder of height `width` in the osculating plane (the plane of T̂ and
+//     N̂), axis along the binormal B̂ = T̂ × N̂.  N̂ is computed by projecting the
+//     curvature vector perpendicular to T̂, giving the exact osculating plane.
+//     Accepts signed scalar κ (2D) or vector (any dim).
+//     Zero-curvature: short `color([0,1,0,0.1])` segment, `2×width`, along T̂.
+//     Shown when `show_curvature=true`.
+//   * **Data points** — red circle/sphere markers.
 //   .
-//   **Derivative constraints** — a black arrow at each data point where you have
-//   specified a `deriv`, `start_deriv=`, or `end_deriv=` constraint.  The arrow
-//   direction and length both reflect the constraint vector you supplied, scaled
-//   proportionally to the average point spacing so arrows are visible but do not
-//   dominate the picture.  Controlled by `show_deriv=`.
-//   .
-//   **Curvature constraints** — a transparent green overlay at each data point
-//   where you have specified a curvature constraint.  In 2D the overlay is the
-//   full osculating circle (the circle that the curve is required to match at that
-//   point).  In 3D the overlay is a disk in the osculating plane.  A zero-curvature
-//   constraint is shown as a short green bar along the tangent direction.
-//   Controlled by `show_curvature=`.
-//   .
-//   **Corners** — a black diamond marker at each C0 corner point (points listed
-//   in `corners=` or marked with `deriv[k]=0/0`).  In 2D this is a small square
-//   rotated 45°; in 3D it is an octahedron wireframe.
-//   .
-//   **Knot markers** — small purple cross markers on the curve at each knot
-//   position.  Shown when `show_knots=true`.
-//   .
-//   **Control points and polygon** — the NURBS control polygon (white) and
-//   control-point index labels (blue), rendered by `debug_nurbs()`.
-//   Shown when `show_control=true`.  Index labels are independently controlled
-//   by `control_index=`.
+//   Note: `debug_nurbs()` renders the control polygon in white and control-point
+//   indices in blue text.  These styles are fixed in BOSL2.
 //
 // Arguments:
 //   points  = List of 2-D or 3-D data points to interpolate through.
 //   degree  = B-spline degree.
 //   ---
-//   splinesteps     = Steps per knot span for curve rendering.  Default: `16`
-//   method          = Parameterization method; see {{nurbs_interp()}}.  Default: `"centripetal"`
-//   type            = Curve type: `"clamped"` or `"closed"`.  Default: `"clamped"`
-//   deriv           = Per-point derivative constraints; see {{nurbs_interp()}}.  Default: `undef`
-//   start_deriv     = Derivative at first point.  Default: `undef`
-//   end_deriv       = Derivative at last point.  Default: `undef`
-//   curvature       = Per-point curvature constraints; see {{nurbs_interp()}}.  Default: `undef`
-//   start_curvature = Curvature at first point.  Default: `undef`
-//   end_curvature   = Curvature at last point.  Default: `undef`
-//   corners         = Corner indices; see {{nurbs_interp()}}.  Default: `undef`
-//   extra_pts       = Extra control points; see {{nurbs_interp()}}.  Default: `0`
-//   smooth          = Smoothness criterion for `extra_pts`; see {{nurbs_interp()}}.  Default: `3`
-//   width           = Stroke width for the curve.  Arrows and other overlays scale with this.  Default: `1`
-//   size            = Marker size for control points passed to `debug_nurbs`.  Default: `3*width`
-//   data_size       = Radius of the red data-point markers.  Set to `0` to hide data points and their labels.  Default: `1`
-//   data_index      = Show index labels next to each data point.  Only shown when `data_size > 0`.  Default: `true`
-//   show_control    = Show the control polygon and control-point markers.  Default: `false`
-//   control_index   = Show control-point index labels (requires `show_control=true` to see the polygon, but labels render regardless).  Default: `false`
-//   show_knots      = Show knot position markers on the curve.  Default: `false`
-//   knots           = Override the knot vector passed to `debug_nurbs`.  Default: `undef`
-//   show_deriv      = Show derivative-constraint arrows.  Default: `true`
-//   show_curvature  = Show curvature-constraint circles / disks.  Default: `true`
+//   splinesteps      = Steps per knot span for curve rendering.  Default: 16
+//   method           = Parameterization method.  Default: "centripetal"
+//   type             = Curve type: "clamped", "closed", or "open".  Default: "clamped"
+//   deriv            = Per-point derivative constraints.  Default: undef
+//   start_deriv      = Derivative at first point.  Default: undef
+//   end_deriv        = Derivative at last point.  Default: undef
+//   curvature        = Per-point curvature constraints (signed scalar for 2D, vector for any dim).  Default: undef
+//   start_curvature  = Curvature at first point.  Default: undef
+//   end_curvature    = Curvature at last point.  Default: undef
+//   corners          = Corner indices for segmented curves.  Default: undef
+//   extra_pts        = Extra interior control points per span.  Default: 0
+//   smooth           = Smoothness order at corner junctions.  Default: 2
+//   width            = Stroke width for curve and arrows.  Default: 1
+//   size             = Control-point size passed to `debug_nurbs`.  Default: 3*width
+//   data_size        = Data-point marker radius.  Default: 1
+//   show_control     = Show control polygon and control-point labels (via `debug_nurbs`).  Default: false
+//   show_knots       = Show knot markers on the curve (via `debug_nurbs`).  Default: false
+//   knots            = Knot vector override passed to `debug_nurbs`.  Default: undef
+//   show_deriv       = Show derivative arrows at constrained points.  Default: true
+//   show_curvature   = Show curvature circles / disks at constrained points.  Default: true
+//   control_index    = Show control-point index labels (passed to `debug_nurbs` show_index).  Default: false
+//   data_index       = Show data-point index labels in red at each data point; only shown when data_size > 0.  Default: true
 
 module debug_nurbs_interp(points, degree, splinesteps=16, method="centripetal",
                           type="clamped", deriv=undef,
@@ -2172,20 +2118,7 @@ module debug_nurbs_interp(points, degree, splinesteps=16, method="centripetal",
                            width=width/2,
                            endcap1="butt", endcap2="arrow2");
 
-    // --- Data points and index labels ---
-    if (ds > 0)
-        color("red")
-            move_copies(points) {
-                if (is2d) circle(r=ds, $fn=16);
-                else      sphere(r=ds, $fn=16);
-                if (data_index)
-                    if (is2d)
-                        fwd(2*ds) text(text=str($idx), size=sz, anchor=BACK);
-                    else
-                        rot($vpr) back(ds + sz/3) text3d(text=str($idx), size=sz, anchor=CENTER);
-            }
-
-    // --- Curvature overlays (rendered last so transparent objects don't occlude dots) ---
+    // --- Curvature overlays ---
     // Validator already asserted every curvature-constrained point has a derivative,
     // so eff_der[i] is always defined and non-NaN here.
     if (show_curvature && !is_undef(eff_curv))
@@ -2224,6 +2157,19 @@ module debug_nurbs_interp(points, degree, splinesteps=16, method="centripetal",
                             cyl(h=width, r=r, orient=binom);
                         }
                 }
+            }
+
+    // --- Data points and index labels ---
+    if (ds > 0)
+        color("red")
+            move_copies(points) {
+                if (is2d) circle(r=ds, $fn=16);
+                else      sphere(r=ds, $fn=16);
+                if (data_index)
+                    if (is2d)
+                        fwd(2*ds) text(text=str($idx), size=sz, anchor=BACK);
+                    else
+                        up(ds + sz/3) rot($vpr) text3d(text=str($idx), size=sz, anchor=CENTER);
             }
 }
 
@@ -2669,172 +2615,115 @@ function _surface_params_v(points, method, closed_v) =
     ];
 
 
-// Function&Module: nurbs_interp_surface()
-// Synopsis: Interpolates a rectangular grid of 3D data points with a NURBS surface.
+// Function: nurbs_interp_surface()
+// Synopsis: Finds NURBS surface control points that interpolate a grid of data points.
 // Topics: NURBS Surfaces, Interpolation
-// See Also: nurbs_vnf(), nurbs_interp_vnf(), debug_nurbs_interp_surface(), nurbs_interp()
+// See Also: nurbs_vnf(), nurbs_interp()
 //
-// Usage: As a function, returns a NURBS parameter list:
+// Usage:
 //   result = nurbs_interp_surface(points, degree, [method=], [type=],
 //                [u_edge1_deriv=], [u_edge2_deriv=],
 //                [v_edge1_deriv=], [v_edge2_deriv=],
 //                [normal1=], [normal2=],
-//                [flat_edges=], [flat_end1=], [flat_end2=],
+//                [flat_edges=],
 //                [u_edges=], [v_edges=],
 //                [extra_pts=], [smooth=]);
-// Usage: As a module, renders the surface directly:
-//   nurbs_interp_surface(points, degree, [splinesteps=], [method=], [type=],
-//                [style=], [reverse=], [triangulate=],
-//                [caps=], [cap1=], [cap2=],
-//                [u_edge1_deriv=], [u_edge2_deriv=],
-//                [v_edge1_deriv=], [v_edge2_deriv=],
-//                [normal1=], [normal2=],
-//                [flat_edges=], [flat_end1=], [flat_end2=],
-//                [u_edges=], [v_edges=],
-//                [extra_pts=], [smooth=],
-//                [data_color=], [data_size=]);
 //
 // Description:
-//   Finds the control points and knot vectors for a B-spline surface that passes
-//   exactly through every data point in the grid.  Uses the two-pass method from
-//   Piegl & Tiller §9.2.5: first interpolate each row in the v-direction, then each
-//   column in the u-direction.
+//   Given a rectangular grid of 3D data points and a NURBS degree,
+//   computes the control point grid and knot vectors for a NURBS
+//   surface that passes exactly through every data point.  Uses the
+//   two-pass method from Piegl & Tiller §9.2.5: first interpolate
+//   each row in the v-direction, then each column in the u-direction.
 //   .
-//   **Return value** — As a function, returns a BOSL2-compatible NURBS parameter list
-//   `[type, degree, ctrl_grid, knots, undef, undef]` that can be passed directly to
-//   `nurbs_vnf()`:
-//   - `result[0]` = `[type_u, type_v]` — effective curve types in each direction
-//   - `result[1]` = `[p_u, p_v]` — B-spline degrees used
-//   - `result[2]` = 2D grid of control points
-//   - `result[3]` = `[u_knots, v_knots]` — BOSL2-format knot vectors
-//   - `result[4]` = `undef` (B-spline; no rational weights)
+//   The degree and type can each be a single value (applied to both
+//   directions) or a 2-element list [u_value, v_value] to specify
+//   different settings per direction.
 //   .
-//   To get a VNF: `vnf = nurbs_vnf(result, splinesteps=8);` then
-//   `vnf_polyhedron(vnf)`.  The module form renders directly.
+//   Partial derivative constraints can be specified along any of the
+//   four boundary edges.  v_edge1_deriv / v_edge2_deriv constrain ∂S/∂v
+//   along the first and last column edges (v=0 and v=1).
+//   u_edge1_deriv / u_edge2_deriv constrain ∂S/∂u along the first and last
+//   row edges (u=0 and u=1).  When both u- and v-boundary derivatives
+//   are active simultaneously, cross-derivatives ∂²S/∂u∂v are assumed
+//   zero at the corners; this is accurate when the corner mixed
+//   derivatives are small.  Derivative vectors follow the same
+//   convention as the curve API: pass normalized vectors and the code
+//   scales by the per-row or per-column chord length.
 //   .
-//   **Topology from type** — The `type=` parameter (scalar or `[u_type, v_type]`)
-//   controls the topology of the resulting surface:
+//   When all four boundary edges are coplanar, flat_edges= offers a
+//   concise way to set outward-pointing derivatives at any or all of
+//   the four edges.  Each entry is a scale factor (scalar for uniform,
+//   list for per-point) applied to a unit vector that lies in the
+//   boundary plane and points away from the surface interior.  The
+//   order is [start_u, end_u, start_v, end_v]; set an entry to undef
+//   to leave that edge unconstrained.  Requires type="clamped" in the
+//   affected direction.  Cannot be combined with the corresponding
+//   explicit *_der= or *_normal= for the same edge.
 //   .
-//   - `["clamped","clamped"]` — a flat sheet with four bounded edges.  The surface
-//     starts and ends at the first and last rows and columns of data.
+//   For [clamped,closed] or [closed,clamped] surfaces whose clamped
+//   boundary is a degenerate edge (all data points in that row or
+//   column are identical — e.g. a cone apex or vase tip), the
+//   *_normal= parameters offer a simpler alternative to *_der=.
+//   Supply a single normal vector N at the degenerate edge; the code
+//   automatically fans the partial-derivative vectors outward from the
+//   apex into the plane perpendicular to N.  The magnitude of N sets
+//   the derivative scale using the same convention as *_der=.  For a
+//   start (u=0 or v=0) apex the fan points outward; for an end (u=1
+//   or v=1) apex it is automatically negated to match the +u/+v
+//   parametric direction.  Cannot be combined with the corresponding
+//   explicit *_der= parameter.
 //   .
-//   - `["clamped","closed"]` — a ring or tube.  The v-direction wraps smoothly
-//     (do not repeat the first column at the end of each row); the u-direction has
-//     two open boundary edges at the first and last rows.
+//   Returns a NURBS parameter list: [type, degree, control_grid, knots, weights, undef].
+//   The first five elements form a standard BOSL2 NURBS parameter list and can be
+//   passed directly to nurbs_vnf().
+//   type   = [type_u, type_v] effective NURBS types.
+//   degree = [p_u, p_v] degrees used.
+//   control_grid = 2D grid of control points.
+//   knots  = [u_knots, v_knots] BOSL2-format knot vectors.
+//   weights = undef (B-spline interpolation; no rational weights).
 //   .
-//   - `["closed","clamped"]` — a ring whose seam runs in the v-direction.  The
-//     u-direction wraps smoothly; the v-direction has two open boundary edges.
+//   To render:
 //   .
-//   - `["closed","closed"]` — a torus.  Both directions wrap; the grid has no
-//     boundary edges.  Do not repeat any row or column.
+//     result = nurbs_interp_surface(data, 3);
+//     vnf = nurbs_vnf(result, splinesteps=8);
+//     vnf_polyhedron(vnf);
 //   .
-//   Any of these topologies can have a degenerate edge where all boundary points
-//   in a row or column are the same point (for example, a cone apex or vase tip).
-//   Use `normal1=` / `normal2=` on the degenerate edge to control how the surface
-//   arrives there; this gives smooth, rotationally symmetric shading at the apex.
+//   Or use the module form of nurbs_interp_surface() for direct rendering.
 //   .
-//   **Sharp creases** — `u_edges=` and `v_edges=` insert C0 discontinuity lines
-//   across the surface at interior row or column indices.  `u_edges=` creates a
-//   crease running in the v-direction at each named row; `v_edges=` creates a
-//   crease running in the u-direction at each named column.  Each index must be
-//   interior (not the first or last row/column).  Requires `type="clamped"` in
-//   the affected direction.  Can be combined with boundary derivative constraints
-//   in the same direction; boundary constraints apply at the outer edges of the
-//   first and last segments.
-//   .
-//   **Flat boundary derivatives** — `flat_edges=` sets outward-pointing derivatives
-//   at any of the four boundary edges of a `"clamped"` direction.  Pass a 4-element
-//   list `[start_u, end_u, start_v, end_v]`; each entry is a scalar (uniform) or a
-//   list (per-point).  Set an entry to `undef` to leave that edge unconstrained.
-//   Scalar shorthand: `flat_edges=s` expands to `[s, s, s, s]`.  Applied
-//   per-direction: `flat_edges[0]` and `flat_edges[1]` require `type_u="clamped"`;
-//   `flat_edges[2]` and `flat_edges[3]` require `type_v="clamped"`.  Cannot be
-//   combined with the corresponding `*_deriv=` or `normal1=`/`normal2=` on the
-//   same edge.
-//   .
-//   `flat_end1=` and `flat_end2=` are an alternative for mixed-type surfaces
-//   (`["clamped","closed"]` or `["closed","clamped"]`).  The code auto-detects which
-//   direction is clamped and applies the scale there.  Requires exactly one direction
-//   to be `"clamped"`.
-//   .
-//   **Advanced: boundary partial-derivative constraints** — `u_edge1_deriv=`,
-//   `u_edge2_deriv=`, `v_edge1_deriv=`, and `v_edge2_deriv=` enforce specific first
-//   partial derivatives along the four boundary edges.  Scale vectors by the per-row
-//   or per-column chord length, or pass unit vectors for a speed that matches the
-//   parameterization.
-//   .
-//   Use these constraints with care.  The solver enforces your derivatives exactly
-//   at the boundary data points, but between those points the surface may wander —
-//   you are adding shape information that the data alone does not determine, and the
-//   solver must satisfy it while still passing through every interior point.  Inspect
-//   the result visually and adjust derivative magnitudes if the surface oscillates.
-//   .
-//   When both u- and v-boundary derivatives are active simultaneously, the
-//   cross-derivative $\partial^2 S/\partial u \partial v$ is assumed zero at the
-//   corners.  This is accurate when corner mixed derivatives are small.
-//   .
-//   `normal1=` and `normal2=` offer a simpler alternative for degenerate edges.
-//   Supply a single axis vector; the code fans partial-derivative vectors outward
-//   from the apex, perpendicular to that axis.  Vector magnitude sets the derivative
-//   scale.  Cannot be combined with the corresponding `*_deriv=` parameter.
+//   The u_edges= and v_edges= parameters create C0 discontinuity edges
+//   across the surface — sharp creases where the surface is continuous
+//   but not smooth.  u_edges lists row indices (along the u-direction)
+//   where a crease runs in the v-direction; v_edges lists column indices
+//   (along the v-direction) where a crease runs in the u-direction.
+//   Each index must be interior (not the first or last row/column).
+//   Requires type="clamped" in the affected direction.  Can be combined
+//   with boundary derivative constraints (*_der=, *_normal=, flat_edges=)
+//   in the same direction — the boundary constraint applies at the outer
+//   edge of the first and last segments.
 //
 // Arguments:
-//   points = Rectangular grid of 3D data points, given as a list of rows.
-//
-//   degree = B-spline degree.  Scalar applies to both directions; `[u_degree, v_degree]` sets each independently.
-//
+//   points = rectangular grid of 3D data points (list of rows)
+//   degree = NURBS degree: scalar or [u_degree, v_degree]
 //   ---
-//
-//   method = Parameterization method: `"length"` (chord length), `"centripetal"` (square-root chord), `"dynamic"` (curvature-adaptive), `"foley"` (centripetal + deflection-angle correction), or `"fang"` (centripetal + osculating-circle correction).  Default: `"centripetal"`
-//
-//   type = Curve type in each direction: `"clamped"` or `"closed"`.  Scalar applies to both; `[u_type, v_type]` sets each independently.  Default: `"clamped"`
-//
-//   extra_pts = Extra control points beyond the data-determined minimum.  Scalar applies to both directions; `[ep_u, ep_v]` sets each independently.  Extra knots are placed at the widest knot spans; the underdetermined system is solved for minimum smoothness.  Requests beyond the available knot spans are clamped with an echo.  Default: `0`
-//
-//   smooth = Smoothness metric for `extra_pts`.  `1` = first-difference, `2` = second-difference, `3` = bending energy.  Scalar or `[smooth_u, smooth_v]`.  Default: `3`
-//
-//   u_edges = Interior row index (or list of indices) where a C0 crease runs in the v-direction.  Requires `type_u="clamped"`.  Default: `undef`
-//
-//   v_edges = Interior column index (or list of indices) where a C0 crease runs in the u-direction.  Requires `type_v="clamped"`.  Default: `undef`
-//
-//   flat_edges = 4-element list `[start_u, end_u, start_v, end_v]` of outward-derivative scale factors at the four boundary edges.  Each entry: scalar (uniform) or list (per-point, length matching `n_cols` for u-edges, `n_rows` for v-edges).  `undef` leaves that edge unconstrained.  `flat_edges=s` expands to `[s, s, s, s]`.  Requires `type="clamped"` in the affected direction.  Cannot be combined with `*_deriv=` or `normal1=`/`normal2=` on the same edge.  Default: `undef`
-//
-//   flat_end1 = Scale factor for the coplanar start edge on a mixed-type surface.  Auto-detects whether the clamped start is u=0 (first row) or v=0 (first column).  Positive = closes inward; negative = flares outward.  Scalar or per-point list.  Requires exactly one direction to be `"clamped"`.  Cannot be combined with `normal1=`, `flat_edges=`, or the corresponding `*_deriv=`.  Default: `undef`
-//
-//   flat_end2 = Same as `flat_end1` for the end edge (last row or column).  Default: `undef`
-//
-//   normal1 = Axis vector for a degenerate start edge where all boundary points are the same point (e.g. a cone apex).  Auto-detects u=0 vs v=0.  Direction defines the symmetry axis; derivatives fan outward perpendicular to it.  Magnitude sets the derivative scale.  Cannot be combined with `flat_end1=`, `flat_edges=`, or the corresponding `*_deriv=`.  Default: `undef`
-//
-//   normal2 = Axis vector for a degenerate end edge (last row or last column all identical).  Auto-detects u=1 vs v=1.  Default: `undef`
-//
-//   u_edge1_deriv = Partial-derivative constraint $\partial S/\partial u$ along the u=0 boundary (first row).  Single vector applied to all columns, or a list of `n_cols` vectors.  Requires `type_u="clamped"`.  Vectors scaled by per-column chord length (pass unit vectors for natural speed).  Default: `undef`
-//
-//   u_edge2_deriv = Partial-derivative constraint $\partial S/\partial u$ along the u=1 boundary (last row).  Single vector or list of `n_cols` vectors.  Default: `undef`
-//
-//   v_edge1_deriv = Partial-derivative constraint $\partial S/\partial v$ along the v=0 boundary (first column).  Single vector applied to all rows, or a list of `n_rows` vectors.  Requires `type_v="clamped"`.  Default: `undef`
-//
-//   v_edge2_deriv = Partial-derivative constraint $\partial S/\partial v$ along the v=1 boundary (last column).  Single vector or list of `n_rows` vectors.  Default: `undef`
-//
-//   splinesteps = (Module form only) Steps per knot span per direction when building the mesh.  Default: `16`
-//
-//   style = (Module form only) Triangulation style passed to `nurbs_vnf()`.  Default: `"default"`
-//
-//   reverse = (Module form only) If true, reverses face normals.  Default: `false`
-//
-//   triangulate = (Module form only) If true, triangulates all quads.  Default: `false`
-//
-//   caps = (Module form only) If true, caps both open boundary edges.  Default: `undef`
-//
-//   cap1 = (Module form only) If true, caps the first open boundary edge.  Default: `undef`
-//
-//   cap2 = (Module form only) If true, caps the second open boundary edge.  Default: `undef`
-//
-//   data_color = (Module form only) Color for data-point sphere markers.  Default: `"red"`
-//
-//   data_size = (Module form only) Radius of data-point sphere markers; `0` suppresses them.  Default: `0`
+//   method = parameterization method: "length", "centripetal", "dynamic", "foley" (centripetal + deflection-angle correction), or "fang" (centripetal + osculating-circle correction).  Default: "dynamic"
+//   type = "clamped"/"closed", or [u_type, v_type].  Default: "clamped"
+//   u_edge1_deriv = derivative specification for ∂S/∂u along the u=0 boundary (first row edge).  Either a single vector (applied uniformly to all n_cols columns) or a list of n_cols vectors (one per column).  Requires type_u="clamped".  Vectors scaled by per-column u-direction chord length (pass unit vectors for natural speed).  Default: undef
+//   u_edge2_deriv = derivative specification for ∂S/∂u along the u=1 boundary.  Single vector or list of n_cols vectors.  Default: undef
+//   v_edge1_deriv = derivative specification for ∂S/∂v along the v=0 boundary (first column edge).  Single vector or list of n_rows vectors (one per row).  Requires type_v="clamped".  Vectors scaled by per-row v-direction chord length.  Default: undef
+//   v_edge2_deriv = derivative specification for ∂S/∂v along the v=1 boundary.  Single vector or list of n_rows vectors.  Default: undef
+//   normal1 = axis vector for a degenerate start edge where all boundary points are the same point (e.g. a cone apex).  The code auto-detects whether the apex is at u=0 (first row) or v=0 (first column).  Direction defines the surface symmetry axis; the derivative fan lies perpendicular to this axis.  Magnitude sets the derivative scale.  Cannot be combined with flat_end1= or the corresponding explicit *_deriv=.  Default: undef
+//   normal2 = axis vector for a degenerate end edge (last row or last column all identical).  Auto-detects u=1 vs v=1.  Default: undef
+//   flat_end1 = scale factor (scalar or per-point list) for a coplanar start edge.  All points in the first row or first column must be coplanar and span a 2D plane (not collinear).  The code auto-detects whether the coplanar edge is u=0 (first row) or v=0 (first column).  At each edge point the derivative is directed inward (toward the polygon centroid, perpendicular to the edge tangent, within the edge plane).  Positive = closes inward, negative = flares outward.  A scalar is broadcast to all edge points; a list length must equal n_cols for a u=0 edge or n_rows for a v=0 edge.  Cannot be combined with normal1=, flat_edges=, or the corresponding explicit *_deriv= on the same edge.  Default: undef
+//   flat_end2 = same as flat_end1 for the end edge (last row or last column).  Positive = closes inward, negative = flares outward.  Sign convention is the same as flat_end1 despite the parametric negation applied internally.  Default: undef
+//   flat_edges = 4-element list [start_u, end_u, start_v, end_v] of scale factors for outward derivatives at each boundary edge.  Each entry is a scalar (uniform) or a list (per-point, length must equal n_cols for u-edges, n_rows for v-edges).  Set an entry to undef to leave that edge unconstrained.  Requires coplanar boundary edges and type="clamped" in the affected direction.  Cannot be combined with explicit *_deriv= or *_normal= on the same edge.  Default: undef
+//   u_edges = list (or singleton) of interior row indices where C0 creases run in the v-direction.  Creates sharp edges across the surface at the specified rows.  When type_u="closed", the surface is internally cut at the first crease row and solved as clamped; the closed surface is reconstructed by repeating that row as both u=0 and u=1 boundaries.  Compatible with flat_edges= and boundary derivatives in the u-direction.  Default: undef
+//   v_edges = list (or singleton) of interior column indices where C0 creases run in the u-direction.  Creates sharp edges across the surface at the specified columns.  When type_v="closed", the surface is internally cut at the first crease column and solved as clamped; the closed surface is reconstructed by repeating that column as both v=0 and v=1 boundaries.  Compatible with flat_edges= and boundary derivatives in the v-direction.  Default: undef
+//   extra_pts = number of extra control points beyond the data-determined minimum.  Scalar applies to both directions; list [ep_u, ep_v] sets each independently.  Extra knots are placed at the widest knot spans within each segment.  The underdetermined system is solved via null-space method (exact interpolation with minimum bending energy).  Requests beyond the number of available knot spans are silently clamped — no failure, just no additional effect.  Compatible with u_edges/v_edges: extra knots are distributed independently within each segment.  Default: 0
+//   smooth = regularization for extra_pts: 1 = first-difference, 2 = second-difference, 3 = bending energy.  Scalar or list [smooth_u, smooth_v].  Default: 3
 //
 // Returns:
-//   `[type, degree, ctrl_grid, knots, undef, undef]` — a BOSL2-compatible NURBS parameter list.
+//   [type, degree, control_grid, knots, weights, undef]
 
 function nurbs_interp_surface(points, degree, method="centripetal", type="clamped",
                               u_edge1_deriv=undef, u_edge2_deriv=undef,
@@ -3442,7 +3331,58 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
 
 
 // Module: nurbs_interp_surface()
-// See Also: nurbs_interp_surface() (function form, above)
+// Synopsis: Renders a NURBS surface interpolating a grid of data points.
+// Topics: NURBS Surfaces, Interpolation
+// See Also: nurbs_vnf(), nurbs_interp()
+//
+// Usage:
+//   nurbs_interp_surface(points, degree, [splinesteps=],
+//       [method=], [type=], [style=], [reverse=], [triangulate=],
+//       [caps=], [cap1=], [cap2=],
+//       [u_edge1_deriv=], [u_edge2_deriv=], [v_edge1_deriv=], [v_edge2_deriv=],
+//       [normal1=], [normal2=], [flat_end1=], [flat_end2=], [flat_edges=],
+//       [u_edges=], [v_edges=],
+//       [extra_pts=], [smooth=],
+//       [data_color=], [data_size=]);
+//
+// Description:
+//   Module form of nurbs_interp_surface().  Calls the function form to
+//   compute the NURBS surface, passes the result to nurbs_vnf() to build
+//   the mesh, and renders it with vnf_polyhedron().  Optionally draws the
+//   input data points as spheres when data_size > 0.
+//   .
+//   All interpolation parameters are identical to the function form.
+//   splinesteps, style, reverse, triangulate, caps, cap1, and cap2
+//   are passed through to nurbs_vnf().
+//
+// Arguments:
+//   points = rectangular grid of 3D data points (list of rows)
+//   degree = NURBS degree: scalar or [u_degree, v_degree]
+//   ---
+//   splinesteps = number of evaluated points per knot span per direction.  Default: 16
+//   method = parameterization method.  Default: "centripetal"
+//   type = "clamped"/"closed", or [u_type, v_type].  Default: "clamped"
+//   style = nurbs_vnf() triangulation style.  Default: "default"
+//   reverse = if true, reverses face normals.  Default: false
+//   triangulate = if true, triangulates all quads.  Default: false
+//   caps = if true, caps both open ends.  Default: undef
+//   cap1 = if true, caps the first open end.  Default: undef
+//   cap2 = if true, caps the second open end.  Default: undef
+//   u_edge1_deriv = ∂S/∂u along u=0 boundary.  Single vector or list of n_cols vectors.  Default: undef
+//   u_edge2_deriv = ∂S/∂u along u=1 boundary.  Single vector or list of n_cols vectors.  Default: undef
+//   v_edge1_deriv = ∂S/∂v along v=0 boundary.  Single vector or list of n_rows vectors.  Default: undef
+//   v_edge2_deriv = ∂S/∂v along v=1 boundary.  Single vector or list of n_rows vectors.  Default: undef
+//   normal1 = axis vector for degenerate start edge (apex normal).  Default: undef
+//   normal2 = axis vector for degenerate end edge (apex normal).  Default: undef
+//   flat_end1 = scale factor for coplanar start edge inward derivative.  Default: undef
+//   flat_end2 = scale factor for coplanar end edge inward derivative.  Default: undef
+//   flat_edges = [start_u, end_u, start_v, end_v] outward-derivative scales.  Default: undef
+//   u_edges = interior row indices for C0 creases in v-direction.  Default: undef
+//   v_edges = interior column indices for C0 creases in u-direction.  Default: undef
+//   extra_pts = extra control points beyond data minimum.  Default: 0
+//   smooth = regularization for extra_pts (1/2/3).  Default: 3
+//   data_color = color for data point spheres.  Default: "red"
+//   data_size = radius of data point spheres; 0 suppresses them.  Default: 0
 
 module nurbs_interp_surface(points, degree,
                             splinesteps=16, method="centripetal", type="clamped",
