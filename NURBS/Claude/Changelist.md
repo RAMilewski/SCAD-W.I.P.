@@ -576,3 +576,16 @@
 
 ## v151
 - **`debug_nurbs_interp()` — pass `result` directly to `debug_nurbs()`**: Now that the two BOSL2 bugs are fixed (`contorl` typo and missing `show_control=` forwarding in the param-list dispatch path), `debug_nurbs(result, ...)` is used when no `knots=` override is supplied. The explicit unpacked call (`debug_nurbs(ctrl, result[1], ...)`) is retained only for the `knots=` override case, where a plain param-list pass-through cannot substitute the user-supplied knot vector.
+
+## v152
+- **`debug_nurbs_interp()` — `knots=` parameter removed**: With `debug_nurbs()` now accepting a NURBS param list directly, the knot-override path is unnecessary. Removed `knots=undef` from module signature, Usage line, and Arguments section. Removed `knots_eff` local variable. The `debug_nurbs()` call is now unconditionally `debug_nurbs(result, ...)`.
+- **`nurbs_interp()` doc — `method=` default corrected**: Doc said `Default: "dynamic"` but code has `method="centripetal"`. Fixed to `"centripetal"`.
+- **`debug_nurbs_interp()` doc — `smooth=` default corrected**: Doc said `Default: 3` but code has `smooth=2`. Fixed to `2`.
+- **`nurbs_interp()` doc — `extra_pts+corners` eligibility clarified**: Previous text incorrectly said degree-reduced segments are not eligible. Corrected: a segment is eligible when its effective degree is >= 3 (or == 2 with `smooth=1`). A degree-reduced segment (e.g. degree 7 in a degree-8 curve) is still eligible as long as its reduced degree is >= 3. Linear and quadratic (with smooth>=2) segments are not eligible. Added rounding note: distribution uses ceiling so the total may slightly exceed the requested amount but will never be less.
+
+## v153
+- **`nurbs_interp()` doc — knot-vector construction added**: Brief description of the Piegl & Tiller averaging formula (§9.2.1 eq. 9.8) inserted as a new **Knot vector** section in the Description, placed before the Derivative constraints section.
+- **`nurbs_interp()` doc — `extra_pts` corners distribution corrected**: Previous text said "distributed proportionally to their size"; corrected to "divided equally across eligible segments, rounding up per segment."
+- **`nurbs_interp()` doc — 2D curvature vector clarified**: Added "any component parallel to the tangent is automatically removed" for the 2D vector form, matching the existing 3D wording (consistent with code: `_curv_to_d2` performs the same perpendicular projection in both cases).
+- **`nurbs_interp_surface()` base return — `[undef,undef]` → `[0,0]`**: 7th element now always `[0,0]` when no rotation occurs, matching the curve convention (which already returns `0`).
+- **`debug_nurbs_interp()` — `smooth=` default changed `2` → `3`**: Aligns with the `nurbs_interp()` default and gives better-quality curves when `extra_pts` is used. Doc updated to match.

@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 153
+// Development Version 152
 //////////////////////////////////////////////////////////////////////
 
 
@@ -1142,13 +1142,6 @@ function nurbs_elevate_degree(control, degree, knots,
 //     of the osculating circle at each point.  Handles mixed straight-and-curved
 //     segments particularly well (Fang & Hung 2013).
 //   .
-//   **Knot vector** — interior knot positions are placed using the Piegl & Tiller
-//   averaging formula (§9.2.1 eq. 9.8): each of the $n{-}p$ interior knots is set to
-//   the average of $p$ consecutive parameter values,
-//   $\bar{u}_j = \frac{1}{p}\sum_{i=j}^{j+p-1} \bar{t}_i$.
-//   This ties the knots closely to the local parameter spacing, giving the basis
-//   functions well-conditioned support over the data.
-//   .
 //   **Derivative constraints** (`deriv=`, `start_deriv=`, `end_deriv=`):
 //   .
 //   `deriv[k]` specifies the tangent direction (and speed) the curve must have
@@ -1173,8 +1166,7 @@ function nurbs_elevate_degree(control, degree, knots,
 //   .
 //   - For 2D curves: supply a signed scalar $\kappa$ (positive = left/CCW, negative
 //     = right/CW), or a 2D vector whose direction is the desired normal and whose
-//     magnitude is $|\kappa|$; any component parallel to the tangent is automatically
-//     removed.
+//     magnitude is $|\kappa|$.
 //   - For 3D curves: supply a vector whose direction is the desired curvature
 //     normal and whose magnitude is $|\kappa|$; any component parallel to the
 //     tangent is automatically removed.
@@ -1216,9 +1208,9 @@ function nurbs_elevate_degree(control, degree, knots,
 //   and a warning is echoed.
 //   .
 //   When `corners=` is used, the curve is split into independent clamped segments at
-//   each corner.  `extra_pts=` is divided equally across eligible segments, rounding
-//   up per segment, so the total may slightly exceed the requested amount but will
-//   never be less.  A segment is eligible when its effective degree is 3 or
+//   each corner.  `extra_pts=` is distributed across eligible segments proportionally
+//   to their size, rounding up, so the total may slightly exceed the requested amount
+//   but will never be less.  A segment is eligible when its effective degree is 3 or
 //   higher, or when it is degree 2 with `smooth=1`.  Linear segments (degree 1) and
 //   quadratic segments with `smooth >= 2` are not eligible.  Note that a degree-reduced
 //   segment (one with too few points for the requested degree) is still eligible as long
@@ -2125,7 +2117,7 @@ function nurbs_interp_curve(points, degree, splinesteps=16,
 //   end_curvature   = Curvature at last point.  Default: `undef`
 //   corners         = Corner indices; see {{nurbs_interp()}}.  Default: `undef`
 //   extra_pts       = Extra control points; see {{nurbs_interp()}}.  Default: `0`
-//   smooth          = Smoothness criterion for `extra_pts`; see {{nurbs_interp()}}.  Default: `3`
+//   smooth          = Smoothness criterion for `extra_pts`; see {{nurbs_interp()}}.  Default: `2`
 //   width           = Stroke width for the curve.  Arrows and other overlays scale with this.  Default: `1`
 //   size            = Marker size for control points passed to `debug_nurbs`.  Default: `3*width`
 //   data_size       = Radius of the red data-point markers.  Set to `0` to hide data points and their labels.  Default: `1`
@@ -2140,7 +2132,7 @@ module debug_nurbs_interp(points, degree, splinesteps=16, method="centripetal",
                           type="clamped", deriv=undef,
                           start_deriv=undef, end_deriv=undef,
                           curvature=undef, start_curvature=undef, end_curvature=undef,
-                          corners=undef, extra_pts=0, smooth=3,
+                          corners=undef, extra_pts=0, smooth=2,
                           width=1, size=undef, data_size=undef,
                           show_control=false, show_knots=false,
                           show_deriv=true, show_curvature=true,
@@ -3509,7 +3501,7 @@ function nurbs_interp_surface(points, degree, method="centripetal", type="clampe
         P        = [for (i = [0:1:n_u_ctrl-1])
                         [for (j = [0:1:n_v_ctrl-1]) P_T[j][i]]]
     )
-    [[type_u, type_v], [p_u, p_v], P, [u_knots, v_knots], undef, undef, [0, 0]];
+    [[type_u, type_v], [p_u, p_v], P, [u_knots, v_knots], undef, undef, [undef, undef]];
 
 
 // Module: nurbs_interp_surface()

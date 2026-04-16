@@ -535,3 +535,9 @@ For zero curvature, draw a shorter line that is the same width as the curve and 
 
 ## v151
 "There is now a copy of nurbs.scad in the workspace with those two bugs fixed. Make the appropriate changes to nurbs_interp.scad."
+
+## v152
+"Remove the knots= parameter from debug_nurbs_interp(). Make sure that defaults for all parameters listed in the arguments section match the code and correct the documentation if they don't match. I noticed a mismatch for nurbs_interp() with method=. The documentation says that degree reduced segments created using corners don't get extra points. Is this the case even if I'm building for example a degree 8 spline and my degree reduced case is degree 7? Is there some reason not to give a segment like that some extra points? Is it the case that when a curve is broken up, the extra points are distributed with rounding up, so you may end up with more points than requested, but never fewer?"
+
+## v153
+"Add a brief description to nurbs_interp of how the knot positions are calculated. When you say that extra_pts are distributed 'according to size' do you mean according to the point count, or some other size? For curvature in the 2d case if you give a vector doesn't it also take the perpendicular component, just like with higher dimensions? instead of returning undef if no rotation occurs return 0 for curves or [0,0] for surfaces. Change default smooth value for debug_nurbs_interp to 3 and update docs."
