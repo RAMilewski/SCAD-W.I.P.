@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 151
+// Development Version 150
 //////////////////////////////////////////////////////////////////////
 
 
@@ -2155,20 +2155,12 @@ module debug_nurbs_interp(points, degree, splinesteps=16, method="centripetal",
     eff_curv = _merge_curv_list(np-1, curvature, dim=dim, start_curvature=start_curvature, end_curvature=end_curvature);
 
     // --- Curve, control polygon, knot markers (delegated to debug_nurbs) ---
-    // Pass result directly when no knots override; debug_nurbs() dispatches
-    // on the NURBS parameter list.  Use the explicit form only when the caller
-    // supplied knots= so we can substitute the override.
-    if (is_undef(knots))
-        debug_nurbs(result, splinesteps=splinesteps, width=width, size=sz,
-                    show_knots=show_knots, show_control=show_control,
-                    show_index=control_index);
-    else
-        debug_nurbs(ctrl, result[1],
-                    splinesteps=splinesteps, width=width, size=sz,
-                    mult=result[4], weights=result[5],
-                    type=result[0], knots=knots_eff,
-                    show_knots=show_knots, show_control=show_control,
-                    show_index=control_index);
+    debug_nurbs(ctrl, result[1],
+                splinesteps=splinesteps, width=width, size=sz,
+                mult=result[4], weights=result[5],
+                type=result[0], knots=knots_eff,
+                show_knots=show_knots, show_control=show_control,
+                show_index=control_index);
 
     // --- Corner marks (NaN-deriv corners + explicit corners= indices) ---
     // 2D: rotated square stroke.  3D: octahedron wireframe.
