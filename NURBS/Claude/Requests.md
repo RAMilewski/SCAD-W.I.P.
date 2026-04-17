@@ -541,3 +541,6 @@ For zero curvature, draw a shorter line that is the same width as the curve and 
 
 ## v153
 "Add a brief description to nurbs_interp of how the knot positions are calculated. When you say that extra_pts are distributed 'according to size' do you mean according to the point count, or some other size? For curvature in the 2d case if you give a vector doesn't it also take the perpendicular component, just like with higher dimensions? instead of returning undef if no rotation occurs return 0 for curves or [0,0] for surfaces. Change default smooth value for debug_nurbs_interp to 3 and update docs."
+
+## v154
+"debug_nurbs_interp(regular_ngon(r=10,n=7), 3,type=\"closed\",deriv=[2*DOWN,undef,...],show_knots=true,extra_pts=3): two knots placed between points 6 and 0 — why? Similar issue with n=8 example. Is this a bug? In debug_nurbs_interp() make the default data_size equal to the width instead of fixed to 1."

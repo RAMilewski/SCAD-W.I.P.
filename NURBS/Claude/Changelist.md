@@ -589,3 +589,7 @@
 - **`nurbs_interp()` doc — 2D curvature vector clarified**: Added "any component parallel to the tangent is automatically removed" for the 2D vector form, matching the existing 3D wording (consistent with code: `_curv_to_d2` performs the same perpendicular projection in both cases).
 - **`nurbs_interp_surface()` base return — `[undef,undef]` → `[0,0]`**: 7th element now always `[0,0]` when no rotation occurs, matching the curve convention (which already returns `0`).
 - **`debug_nurbs_interp()` — `smooth=` default changed `2` → `3`**: Aligns with the `nurbs_interp()` default and gives better-quality curves when `extra_pts` is used. Doc updated to match.
+
+## v154
+- **`_widest_span_params()` — centred stratification bug fixed**: The formula previously stratified over all `n` spans (including constraint-narrowed spans), which could place an `extra_pts` knot inside the already-split seam region (e.g. two knots between points 6 and 0 when a constraint at point 0 narrowed that span). Fix: build `eq_idxs` (indices of spans at max width) and stratify over `eq_idxs` using `eq_idxs[floor((2g+1)*n_eq/(2*k_eff))]` instead of `floor(...*n/...)) % n`. Narrow constraint-adjacent spans are never selected; extra knots are evenly distributed among the untouched full-width spans.
+- **`debug_nurbs_interp()` — `data_size=` default changed from `1` to `width`**: Data-point marker radius now scales with the curve stroke width, keeping the visual proportions consistent when `width` is set to something other than 1.
