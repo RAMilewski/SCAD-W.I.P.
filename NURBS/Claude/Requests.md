@@ -544,3 +544,9 @@ For zero curvature, draw a shorter line that is the same width as the curve and 
 
 ## v154
 "debug_nurbs_interp(regular_ngon(r=10,n=7), 3,type=\"closed\",deriv=[2*DOWN,undef,...],show_knots=true,extra_pts=3): two knots placed between points 6 and 0 — why? Similar issue with n=8 example. Is this a bug? In debug_nurbs_interp() make the default data_size equal to the width instead of fixed to 1."
+
+## v155
+"When splitting the extra_pts due to corners, instead of distributing extra_pts uniformly on eligible segments, distribute them proportionally to the number of control points in each segment, still rounding up."
+
+## v156
+"Rewrite and consolidate docs for nurbs_elevate_degree (concise, no internals, continuity preservation). The docs suggest mult is never new — isn't that false in the closed case? Accept mult or a nurbs parameter list. In nurbs_interp docs just say result can be passed to nurbs_curve(); don't say dynamic is the default; don't say end_deriv refers to [n] index, use last(deriv). In arguments give minimal smooth= descriptions. Don't say 'C0 corner'/'corner joint'. Knot markers are green not purple; control polygon looks gray; no need to mention debug_nurbs(). Disable labels with control_index=false. Turn overlay list into bullet list. Is nurbs_interp_surface return type correct (mult at [4])? flat_edges= with closed type doesn't work — docs misleading? Clarify flat_end. No blank lines in Arguments."
