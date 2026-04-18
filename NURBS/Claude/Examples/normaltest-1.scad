@@ -12,7 +12,7 @@ data1 = [ repeat([0,0,-15],9),
 
 for (ue = [2,3,4]) {
     left(300 - ue * 100) {
-        debug_nurbs_interp_surface(data1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
+        nurbs_interp_surface(data1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
             normal2=7*UP+2*RIGHT,u_edges=[ue],normal1=DOWN+LEFT/4);  
 
         down(30) xrot(90) text(str("u_edges = ",ue), size = 6, anchor = CENTER);

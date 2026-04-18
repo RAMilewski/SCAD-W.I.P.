@@ -13,53 +13,53 @@ ydistribute(85){
 
   
 xdistribute(75){
-  debug_nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0);
-  debug_nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0);
+  nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
       normal1=3*DOWN, normal2=2*UP);  
-  debug_nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
       normal1=5*DOWN, normal2=7*UP);
-  debug_nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
       normal2=4*UP+RIGHT,u_edges=[2],normal1=DOWN+LEFT/4);  
-  debug_nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
       normal2=4*UP+RIGHT,u_edges=3,normal1=DOWN+LEFT/4);  
-  debug_nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
       normal2=4*UP+RIGHT,u_edges=4,normal1=DOWN+LEFT/4);  
-  debug_nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
       normal2=UP+RIGHT/4,u_edges=[2,4],normal1=DOWN+LEFT/4);  
-  debug_nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob1, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
       normal2=UP,u_edges=[2,3],normal1=DOWN);  
 
 }
 
 
 xdistribute(75){
-  debug_nurbs_interp_surface(blob2, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0);
-  debug_nurbs_interp_surface(blob2, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob2, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0);
+  nurbs_interp_surface(blob2, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
          normal1=DOWN,normal2=2*UP);  
-  debug_nurbs_interp_surface(blob2, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob2, 3, splinesteps=32, method=method, type=["clamped","closed"],data_size=0,
          normal1=DOWN,normal2=4*UP);  
 }
 
 
 xdistribute(75){
-  debug_nurbs_interp_surface(blob3, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0);
-  debug_nurbs_interp_surface(blob3, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob3, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0);
+  nurbs_interp_surface(blob3, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0,
          normal1=DOWN,normal2=2*UP);  
-  debug_nurbs_interp_surface(blob3, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob3, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0,
          normal1=7*DOWN,normal2=5*UP);  
 }
 
 
 xdistribute(75){
-  debug_nurbs_interp_surface(blob4, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0);
-  debug_nurbs_interp_surface(blob4, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob4, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0);
+  nurbs_interp_surface(blob4, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0,
          normal1=DOWN,normal2=2*UP);  
 }
 
 
 xdistribute(75){
-  debug_nurbs_interp_surface(blob5, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0);
-  debug_nurbs_interp_surface(blob5, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0,
+  nurbs_interp_surface(blob5, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0);
+  nurbs_interp_surface(blob5, 3, splinesteps=[32,9], method=method, type=["clamped","closed"],data_size=0,
          normal1=DOWN,normal2=UP);  
 }
 
