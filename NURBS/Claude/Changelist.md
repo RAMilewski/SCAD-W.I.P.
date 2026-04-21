@@ -605,3 +605,70 @@
 - **`nurbs_interp_surface()` doc — return value**: `result[4]` now labelled as `mult` (not "no rational weights"); `result[5]` (weights) added; rotation entries described as `0` (not `undef`) when no rotation.
 - **`nurbs_interp_surface()` doc — `flat_edges=`**: Clarified that it requires **both** directions to be `"clamped"` (not just the affected direction). `flat_end1=`/`flat_end2=` are now clearly presented as the alternative for mixed-type surfaces.
 - **`nurbs_interp_surface()` Arguments**: Removed all blank lines between argument entries; `u_edges=`/`v_edges=` entries removed "C0"; `flat_edges=` and `flat_end1=`/`flat_end2=` descriptions revised; Returns section updated to show `mult, weights` (both `undef`) and `0` rotation.
+
+## v157
+- **Manual edit by adrianVmariano.** Changes relative to v156:
+- **`nurbs_elevate_degree()` doc**: Synopsis tightened; Topics trimmed to `NURBS Curves`; continuity-preservation explanation reworded using $C^1$/$C^2$ concrete example; param-list usage described inline ("Instead of providing separate parameters…"); `Returns:` section removed (superseded by inline description); argument descriptions shortened; `mult` parameter added to the dispatch assert logic (`num_defined` check).
+- **`nurbs_interp()` doc**: Synopsis reworded; `SynTags: Geom` added; Usage line reordered (`start_deriv=`/`end_deriv=` before `deriv=`); Description restructured — type section rewritten as prose (no bullet list), parameterization section leads with "In order to solve…" framing and notes scale-invariance property of `"dynamic"` and scale-dependence of `"fang"`; knot-vector section rewritten as prose without formula; derivative section expanded with practical speed advice; curvature section expanded with osculating-circle explanation and vector-form details; corners section expanded with clamped-segment assembly explanation; extra_pts section reworded; new **Starting Point for "closed" curves** section explains `last(result)` index; argument descriptions tightened throughout.
+- **`nurbs_interp_curve()` removed**: Function and its doc block deleted entirely.
+- **`debug_nurbs_interp()` doc**: Synopsis reworded; Description revised — corners shown via black diamond on derivative arrow (not separate marker description); curvature overlay described as cylinder in 3D; knots section simplified; control polygon section rewritten with `show_control=true`/`control_index=true` logic; `size=` described as "text size for labels"; `show_control=` and `control_index=` argument descriptions tightened.
+- **`nurbs_interp_surface()` doc**: Synopsis reworded; `SynTags: Geom` added; `See Also` trimmed; Usage line condensed; Description restructured — intro mentions non-uniform B-spline nature; type/topology section rewritten as prose with torus/tube explanation; boundary-constraints section reorganised with `flat_edges=` (clamped+clamped), `normal1=`/`normal2=` (degenerate ends), `flat_end1=`/`flat_end2=` (mixed-type flat ends) each in their own paragraph; return-value element list removed from Description (now only in Returns); advanced deriv-constraint section retained; flat_edges positive/negative sign semantics added.
+
+## v158
+- **`nurbs_elevate_degree()`**: accepts `times=0`, returning the input unchanged (param-list input returns the list as-is; raw input returns `[type, degree, control, knots, undef, weights]`).
+- **`nurbs_interp()`**: `type=` parameter replaced by `closed=false` (boolean). `closed=false` → clamped curve; `closed=true` → smooth closed loop. All asserts updated. 8th return element added: `u`, the parameterization vector where `u[k]` is the NURBS parameter assigned to `points[k]`. For closed curves, `u` is rotated via `list_rotate` so `u[0]` corresponds to `points[0]`.
+- **`debug_nurbs_interp()`**: `type=` parameter replaced by `closed=false`. Passes `closed=closed` to `nurbs_interp()`.
+- **`nurbs_interp_surface()`** (function and module): `type=` parameter replaced by `closed=false`. Scalar boolean applies to both u and v directions; 2-vector `[u_closed, v_closed]` sets each independently. 8th return element added: `[u_params, v_params]`, the averaged parameterization vectors from the solve.
+- **Docs**: All doc blocks and examples updated to reflect `closed=` convention.
+
+## v159
+- **`nurbs_elevate_degree()`**: Added `mult=undef` parameter and made `knots=undef` (now optional). Accepts the same knot/mult input forms as `nurbs_curve()`:
+  - `knots=` alone: interior-format vector (existing behavior); knots need not be in [0,1].
+  - `mult=` alone: uniform knot positions 0..1 with those multiplicities.
+  - Both `knots=` and `mult=`: distinct knot positions with per-knot multiplicities.
+  - For clamped curves, endpoint repetitions are stripped internally so the elevation algorithm receives `[k0, interior..., km]` regardless of which form is used.
+  - Param-list dispatch now passes `mult=control[4]` to the recursive call.
+  - `times=0` return now preserves the input `mult` (was `undef`): `[type, degree, control, knots, mult, weights]`.
+- **Doc**: Updated Usage and Arguments to describe the new `knots=`/`mult=` flexibility.
+
+## v160
+- **`nurbs_elevate_degree()`**: Fixed two bugs in `xknots` normalization:
+  1. **Missing "neither" case**: When both `knots=` and `mult=` are omitted, now generates BOSL2-compatible uniform knots: clamped → `lerpn(0,1, n-p+1)` (interior format); open → `lerpn(0,1, n+p+2)` (full); closed → `lerpn(0,1, n+1)` (bar_knots format). The `assert(!is_undef(xknots), ...)` guard is no longer needed and was removed.
+  2. **Endpoint mult not forced for `mult=`-only + clamped**: When `mult=` is given without `knots=`, endpoint multiplicities are now forced to `degree+1` before expanding (matching BOSL2's `nurbs_curve()` behavior). Previously the mult vector was used literally, producing a knot vector too short by the missing endpoint repetitions, yielding an incorrect elevation.
+- **Doc**: Updated description and argument docs to describe the "neither" case and the endpoint-forcing behavior.
+
+## v161
+- **`_elevate_once_clamped()`**: Fixed hardcoded `0`/`1` endpoint values. The function now extracts `k0 = xknots[0]` and `km = last(xknots)` and uses them everywhere: building `U_old`, `new_xknots`, and `U_new`. Previously, knot vectors with endpoints outside [0,1] caused a parameter-domain mismatch between `U_old` (arbitrary range) and `U_new` (hardcoded [0,1]), producing a singular collocation matrix and the "should not happen" assert.
+- **`nurbs_elevate_degree()`**: Added assert `len(mult) == len(knots)` when both are provided.
+
+## v162
+- **`_elevate_once_closed()`**: Complete rewrite to fix all closed-curve degree elevation failures.
+  - **Knot construction**: Endpoint positions now appear **once** in the xknots vector fed to `_extend_knot_vector` (acting as the period boundary). Interior positions appear `curr_m[i]` times. This keeps the first extension step non-zero (`bar_knots[0]→bar_knots[1]`) so `_extend_knot_vector` produces a correctly-periodic U. Previously all positions including endpoints were repeated `curr_mult_per` times, giving delta=0 at the start and corrupting the extension.
+  - **`n_new`**: Derived as `len(xknots_new) - 1` (correct for any multiplicity structure). Previous formula `2*n+1` was only right for the first elevation with uniform simple knots, and was wrong for all subsequent elevations and non-uniform mults.
+  - **Multiplicity increment**: `new_m[i] = curr_m[i] + 1` (increment by 1 per elevation). Previous code doubled: `new_mult_per = 2 * curr_mult_per`, giving wrong multiplicities on the second and subsequent elevations.
+  - **Greville shifting**: Greville abscissae are now shifted into the active domain `[a_new, b_new]` before evaluating the new-basis collocation matrix. Previously they were used unshifted, so sites below `a_new` produced all-zero rows in A → singular system. Only the old-curve evaluation (C_vals) was shifted; now both A and C_vals use correctly shifted sites.
+  - **Auto-deduplication**: When `curr_mult` is undef and `bar_knots` contains repeated consecutive values (as occurs when re-elevating a closed curve via its NURBS param-list, whose knots field is `xknots_new` from the prior elevation), the function deduplicates to find unique positions and counts their multiplicities automatically.
+  - **Return format changed**: Now returns `[new_ctrl, xknots_new, p_new, new_m, true_bar_knots]` (5 elements). `xknots_new` is BOSL2-compatible for direct use by `nurbs_curve()`; `new_m` and `true_bar_knots` are threaded through recursive elevation calls.
+- **`nurbs_elevate_degree()`**: Multiple fixes for closed and clamped+knots+mult cases.
+  - **Clamped + knots+mult**: Endpoint multiplicities are now forced to `degree+1` before expanding and stripping, matching the mult-only clamped behavior. Previously the raw user-provided mult was used, so endpoint mult < degree+1 would cause the strip to remove the endpoint values entirely, producing wrong xknots.
+  - **Closed + mult-only**: `xknots` is now the distinct uniform positions (K values), not the expanded form. The user's `mult` is passed separately as `closed_mult0`.
+  - **Closed + knots+mult**: `xknots` is now the distinct knot positions (not expanded). The user's `mult` is passed separately as `closed_mult0`.
+  - **`closed_mult0`**: New variable that determines the initial per-position multiplicity vector for `_elevate_once_closed`: user's `mult=` on the first call, `_curr_mult` (from prior step) on recursive calls, or `undef` for auto-detection.
+  - **`elevate_once` lambda**: Closed type now passes `closed_mult0` as `curr_mult`.
+  - **Recursion / return**: For closed type, recursive calls use `r[4]` (true_bar_knots) as the `knots` argument and `r[3]` (new_m) as `_curr_mult`. The final BOSL2 param-list uses `r[1]` (xknots_new) as the knots field and `undef` as mult, ensuring `nurbs_curve()` can evaluate it directly.
+  - **Removed closed-length assert**: The old `len(xknots)==len(control)+1` assert was too restrictive for non-uniform closed mult (where the K distinct positions ≠ n+1). Removed.
+
+## v163
+- **`nurbs_elevate_degree()`**: Fixed fatal error when `mult=undef`. The assert message string was calling `len(mult)` and `len(knots)` unconditionally; in this OpenSCAD version `len(undef)` aborts execution. Guards added: `is_undef(mult) ? "undef" : len(mult)` and similarly for knots.  The ternary operator in OpenSCAD evaluates lazily, so `len()` is only called when the value is not undef.
+
+## v164
+- **`_elevate_once_closed()`**: Complete rewrite to fix geometrically incorrect degree elevation for all five closed test cases in `Examples/elevate_fails.scad`.
+  - **New signature**: `(ctrl, p, U_old)` — accepts the full periodic knot vector directly instead of `(ctrl, p, bar_knots, curr_mult)`.
+  - **U_new construction**: Decomposes `U_old` into PREFIX/ACTIVE/EXTENSION regions and applies `_increment_knot_mults(ACTIVE)` to double every distinct knot value's multiplicity. This preserves `a_new = a_old` and `b_new = b_old` (active domain unchanged) and correctly satisfies the B-spline degree elevation theorem. Previously, the code applied `_extend_knot_vector` to `xknots_new`, which shifted `b_new` by one step per elevation and caused active-domain mismatch.
+  - **Return format simplified**: Now returns `[new_ctrl, U_new, p+1]` (3 elements). `U_new` has length `n_new + 2*(p+1) + 1`; BOSL2's `_extend_knot_vector(U_new, 0, target)` returns `U_new` unchanged, so `nurbs_curve(type="closed")` evaluates with exactly the knot vector used to compute `Q`.
+  - **C_vals evaluation**: Greville abscissae of `U_new` lie within `[U_old[0], U_old[-1]]`, so the original curve is evaluated directly at each site without any domain-shifting. Removed the buggy two-step shift (`grev → [a_new,b_new] → [a_old,b_old]`) that could double-shift sites outside the valid range.
+  - **Removed**: `grev_raw`, `grev`, `grev_orig` shift logic, `true_bar`, `auto_m`, `curr_m`, `new_m`, `xknots_old`, `xknots_new`, `a_old`/`b_old`/`a_new`/`b_new` variables.
+- **`nurbs_elevate_degree()`**: Updated closed-type path to match new `_elevate_once_closed` interface.
+  - **`closed_U_old`**: New variable that computes the full periodic `U_old` from the user's `knots`/`mult` input for each input variant (no-knots/no-mult: uniform bar_knots; knots-only: pass through to `_extend_knot_vector`; mult-only or knots+mult: expand positions by multiplicities then extend). On recursive calls, `knots=U_new` (full vector) is passed; `_extend_knot_vector` returns it unchanged.
+  - **Removed**: `_curr_mult` parameter, `closed_mult0` variable, `r[3]`/`r[4]` threading for closed type.
+  - **Recursion simplified**: `nurbs_elevate_degree(r[0], r[2], r[1], type=type, times=times-1)` for all types (closed passes `r[1]=U_new` as `knots`; non-closed passes `r[1]=new_xknots`).

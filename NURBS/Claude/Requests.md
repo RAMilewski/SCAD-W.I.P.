@@ -550,3 +550,27 @@ For zero curvature, draw a shorter line that is the same width as the curve and 
 
 ## v156
 "Rewrite and consolidate docs for nurbs_elevate_degree (concise, no internals, continuity preservation). The docs suggest mult is never new — isn't that false in the closed case? Accept mult or a nurbs parameter list. In nurbs_interp docs just say result can be passed to nurbs_curve(); don't say dynamic is the default; don't say end_deriv refers to [n] index, use last(deriv). In arguments give minimal smooth= descriptions. Don't say 'C0 corner'/'corner joint'. Knot markers are green not purple; control polygon looks gray; no need to mention debug_nurbs(). Disable labels with control_index=false. Turn overlay list into bullet list. Is nurbs_interp_surface return type correct (mult at [4])? flat_edges= with closed type doesn't work — docs misleading? Clarify flat_end. No blank lines in Arguments."
+
+## v157
+Manual edit by adrianVmariano. See diff between v156 and v157 archives for full details.
+
+## v158
+"It looks like nurbs_elevate_degree doesn't really accept mult and knots compatibly with how nurbs_curve works, where you can give mult alone (uniformly spaced knots with multiplicity) or give knots, where mult acts to duplicate the knots. I wonder if we need to refactor nurbs_curve to separate the argument processing code from the core so that both versions can have identical behavior. For example, knots are not required to lie in [0,1] by the core code. nurbs_elevate_degree should accept times=0 and just return the input. Should we consider changing the calling convention from type='clamped'/type='closed' to closed=true/closed=false? Since you can request 'closed' but get 'clamped' I wonder about our existing convention. Basically it's like changing the input to describe the data point set rather than to (sort of?) describe the desired NURBS type output. What are the required degrees for the different smooth options? In one place it says degree 3 or higher and in another it says >=2. So which is correct? Correct the documentation to state this consistently. For nurbs_interp(), debug_nurbs_interp() and nurbs_interp_surface(), change the way of specifying whether we treat the point list as closed or not. Eliminate the type parameter and replace it with a closed parameter. When closed=true that is equivalent to the old type='closed' and when closed=false that corresponds to the old type='clamped'. For surfaces closed can be a single boolean or a pair of booleans. It's fine to leave 'clamped'/'closed' terminology elsewhere in the code when describing the type of nurbs being built, and nurbs_degree_elevate should continue to use the type argument---no change there. Update the docs everywhere to describe the new convention. The return from nurbs_interp() and nurbs_interp_surface() is currently a length 7 list which has the rotation as its final entry. Add an 8th entry to this return in both functions that gives the parametrization, u, for the interpolation. In cases where rotation has occurred, apply list_rotate so that u[0] corresponds to points[0]."
+
+## v159
+"I notice that the 8th return from nurbs_interp_surface says 'averaged parametrization vectors'. Does this mean those vectors don't necessarily correspond to the actual locations where the points appear? If that's the case can we get an actual full 2d array such that u[i][j] corresponds precisely to points[i][j]. nurbs_elevate_degree needs to be compatible with nurbs_curve for its input parameters. This means that it should accept knots by itself, mult by itself (uniform knots with multiplicity), or knots and mult together. Also knots need not be given in [0,1]. What is the best way to do this? Yes, check nurbs.scad first."
+
+## v160
+"nurbs_elevate_degree missed a case handled by nurbs_curve, namely neither mult nor knots provided, in which case knots are simply uniform with multiplicity 1 everywhere. Hmmm. Actually tried testing a case and it failed. In this case the elevated curve doesn't match the original: [test case with mpts and mult=[1,1,1,2,1,1,1,1]]"
+
+## v161
+"mpts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]]; knots = [0,1,3,5,9,13,14,19,21]; e = nurbs_elevate_degree(mpts,2,knots=knots); Above case fails with a 'singular system (should not happen)' error. If I normalize the knots by dividing by 21 then the above case works. So it seems claude was confused about knots outside of [0,1] working in its elevation code. Claude didn't give an error when length(mult) doesn't match length(knots) in the elevation code."
+
+## v162
+"nurbs_elevate_degree() fails in most cases. See Examples/elevate_fails.scad for examples."
+
+## v163
+"All of those test cases now generate the error: WARNING: len() parameter could not be converted: argument 0: expected string, found undefined (undef) ... Execution aborted"
+
+## v164
+"Fix nurbs_elevate_degree() for type='closed' so all five closed test cases in Examples/elevate_fails.scad pass (approx(c1,c2) returns true for all five). Currently they run without error but give geometrically wrong results."
