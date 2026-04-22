@@ -574,3 +574,15 @@ Manual edit by adrianVmariano. See diff between v156 and v157 archives for full 
 
 ## v164
 "Fix nurbs_elevate_degree() for type='closed' so all five closed test cases in Examples/elevate_fails.scad pass (approx(c1,c2) returns true for all five). Currently they run without error but give geometrically wrong results."
+
+## v165
+"Change the way users select closed vs clamped for surfaces. Instead of closed=[true,false], use row_wrap=true, col_wrap=false. Also: the examples in elevate_fails.scad are now failing with BOSL2 assertion errors (knot vector wrong length) introduced by the v164 changes."
+
+## v166
+"WARNING: Ignoring unknown variable 'type' in file nurbs_interp_165.scad, line 2998. Make sure that you correctly handle the new input method using row_wrap and col_wrap while still producing the old style type listed in the nurbs parameter list. A simple way to do this would be to revert back to the last version that accepted type= and simply add a processing step that computes the type from row_wrap and col_wrap. Then all the internals can remain the same."
+
+## v167
+"rename u_edge1_deriv to first_row_deriv, u_edge2_deriv to last_row_deriv, v_edge1_deriv to first_col_deriv, and v_edge2_deriv to last_col_deriv. Check all the examples and docs to ensure all recent name changes were made correctly."
+
+## v168
+"mpts = [[5,0],...]; knots = [0,1,3,5,9,13,14,19,21,24,29]/29; e = nurbs_elevate_degree(mpts,2,knots=knots,times=1,type='closed'); c1 = nurbs_curve(mpts,2,knots=knots,splinesteps=16,type='closed'); c2 = nurbs_curve(e,splinesteps=16); echo(approx(c1,c2)); Even the above case with knots and times=1 fails. All examples with type 'closed' now run and produce a result but the curve does not agree. It appears like the discrepancy is towards the end of the curve. Could it be related to the knot structure which has all duplicated knots except 0 and 1, which are not duplicated? I thought you needed to use the mult= parameter to make the closed case work correctly because just duplicating the knots doesn't work properly around the periodic joint."

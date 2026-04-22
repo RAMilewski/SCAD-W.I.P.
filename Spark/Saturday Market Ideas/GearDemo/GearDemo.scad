@@ -1,5 +1,6 @@
 include <BOSL2/std.scad>
 include <BOSL2/gears.scad>
+include <BOSL2/screws.scad>
 
 $fn = 144;
 mod = 1;
@@ -12,13 +13,14 @@ arrow_shift = 180/teeth;
 z_text = 0.5;
 font = "Arial Black";    // [Arial Black, Lobster, Phosphate, Optima]
 
-part = "gear90";  // [gear90, gear45, gear30, ring, rack, all]
+part = "gear90";  // [gear90, gear45, gear30, ring, rack, knob, all]
 
 if (part == "gear90") gear90(); 
 if (part == "gear45") gear45(); 
 if (part == "gear30") gear30();
 if (part == "ring")   ring();
-if (part == "rack")   rack1();   
+if (part == "rack")   rack1();
+if (part == "knob")   knob();   
 if (part == "all") {
     left(65) gear90(); 
     right(65) back(10) { 
@@ -81,5 +83,14 @@ module ring() {
     }
 }
 
+
+module knob() {
+    diff(){
+        cyl(h = 10, d = 15, texture = "wave_ribs", tex_depth = 0.25, tex_reps = [20,1],anchor = BOT){
+                position(TOP) screw_hole("M3,10", head = "socket", anchor = TOP);
+                position(BOT) tag("remove") nut_trap_inline(3, "M3", anchor = BOT);
+        }
+    }
+}
 
 /* */

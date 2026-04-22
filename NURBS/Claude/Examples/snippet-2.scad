@@ -4,6 +4,6 @@
        [[-50,-16, 0], [-16,-16,  35], [ 16,-16,  40], [30,-16, 15], [50,-16, 0]],
        [[-50,-50,  0], [-16,-50,  0], [ 16,-50,  0], [30,-50,  0], [50,-50,  0]],
    ];
-x = nurbs_interp_vnf(gdata, 3, splinesteps=32,end_normal=undef,method="centripetal",type=["clamped","clamped"],flat_edges=1,v_edges=[2],u_edges=[2]);
+x = nurbs_interp_vnf(gdata, 3, splinesteps=32,normal2=undef,method="centripetal",type=["clamped","clamped"],flat_edges=1,v_edges=[2],u_edges=[2]);
 vnf_polyhedron(x);
 

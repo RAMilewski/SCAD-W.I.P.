@@ -1,6 +1,4 @@
 
-
-
 //   knots only, not in [0,1]  // fails with wrong result
 
 /*

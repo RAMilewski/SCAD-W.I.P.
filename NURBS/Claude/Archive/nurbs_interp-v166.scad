@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 168
+// Development Version 166
 //////////////////////////////////////////////////////////////////////
 
 
@@ -951,20 +951,15 @@ function _elevate_once_closed(ctrl, p, bar_knots, curr_mult=undef) =
         a_new = U_new[p_new],
         b_new = U_new[n_new + p_new],
 
-        // Greville abscissae for the periodic collocation.
-        // _greville(U_new, p_new) returns n_new+p_new values; we use the first n_new.
-        // Sites below a_new are wrapped UPWARD by +T (not skipped), landing near b_new
-        // where they activate the wrap-around basis functions N_{n_new..n_new+p_new-1}.
-        // This satisfies the Schoenberg-Whitney condition for j < p_new (the periodic
-        // basis functions N_j^periodic = N_j + N_{j+n_new} are non-zero only on
-        // [U_new[j],U_new[j+p_new+1]] ∪ [U_new[j+n_new],U_new[j+n_new+p_new+1]],
-        // and the "low" sites don't cover the wrap region without the +T shift).
+        // Greville abscissae.  _greville(U_new, p_new) returns n_new+p_new values
+        // (indices 0..n_new+p_new-1).  The first few may lie below a_new and, if
+        // shifted by +T, would coincide with later unshifted sites (singular matrix).
+        // Select n_new consecutive sites starting from the first one ≥ a_new.
         grev_all = _greville(U_new, p_new),
-        grev_raw = [for (i = [0:1:n_new - 1]) grev_all[i]],
-        grev     = [for (g = grev_raw)
-                        g < a_new - 1e-12 ? g + T
-                      : g > b_new + 1e-12 ? g - T
-                      : g],
+        start    = sum([for (g = grev_all) g < a_new - 1e-12 ? 1 : 0]),
+        grev_raw = [for (i = [start:1:start + n_new - 1]) grev_all[i]],
+        // Wrap any sites above b_new back into [a_new, b_new) by subtracting T.
+        grev     = [for (g = grev_raw) g > b_new + 1e-12 ? g - T : g],
 
         // Extended control points for periodic curve evaluation.
         ext_ctrl = [each ctrl, for (k = [0:1:p-1]) ctrl[k]],
@@ -2662,7 +2657,7 @@ function _pts_plane_normal(pts, eps=1e-10) =
       is_undef(nc) ? undef : nc;
 
 
-// Used to auto-generate first_row_deriv / last_row_deriv / first_col_deriv / last_col_deriv
+// Used to auto-generate u_edge1_deriv / u_edge2_deriv / v_edge1_deriv / v_edge2_deriv
 // when normal1=/normal2= or flat_end1=/flat_end2= is supplied.
 //
 // Apex edge (all boundary points identical):
@@ -2795,13 +2790,13 @@ function _surface_params_v(points, method, closed_v) =
 //
 // Usage: As a function, returns a NURBS parameter list:
 //   result = nurbs_interp_surface(points, degree, [method=], [row_wrap=], [col_wrap=], [normal1=], [normal2=], [flat_edges=], [flat_end1=], [flat_end2=],
-//                [u_edges=], [v_edges=], [extra_pts=], [smooth=], [first_row_deriv=], [last_row_deriv=], [first_col_deriv=], [last_col_deriv=]);
+//                [u_edges=], [v_edges=], [extra_pts=], [smooth=], [u_edge1_deriv=], [u_edge2_deriv=], [v_edge1_deriv=], [v_edge2_deriv=]);
 // Usage: As a module, renders the surface directly:
 //   nurbs_interp_surface(points, degree, [splinesteps=], [method=], [row_wrap=], [col_wrap=],
 //                [style=], [reverse=], [triangulate=],
 //                [caps=], [cap1=], [cap2=],
-//                [first_row_deriv=], [last_row_deriv=],
-//                [first_col_deriv=], [last_col_deriv=],
+//                [u_edge1_deriv=], [u_edge2_deriv=],
+//                [v_edge1_deriv=], [v_edge2_deriv=],
 //                [normal1=], [normal2=],
 //                [flat_edges=], [flat_end1=], [flat_end2=],
 //                [u_edges=], [v_edges=],
@@ -2854,8 +2849,8 @@ function _surface_params_v(points, method, closed_v) =
 //   a scalar or you can give a list of values corresponding to each point in the edge.  The two ends can be controlled
 //   independently and you can also apply a flat end at one end and a normal constraint at the other.
 //   .
-//   Advanced: boundary partial-derivative constraints** &mdash; `first_row_deriv=`,
-//   `last_row_deriv=`, `first_col_deriv=`, and `last_col_deriv=` enforce specific first
+//   Advanced: boundary partial-derivative constraints** &mdash; `u_edge1_deriv=`,
+//   `u_edge2_deriv=`, `v_edge1_deriv=`, and `v_edge2_deriv=` enforce specific first
 //   partial derivatives along each of the four boundary edges.  Each parameter
 //   accepts either a single vector (applied uniformly to every point on that edge)
 //   or a list of vectors, one per point on the edge.  Vectors are scaled by the
@@ -2905,10 +2900,10 @@ function _surface_params_v(points, method, closed_v) =
 //   flat_end2 = Set inward derivatives for the second edge of a mixed "closed"/"clamped" surface.  The specified edge must be coplanar and nondegenerate.  Can be a scalar or a list of values for each point on the edge.  Default: undef
 //   u_edges = Row index (or list of indices) where an edge or crease runs in the v-direction.  Default: undef
 //   v_edges = Column index (or list of indices) where an edge or crease runs in the u-direction.  Default: undef
-//   first_row_deriv = Partial-derivative constraint $\partial S/\partial u$ along the u=0 boundary (first row).  Single vector applied to all columns, or a list of vectors to apply to each point in the column.  Requires type in the u direction to be `"clamped"`.  Default: undef
-//   last_row_deriv = Partial-derivative constraint $\partial S/\partial u$ along the u=1 boundary (last row).   Single vector applied to all columns, or a list of vectors to apply to each point in the column.  Requires type in the u direction to be `"clamped"`.  Default: undef
-//   first_col_deriv = Partial-derivative constraint $\partial S/\partial v$ along the v=0 boundary (first column).  Single vector applied to all rows, or a list of vectors to apply to each point in the column.  Requires type in the v direction to be `"clamped"`.  Default: `undef`
-//   last_col_deriv = Partial-derivative constraint $\partial S/\partial v$ along the v=1 boundary (last column).   Single vector applied to all rows, or a list of vectors to apply to each point in the column.  Requires type in the v direction to be `"clamped"`.  Default: `undef`
+//   u_edge1_deriv = Partial-derivative constraint $\partial S/\partial u$ along the u=0 boundary (first row).  Single vector applied to all columns, or a list of vectors to apply to each point in the column.  Requires type in the u direction to be `"clamped"`.  Default: undef
+//   u_edge2_deriv = Partial-derivative constraint $\partial S/\partial u$ along the u=1 boundary (last row).   Single vector applied to all columns, or a list of vectors to apply to each point in the column.  Requires type in the u direction to be `"clamped"`.  Default: undef
+//   v_edge1_deriv = Partial-derivative constraint $\partial S/\partial v$ along the v=0 boundary (first column).  Single vector applied to all rows, or a list of vectors to apply to each point in the column.  Requires type in the v direction to be `"clamped"`.  Default: `undef`
+//   v_edge2_deriv = Partial-derivative constraint $\partial S/\partial v$ along the v=1 boundary (last column).   Single vector applied to all rows, or a list of vectors to apply to each point in the column.  Requires type in the v direction to be `"clamped"`.  Default: `undef`
 //   splinesteps = (Module form only) Steps per knot span per direction when building the mesh.  Default: `16`
 //   style = (Module form only) Triangulation style passed to `nurbs_vnf()`.  Default: `"default"`
 //   reverse = (Module form only) If true, reverses face normals.  Default: `false`
@@ -2921,8 +2916,8 @@ function _surface_params_v(points, method, closed_v) =
 
 function nurbs_interp_surface(points, degree, method="centripetal",
                               row_wrap=false, col_wrap=false,
-                              first_row_deriv=undef, last_row_deriv=undef,
-                              first_col_deriv=undef, last_col_deriv=undef,
+                              u_edge1_deriv=undef, u_edge2_deriv=undef,
+                              v_edge1_deriv=undef, v_edge2_deriv=undef,
                               normal1=undef, normal2=undef,
                               flat_end1=undef, flat_end2=undef,
                               flat_edges=undef,
@@ -2960,8 +2955,8 @@ function nurbs_interp_surface(points, degree, method="centripetal",
         )
         let(inner = nurbs_interp_surface(new_pts, degree, method=method,
                 row_wrap=(type_u == "closed"), col_wrap=false,
-                first_row_deriv=first_row_deriv, last_row_deriv=last_row_deriv,
-                first_col_deriv=first_col_deriv, last_col_deriv=last_col_deriv,
+                u_edge1_deriv=u_edge1_deriv, u_edge2_deriv=u_edge2_deriv,
+                v_edge1_deriv=v_edge1_deriv, v_edge2_deriv=v_edge2_deriv,
                 normal1=normal1, normal2=normal2,
                 flat_end1=flat_end1, flat_end2=flat_end2, flat_edges=flat_edges,
                 u_edges=u_edges, v_edges=adj_ve,
@@ -2986,8 +2981,8 @@ function nurbs_interp_surface(points, degree, method="centripetal",
         )
         let(inner = nurbs_interp_surface(new_pts, degree, method=method,
                 row_wrap=false, col_wrap=(type_v == "closed"),
-                first_row_deriv=first_row_deriv, last_row_deriv=last_row_deriv,
-                first_col_deriv=first_col_deriv, last_col_deriv=last_col_deriv,
+                u_edge1_deriv=u_edge1_deriv, u_edge2_deriv=u_edge2_deriv,
+                v_edge1_deriv=v_edge1_deriv, v_edge2_deriv=v_edge2_deriv,
                 normal1=normal1, normal2=normal2,
                 flat_end1=flat_end1, flat_end2=flat_end2, flat_edges=flat_edges,
                 u_edges=adj_ue, v_edges=v_edges,
@@ -3010,19 +3005,19 @@ function nurbs_interp_surface(points, degree, method="centripetal",
         // Scalar-vector promotion: if the caller passes a single vector instead of
         // a list of vectors, repeat() it to the required length.  A single vector
         // is detected as a list whose first element is a number, not a list.
-        first_row_deriv = is_undef(first_row_deriv) || is_list(first_row_deriv[0]) ? first_row_deriv
-                      : repeat(first_row_deriv, n_cols),
-        last_row_deriv = is_undef(last_row_deriv) || is_list(last_row_deriv[0]) ? last_row_deriv
-                      : repeat(last_row_deriv, n_cols),
-        first_col_deriv = is_undef(first_col_deriv) || is_list(first_col_deriv[0]) ? first_col_deriv
-                      : repeat(first_col_deriv, n_rows),
-        last_col_deriv = is_undef(last_col_deriv) || is_list(last_col_deriv[0]) ? last_col_deriv
-                      : repeat(last_col_deriv, n_rows),
+        u_edge1_deriv = is_undef(u_edge1_deriv) || is_list(u_edge1_deriv[0]) ? u_edge1_deriv
+                      : repeat(u_edge1_deriv, n_cols),
+        u_edge2_deriv = is_undef(u_edge2_deriv) || is_list(u_edge2_deriv[0]) ? u_edge2_deriv
+                      : repeat(u_edge2_deriv, n_cols),
+        v_edge1_deriv = is_undef(v_edge1_deriv) || is_list(v_edge1_deriv[0]) ? v_edge1_deriv
+                      : repeat(v_edge1_deriv, n_rows),
+        v_edge2_deriv = is_undef(v_edge2_deriv) || is_list(v_edge2_deriv[0]) ? v_edge2_deriv
+                      : repeat(v_edge2_deriv, n_rows),
         // Treat an all-undef derivative list the same as undef.
-        has_sud = !is_undef(first_row_deriv) && num_defined(first_row_deriv) > 0,
-        has_eud = !is_undef(last_row_deriv) && num_defined(last_row_deriv) > 0,
-        has_svd = !is_undef(first_col_deriv) && num_defined(first_col_deriv) > 0,
-        has_evd = !is_undef(last_col_deriv) && num_defined(last_col_deriv) > 0,
+        has_sud = !is_undef(u_edge1_deriv) && num_defined(u_edge1_deriv) > 0,
+        has_eud = !is_undef(u_edge2_deriv) && num_defined(u_edge2_deriv) > 0,
+        has_svd = !is_undef(v_edge1_deriv) && num_defined(v_edge1_deriv) > 0,
+        has_evd = !is_undef(v_edge2_deriv) && num_defined(v_edge2_deriv) > 0,
         has_sn  = !is_undef(normal1),
         has_en  = !is_undef(normal2),
         // normal1/normal2: apex edges only (all boundary points identical, e.g. cone tip).
@@ -3109,35 +3104,35 @@ function nurbs_interp_surface(points, degree, method="centripetal",
            "nurbs_interp_surface: u-direction derivative/normal/flat_end/flat_edges params require type_u=\"clamped\"")
     assert(!(has_svd || has_evd || has_svn || has_evn || has_fesv || has_feev || has_fe1_v || has_fe2_v) || type_v == "clamped",
            "nurbs_interp_surface: v-direction derivative/normal/flat_end/flat_edges params require type_v=\"clamped\"")
-    assert(!has_sud || len(first_row_deriv) == n_cols,
-           str("nurbs_interp_surface: first_row_deriv must have ", n_cols,
-               " entries (one per column), got ", is_undef(first_row_deriv) ? 0 : len(first_row_deriv)))
-    assert(!has_eud || len(last_row_deriv) == n_cols,
-           str("nurbs_interp_surface: last_row_deriv must have ", n_cols,
-               " entries (one per column), got ", is_undef(last_row_deriv) ? 0 : len(last_row_deriv)))
-    assert(!has_svd || len(first_col_deriv) == n_rows,
-           str("nurbs_interp_surface: first_col_deriv must have ", n_rows,
-               " entries (one per row), got ", is_undef(first_col_deriv) ? 0 : len(first_col_deriv)))
-    assert(!has_evd || len(last_col_deriv) == n_rows,
-           str("nurbs_interp_surface: last_col_deriv must have ", n_rows,
-               " entries (one per row), got ", is_undef(last_col_deriv) ? 0 : len(last_col_deriv)))
+    assert(!has_sud || len(u_edge1_deriv) == n_cols,
+           str("nurbs_interp_surface: u_edge1_deriv must have ", n_cols,
+               " entries (one per column), got ", is_undef(u_edge1_deriv) ? 0 : len(u_edge1_deriv)))
+    assert(!has_eud || len(u_edge2_deriv) == n_cols,
+           str("nurbs_interp_surface: u_edge2_deriv must have ", n_cols,
+               " entries (one per column), got ", is_undef(u_edge2_deriv) ? 0 : len(u_edge2_deriv)))
+    assert(!has_svd || len(v_edge1_deriv) == n_rows,
+           str("nurbs_interp_surface: v_edge1_deriv must have ", n_rows,
+               " entries (one per row), got ", is_undef(v_edge1_deriv) ? 0 : len(v_edge1_deriv)))
+    assert(!has_evd || len(v_edge2_deriv) == n_rows,
+           str("nurbs_interp_surface: v_edge2_deriv must have ", n_rows,
+               " entries (one per row), got ", is_undef(v_edge2_deriv) ? 0 : len(v_edge2_deriv)))
     // normal1/normal2 assertions: apex edges only.
     assert(!has_sn || (start_u_degen || start_v_degen),
            "nurbs_interp_surface: normal1 requires a degenerate start edge (first row or first column must be all the same point)")
     assert(!has_en || (end_u_degen || end_v_degen),
            "nurbs_interp_surface: normal2 requires a degenerate end edge (last row or last column must be all the same point)")
     assert(!has_sn || !(start_u_degen && start_v_degen),
-           "nurbs_interp_surface: normal1 is ambiguous — both u=0 and v=0 edges are degenerate; use first_row_deriv or first_col_deriv explicitly")
+           "nurbs_interp_surface: normal1 is ambiguous — both u=0 and v=0 edges are degenerate; use u_edge1_deriv or v_edge1_deriv explicitly")
     assert(!has_en || !(end_u_degen && end_v_degen),
-           "nurbs_interp_surface: normal2 is ambiguous — both u=1 and v=1 edges are degenerate; use last_row_deriv or last_col_deriv explicitly")
+           "nurbs_interp_surface: normal2 is ambiguous — both u=1 and v=1 edges are degenerate; use u_edge2_deriv or v_edge2_deriv explicitly")
     assert(!(has_sun && has_sud),
-           "nurbs_interp_surface: normal1 resolves to u-direction but first_row_deriv was also given")
+           "nurbs_interp_surface: normal1 resolves to u-direction but u_edge1_deriv was also given")
     assert(!(has_eun && has_eud),
-           "nurbs_interp_surface: normal2 resolves to u-direction but last_row_deriv was also given")
+           "nurbs_interp_surface: normal2 resolves to u-direction but u_edge2_deriv was also given")
     assert(!(has_svn && has_svd),
-           "nurbs_interp_surface: normal1 resolves to v-direction but first_col_deriv was also given")
+           "nurbs_interp_surface: normal1 resolves to v-direction but v_edge1_deriv was also given")
     assert(!(has_evn && has_evd),
-           "nurbs_interp_surface: normal2 resolves to v-direction but last_col_deriv was also given")
+           "nurbs_interp_surface: normal2 resolves to v-direction but v_edge2_deriv was also given")
     // flat_end1/flat_end2 assertions.
     // Direction is determined by the clamped type; surface must be mixed clamped/closed.
     assert(!has_fe1 || (type_u == "clamped") != (type_v == "clamped"),
@@ -3153,13 +3148,13 @@ function nurbs_interp_surface(points, degree, method="centripetal",
            ? "nurbs_interp_surface: flat_end2 requires the u=1 boundary (last row) to be coplanar and non-collinear"
            : "nurbs_interp_surface: flat_end2 requires the v=1 boundary (last column) to be coplanar and non-collinear. If your last row is coplanar, swap type order (e.g. [\"clamped\",\"closed\"] instead of [\"closed\",\"clamped\"])")
     assert(!(has_fe1_u && has_sud),
-           "nurbs_interp_surface: flat_end1 conflicts with first_row_deriv")
+           "nurbs_interp_surface: flat_end1 conflicts with u_edge1_deriv")
     assert(!(has_fe2_u && has_eud),
-           "nurbs_interp_surface: flat_end2 conflicts with last_row_deriv")
+           "nurbs_interp_surface: flat_end2 conflicts with u_edge2_deriv")
     assert(!(has_fe1_v && has_svd),
-           "nurbs_interp_surface: flat_end1 conflicts with first_col_deriv")
+           "nurbs_interp_surface: flat_end1 conflicts with v_edge1_deriv")
     assert(!(has_fe2_v && has_evd),
-           "nurbs_interp_surface: flat_end2 conflicts with last_col_deriv")
+           "nurbs_interp_surface: flat_end2 conflicts with v_edge2_deriv")
     assert(!(has_fe1_u && has_fesu),
            "nurbs_interp_surface: flat_end1 conflicts with flat_edges[0] on same edge")
     assert(!(has_fe2_u && has_feeu),
@@ -3176,13 +3171,13 @@ function nurbs_interp_surface(points, degree, method="centripetal",
     assert(!has_fe || (is_list(fe_norm) && len(fe_norm) == 4),
            "nurbs_interp_surface: flat_edges must be a scalar or 4-element list [start_u, end_u, start_v, end_v]")
     assert(!(has_fesu && has_sud),
-           "nurbs_interp_surface: flat_edges[0] (start_u) conflicts with first_row_deriv")
+           "nurbs_interp_surface: flat_edges[0] (start_u) conflicts with u_edge1_deriv")
     assert(!(has_feeu && has_eud),
-           "nurbs_interp_surface: flat_edges[1] (end_u) conflicts with last_row_deriv")
+           "nurbs_interp_surface: flat_edges[1] (end_u) conflicts with u_edge2_deriv")
     assert(!(has_fesv && has_svd),
-           "nurbs_interp_surface: flat_edges[2] (start_v) conflicts with first_col_deriv")
+           "nurbs_interp_surface: flat_edges[2] (start_v) conflicts with v_edge1_deriv")
     assert(!(has_feev && has_evd),
-           "nurbs_interp_surface: flat_edges[3] (end_v) conflicts with last_col_deriv")
+           "nurbs_interp_surface: flat_edges[3] (end_v) conflicts with v_edge2_deriv")
     assert(!(has_fesu && has_sun),
            "nurbs_interp_surface: flat_edges[0] (start_u) conflicts with normal1 on same edge")
     assert(!(has_feeu && has_eun),
@@ -3281,21 +3276,21 @@ function nurbs_interp_surface(points, degree, method="centripetal",
         //   for the start boundary; negating gives the correct inward direction.
         //   flat_end2 uses the same function without negation (end boundary sign matches).
         //   Periodic tangent differences used when the cross-direction is "closed".
-        first_row_deriv_eff = has_sun
+        u_edge1_deriv_eff = has_sun
             ? _apex_tangents(normal1, points[0][0], points[1])
             : has_fe1_u
             ? [for (v = _coplanar_inward_tangents(flat_end1, points[0], points[1],
                                         periodic=(type_v == "closed"))) -v]
             : has_fesu ? flat_su_der
-            : first_row_deriv,
-        last_row_deriv_eff = has_eun
+            : u_edge1_deriv,
+        u_edge2_deriv_eff = has_eun
             ? [for (v = _apex_tangents(normal2, points[n_rows-1][0], points[n_rows-2])) -v]
             : has_fe2_u
             ? _coplanar_inward_tangents(flat_end2, points[n_rows-1], points[n_rows-2],
                                         periodic=(type_v == "closed"))
             : has_feeu ? flat_eu_der
-            : last_row_deriv,
-        first_col_deriv_eff = has_svn
+            : u_edge2_deriv,
+        v_edge1_deriv_eff = has_svn
             ? _apex_tangents(normal1, points[0][0],
                              [for (k = [0:1:n_rows-1]) points[k][1]])
             : has_fe1_v
@@ -3304,8 +3299,8 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                                         [for (k = [0:1:n_rows-1]) points[k][1]],
                                         periodic=(type_u == "closed"))) -v]
             : has_fesv ? flat_sv_der
-            : first_col_deriv,
-        last_col_deriv_eff = has_evn
+            : v_edge1_deriv,
+        v_edge2_deriv_eff = has_evn
             ? [for (v = _apex_tangents(normal2, points[0][n_cols-1],
                                        [for (k = [0:1:n_rows-1]) points[k][n_cols-2]])) -v]
             : has_fe2_v
@@ -3314,7 +3309,7 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                                         [for (k = [0:1:n_rows-1]) points[k][n_cols-2]],
                                         periodic=(type_u == "closed"))
             : has_feev ? flat_ev_der
-            : last_col_deriv,
+            : v_edge2_deriv,
         has_sud_eff = has_sud || has_sun || has_fesu || has_fe1_u,
         has_eud_eff = has_eud || has_eun || has_feeu || has_fe2_u,
         has_svd_eff = has_svd || has_svn || has_fesv || has_fe1_v,
@@ -3398,10 +3393,10 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                 _solve_with_edges(v_edge_sys, points[k],
                                   v_params, ve_norm, p_v,
                     start_deriv = has_svd_eff
-                        ? _force_deriv_dim(first_col_deriv_eff[k], dim) * v_path_lens[k]
+                        ? _force_deriv_dim(v_edge1_deriv_eff[k], dim) * v_path_lens[k]
                         : undef,
                     end_deriv = has_evd_eff
-                        ? _force_deriv_dim(last_col_deriv_eff[k], dim) * v_path_lens[k]
+                        ? _force_deriv_dim(v_edge2_deriv_eff[k], dim) * v_path_lens[k]
                         : undef,
                     smooth = smooth_v)]
             : undef,
@@ -3411,10 +3406,10 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                 let(rhs = concat(
                         points[k],
                         has_svd_eff
-                            ? [_force_deriv_dim(first_col_deriv_eff[k], dim) * v_path_lens[k]]
+                            ? [_force_deriv_dim(v_edge1_deriv_eff[k], dim) * v_path_lens[k]]
                             : [],
                         has_evd_eff
-                            ? [_force_deriv_dim(last_col_deriv_eff[k], dim) * v_path_lens[k]]
+                            ? [_force_deriv_dim(v_edge2_deriv_eff[k], dim) * v_path_lens[k]]
                             : []))
                 ns_v ? _nullspace_solve(R_reg_v, N_v, rhs)
                      : linear_solve(N_v, rhs)
@@ -3432,11 +3427,11 @@ function nurbs_interp_surface(points, degree, method="centripetal",
         zero_v = repeat(0, dim),
         _su_der_data = has_sud_eff
             ? [for (l = [0:1:n_cols-1])
-                _force_deriv_dim(first_row_deriv_eff[l], dim) * u_path_lens[l]]
+                _force_deriv_dim(u_edge1_deriv_eff[l], dim) * u_path_lens[l]]
             : undef,
         _eu_der_data = has_eud_eff
             ? [for (l = [0:1:n_cols-1])
-                _force_deriv_dim(last_row_deriv_eff[l], dim) * u_path_lens[l]]
+                _force_deriv_dim(u_edge2_deriv_eff[l], dim) * u_path_lens[l]]
             : undef,
         T_u_start = has_sud_eff
                   ? has_ve
@@ -3538,8 +3533,8 @@ module nurbs_interp_surface(points, degree,
                             row_wrap=false, col_wrap=false,
                             style="default", reverse=false, triangulate=false,
                             caps=undef, cap1=undef, cap2=undef,
-                            first_row_deriv=undef, last_row_deriv=undef,
-                            first_col_deriv=undef, last_col_deriv=undef,
+                            u_edge1_deriv=undef, u_edge2_deriv=undef,
+                            v_edge1_deriv=undef, v_edge2_deriv=undef,
                             normal1=undef, normal2=undef,
                             flat_end1=undef, flat_end2=undef,
                             flat_edges=undef,
@@ -3548,8 +3543,8 @@ module nurbs_interp_surface(points, degree,
                             data_color="red", data_size=0) {
     result = nurbs_interp_surface(points, degree,
                  method=method, row_wrap=row_wrap, col_wrap=col_wrap,
-                 first_row_deriv=first_row_deriv, last_row_deriv=last_row_deriv,
-                 first_col_deriv=first_col_deriv, last_col_deriv=last_col_deriv,
+                 u_edge1_deriv=u_edge1_deriv, u_edge2_deriv=u_edge2_deriv,
+                 v_edge1_deriv=v_edge1_deriv, v_edge2_deriv=v_edge2_deriv,
                  normal1=normal1, normal2=normal2,
                  flat_end1=flat_end1, flat_end2=flat_end2,
                  flat_edges=flat_edges,

@@ -12,8 +12,8 @@ include <../nurbs_interp.scad>
   prismoid(size1 = [120,120], size2 = [100,100], h = 10);
   up(10)
   debug_nurbs_interp_surface(data, 3, splinesteps=16,
-        start_u_der=[0,-1,1],
-        end_u_der=[0,-1,-1],
-        start_v_der=[1,0,1],
-        end_v_der=[1,0,-1]                             
+        first_row_deriv=[0,-1,1],
+        last_row_deriv=[0,-1,-1],
+        first_col_deriv=[1,0,1],
+        last_col_deriv=[1,0,-1]                             
      );

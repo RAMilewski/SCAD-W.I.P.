@@ -672,3 +672,35 @@
   - **`closed_U_old`**: New variable that computes the full periodic `U_old` from the user's `knots`/`mult` input for each input variant (no-knots/no-mult: uniform bar_knots; knots-only: pass through to `_extend_knot_vector`; mult-only or knots+mult: expand positions by multiplicities then extend). On recursive calls, `knots=U_new` (full vector) is passed; `_extend_knot_vector` returns it unchanged.
   - **Removed**: `_curr_mult` parameter, `closed_mult0` variable, `r[3]`/`r[4]` threading for closed type.
   - **Recursion simplified**: `nurbs_elevate_degree(r[0], r[2], r[1], type=type, times=times-1)` for all types (closed passes `r[1]=U_new` as `knots`; non-closed passes `r[1]=new_xknots`).
+  - **Note (v165 follow-up)**: The v164 approach of returning `U_new` (full vector, length `n_new+2*p_new+1`) as the `knots` field triggered BOSL2's closed-knot assertion (`len(bar_knots) must equal n+1`). Reverted in v165.
+
+## v165
+- **`_elevate_once_closed()`**: Reverted to bar_knots-based approach (signature `(ctrl, p, bar_knots, curr_mult=undef)`) and fixed the actual geometry bug: **Greville site selection**.
+  - **Root cause**: `_greville(U_new, p_new)` returns `n_new+p_new` values.  The first few lie below `a_new`; when shifted by `+T` they coincide with later unshifted sites (exact duplicate rows → singular collocation matrix for all closed test cases).
+  - **Fix**: Compute `start = count(grev_all[i] < a_new)` and take `grev_all[start..start+n_new-1]` instead of `grev_all[0..n_new-1]`.  Sites above `b_new` are wrapped by `-T`.  This guarantees `n_new` distinct sites within `[a_new, b_new)` with no coincidences.
+  - **`U_old`/`U_new`**: Computed via `_extend_knot_vector(xknots_old/new, ...)` (BOSL2-compatible).  Returns `[Q, xknots_new, p_new]` (3 elements) so BOSL2's `nurbs_curve(type="closed")` receives the correct bar_knots format.
+  - **Removed**: `grev_orig` shift, `a_old`/`b_old` variables (active domains are always equal), `true_bar`/`new_m` return elements (simplified to 3).
+- **`nurbs_elevate_degree()`**: Restored `closed_mult0 = mult` (user's mult for first call; `undef` in recursive calls so auto-detect picks up mults from `xknots_new`).  Recursive call passes `r[1]=xknots_new` as bar_knots.
+- **`nurbs_interp_surface()`** function and module: Replaced `closed=` parameter with `row_wrap=false, col_wrap=false`.
+  - `row_wrap=true` wraps the u-direction (joining first and last rows into a smooth closed loop).
+  - `col_wrap=true` wraps the v-direction (joining first and last columns).
+  - Scalar `closed=true/false` and 2-vector `closed=[u,v]` syntax removed.
+  - Updated all doc comments, usage examples, recursive internal calls, and module form.
+
+## v166
+- **`nurbs_interp_surface()` bugfix**: Removed two stale `type_u`/`type_v` lines from the "normal path" inner `let()` block that referenced an undefined variable `type` (leftover from the old `type=` API). The outer `let()` block already defines `type_u`/`type_v` correctly from `row_wrap`/`col_wrap`. Eliminates `WARNING: Ignoring unknown variable "type"` at line 2998.
+
+## v167
+- **Parameter rename**: `nurbs_interp_surface()` boundary derivative parameters renamed for clarity:
+  - `u_edge1_deriv` → `first_row_deriv` (∂S/∂u at u=0, first row)
+  - `u_edge2_deriv` → `last_row_deriv` (∂S/∂u at u=1, last row)
+  - `v_edge1_deriv` → `first_col_deriv` (∂S/∂v at v=0, first column)
+  - `v_edge2_deriv` → `last_col_deriv` (∂S/∂v at v=1, last column)
+  - All 72 occurrences renamed (doc comments, function signatures, internal usage).
+  - Updated stale parameter names in `Examples/edgetest.scad`, `Examples/edgetest2.scad`, `Examples/snippet-2.scad`, `snippet-1.scad`, and `Bugs/degree3bug.scad` (`end_normal` → `normal2`, `start_u_der` → `first_row_deriv`, etc.).
+
+## v168
+- **`_elevate_once_closed` bugfix**: Fixed Greville site selection for periodic B-spline collocation.
+  - **Root cause**: The old code used a `start` offset to skip Greville sites below `a_new`, which meant no site fell in the wrap-around region `[b_new-T, b_new]`. The wrap-around basis functions `N_{n_new..n_new+p_new-1}` (which constrain `Q[0..p_new-1]` via the periodic extension) had near-zero coefficients in only one collocation equation, making `Q[0]` numerically ill-determined. This produced a geometrically wrong curve near the period boundary — visible as a discrepancy "towards the end of the curve."
+  - **Fix**: Use `grev_all[0..n_new-1]` (first `n_new` Greville sites) instead of `grev_all[start..start+n_new-1]`. Sites below `a_new` are wrapped **upward** by `+T` into `[b_new-T, b_new]`, where they strongly activate the wrap-around basis functions and satisfy the Schoenberg-Whitney condition for the periodic problem.
+  - Removed the `start` variable. Updated comment to explain the Schoenberg-Whitney motivation.

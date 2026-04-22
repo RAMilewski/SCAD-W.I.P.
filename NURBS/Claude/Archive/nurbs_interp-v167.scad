@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 168
+// Development Version 167
 //////////////////////////////////////////////////////////////////////
 
 
@@ -951,20 +951,15 @@ function _elevate_once_closed(ctrl, p, bar_knots, curr_mult=undef) =
         a_new = U_new[p_new],
         b_new = U_new[n_new + p_new],
 
-        // Greville abscissae for the periodic collocation.
-        // _greville(U_new, p_new) returns n_new+p_new values; we use the first n_new.
-        // Sites below a_new are wrapped UPWARD by +T (not skipped), landing near b_new
-        // where they activate the wrap-around basis functions N_{n_new..n_new+p_new-1}.
-        // This satisfies the Schoenberg-Whitney condition for j < p_new (the periodic
-        // basis functions N_j^periodic = N_j + N_{j+n_new} are non-zero only on
-        // [U_new[j],U_new[j+p_new+1]] ∪ [U_new[j+n_new],U_new[j+n_new+p_new+1]],
-        // and the "low" sites don't cover the wrap region without the +T shift).
+        // Greville abscissae.  _greville(U_new, p_new) returns n_new+p_new values
+        // (indices 0..n_new+p_new-1).  The first few may lie below a_new and, if
+        // shifted by +T, would coincide with later unshifted sites (singular matrix).
+        // Select n_new consecutive sites starting from the first one ≥ a_new.
         grev_all = _greville(U_new, p_new),
-        grev_raw = [for (i = [0:1:n_new - 1]) grev_all[i]],
-        grev     = [for (g = grev_raw)
-                        g < a_new - 1e-12 ? g + T
-                      : g > b_new + 1e-12 ? g - T
-                      : g],
+        start    = sum([for (g = grev_all) g < a_new - 1e-12 ? 1 : 0]),
+        grev_raw = [for (i = [start:1:start + n_new - 1]) grev_all[i]],
+        // Wrap any sites above b_new back into [a_new, b_new) by subtracting T.
+        grev     = [for (g = grev_raw) g > b_new + 1e-12 ? g - T : g],
 
         // Extended control points for periodic curve evaluation.
         ext_ctrl = [each ctrl, for (k = [0:1:p-1]) ctrl[k]],
