@@ -700,7 +700,124 @@
   - Updated stale parameter names in `Examples/edgetest.scad`, `Examples/edgetest2.scad`, `Examples/snippet-2.scad`, `snippet-1.scad`, and `Bugs/degree3bug.scad` (`end_normal` → `normal2`, `start_u_der` → `first_row_deriv`, etc.).
 
 ## v168
-- **`_elevate_once_closed` bugfix**: Fixed Greville site selection for periodic B-spline collocation.
-  - **Root cause**: The old code used a `start` offset to skip Greville sites below `a_new`, which meant no site fell in the wrap-around region `[b_new-T, b_new]`. The wrap-around basis functions `N_{n_new..n_new+p_new-1}` (which constrain `Q[0..p_new-1]` via the periodic extension) had near-zero coefficients in only one collocation equation, making `Q[0]` numerically ill-determined. This produced a geometrically wrong curve near the period boundary — visible as a discrepancy "towards the end of the curve."
-  - **Fix**: Use `grev_all[0..n_new-1]` (first `n_new` Greville sites) instead of `grev_all[start..start+n_new-1]`. Sites below `a_new` are wrapped **upward** by `+T` into `[b_new-T, b_new]`, where they strongly activate the wrap-around basis functions and satisfy the Schoenberg-Whitney condition for the periodic problem.
-  - Removed the `start` variable. Updated comment to explain the Schoenberg-Whitney motivation.
+- **`_elevate_once_closed` (intermediate)**: Attempted fix via Greville site wrapping (+T for sites below a_new). This approach has n_new = n_old + (B-1) interior-knot increments (single endpoint copies). Numerical testing shows errors up to 0.58 — the Greville approach is irrelevant when the endpoint multiplicity is wrong.
+
+## v169
+- **`_elevate_once_closed` (intermediate)**: Described the doubled-endpoint fix in the changelist, but the archive was created from still-incorrect code (single endpoint copies). The live file was subsequently corrected but the version was not bumped; the fix is captured in v170.
+
+## v170
+- **`_elevate_once_closed` bugfix — confirmed correct**: `nurbs_elevate_degree(type="closed")` now exactly preserves the curve geometry under degree elevation. Verified numerically (Python) and in OpenSCAD via `Bugs/test_elevate_diag.scad` (direct `_nip`-based evaluation, no BOSL2 caching): all errors are 0 at all test u values.
+  - **Root cause**: The last endpoint of `xknots_new` appeared exactly once, giving `n_new = n_old + (B-1)` control points. With T repeated only once, `_extend_knot_vector` produced a U_new where the seam had multiplicity 1 for degree p_new, giving C^{p_new-1} continuity — strictly smoother than the original C^{p-1}. The degree-p curve cannot lie in a space with higher smoothness at the seam, so collocation found the closest approximation in the wrong space.
+  - **Fix**: Last endpoint of `xknots_old` uses `each repeat(last(true_bar), curr_m[B-1])` and `xknots_new` uses `each repeat(last(true_bar), new_m[B-1])`. This gives `n_new = n_old + (B-1) + 1` control points, seam multiplicity `gmult[0]+new_m[B-1] = curr_m[0]+curr_m[B-1]+1 → C^{p_new-2}` (matching the original C^{p-1}), and an n_new × n_new collocation system with condition number ~5 and residual ~1e-14.
+  - Greville selection uses `start = first index ≥ a_new`, wrapping sites > b_new down by −T (either approach works once n_new is correct).
+
+## v172
+- **`_elevate_once_closed` — replace Greville collocation with uniform sites**:
+  Removed the Greville abscissae computation entirely (including collision detection and fallback logic from v171). Replaced with unconditionally uniform collocation sites `τ_k = a_new + (k+0.5)*T/n_new`. Uniform sites are always distinct, never land on knot boundaries, and avoid all wrapping ambiguities. The domain-alignment delta shift (from v171) is retained: `C_vals` are evaluated at `τ_k + delta` in U_old's domain, and `xknots_aligned = xknots_new + delta` is returned so that BOSL2's `nurbs_curve()` maps u∈[0,1] to the same parameter range for original and elevated curves. Fixes both `singular.scad` (singular matrix from Greville collision on high-mult knots) and `singular2.scad` (wrong curve for p≥3 due to domain phase shift).
+
+## v171
+- **`_elevate_once_closed` two-bug fix — handles `singular.scad` and `singular2.scad`**:
+  - **Domain phase-shift fix** (`singular2.scad`: `approx(c1,c2)` returned false for p≥3):
+    BOSL2 maps u∈[0,1] to `[U[p], U[n+p]]`. For p≥3 the elevated `xknots_new` places `U_new[p_new]` at a different phase than `U_old[p]` (specifically, `a_new = xknots_new[p_new-1]` while `a_old = xknots_old[p-1]`). All of `xknots_new` is now shifted by `delta = a_old - a_new` before returning, realigning the active domains so `nurbs_curve()` maps the same u∈[0,1] to the same underlying parameter for both original and elevated curves. `Q` is computed against the unshifted `xknots_new`; after the shift it remains correct by translation invariance of `_nip`. C_vals are evaluated at `grev + delta` to stay within `U_old`'s active domain.
+  - **Greville collision fix** (`singular.scad`: assertion fires on singular matrix):
+    High-multiplicity interior knots (e.g. `mult=[…,3,…]`) can cause wrapped Greville sites to coincide with unwrapped ones, making the collocation matrix singular. Added collision detection: sort Greville sites, check minimum adjacent gap. If any gap < 1e-10, fall back to uniform sites `a_new + (k+0.5)*T/n_new` which are guaranteed distinct and produce a well-conditioned system.
+
+## v173
+- **`_elevate_once_closed` — structural fix for singular collocation matrix**:
+  Root cause of the persistent singularity: the old `xknots_new` construction used
+  `curr_m[0]` copies of `true_bar[0]` followed by all interior `true_bar` values
+  with incremented multiplicities.  When any pre-domain knot value (≤ a_old) had
+  multiplicity ≥ 2 after incrementing, `xknots_new[0..p_new]` contained duplicate
+  entries.  `_extend_knot_vector` then produced zero-width intervals in U_new
+  (e.g. `[25,25)`), making the wrap basis functions `N_{n_new+j}` identically zero
+  for all u — rendering the entire wrap column of A zero regardless of site choice.
+  No collocation strategy could fix this; the singularity was structural.
+  - **Fix**: Compute `U_old` and `a_old` first.  Construct `xknots_new` with:
+    (1) `pre_new`: `p_new` equally-spaced *distinct* values in `[true_bar[0], a_old)`,
+    guaranteeing `xknots_new[0..p_new]` is strictly increasing;
+    (2) `a_old` as the anchor knot;
+    (3) only active-domain interior knots — `true_bar[i]` strictly between `a_old`
+    and `last(true_bar)` — with multiplicity incremented by 1;
+    (4) `new_m[B-1]` copies of `last(true_bar)`.
+  - Strictly-increasing pre-domain ⟹ all extension gaps > 0 ⟹ all wrap basis
+    functions have non-empty support ⟹ non-singular collocation matrix.
+  - Fixes `Bugs/singular.scad` (p=2, `mult=[1,1,1,1,1,3,1,1,1]`, times=2) and
+    `Bugs/singular2.scad` (p=3, all-mult-1, times=1): `echo(approx(c1,c2))` → true.
+
+## v174
+- **`_elevate_once_closed` — complete rewrite with correct periodic knot construction**:
+  Root cause analysis: v172/v173 constructions produced `bar_knots_new` whose
+  `_extend_knot_vector` extension was incompatible with the correctly-elevated full
+  knot vector. The pre-domain of `bar_knots_new` must equal the last `p_new` active
+  values before `b_old`, shifted back by `T`, so that BOSL2's extension reproduces
+  the right periodic structure.
+  - **New algorithm**:
+    1. Reconstruct `U_old = _extend_knot_vector(bar_knots_full, 0, n+2p+1)`
+       (expanding `bar_knots` with `curr_mult` when provided on the first call).
+    2. Identify `a_old = U_old[p]`, `b_old = U_old[n+p]` (active domain).
+    3. Extract interior active knots: `U_old[p+1..n+p-1]` strictly between `a_old`
+       and `b_old`; double each value's multiplicity via `_increment_knot_mults`.
+    4. Build `active_new = [a_old, doubled_interior..., b_old]`.
+    5. `pre_new[k] = active_new[n_new - p_new + k] - T` (periodic wrap-around).
+    6. `bar_knots_new = [pre_new..., active_new[0..n_new-p_new]]`.
+       `_extend_knot_vector(bar_knots_new, ...)` reproduces `U_new_full` exactly.
+    7. Collocate at `n_new` uniform sites in `[a_old, b_old)`. All sites in the
+       active domain; wrap columns activated for sites `> U_new[n_new]`.
+  - Eliminates v172's incompatible doubled-`U_old_full` and v173's wrong function
+    space. The active domain is preserved (`[a_old, b_old]` unchanged after elevation)
+    and the collocation matrix is full-rank.
+  - Fixes both `Bugs/singular.scad` and `Bugs/singular2.scad`: `echo(approx(c1,c2))` → true.
+
+## v175
+- **`_elevate_once_closed` — replaced collocation with exact blossom/polar-form algorithm** (P&T §5.4 Algorithm A5.9 equivalent):
+  The v174 collocation approach failed in two distinct ways: (1) `singular2.scad` (all-distinct knots): uniform collocation sites gave a singular matrix; (2) `singular.scad` (interior knot at mult=p+1): after elevation the knot becomes mult=p_new+1, creating degenerate Greville abscissae — neither uniform sites nor Greville abscissae give a non-singular matrix.
+  - **New algorithm** — no linear solve, no matrix, always exact:
+    Each elevated control point `Q[j]` is the arithmetic mean of `(p+1)` de Boor blossoms
+    of the original degree-`p` curve, one per argument removed from
+    `(U_new[j+1], …, U_new[j+p+1])`.
+  - **Doubly-extended representation** for blossom evaluation: prepend `p` backward-periodic
+    ctrl/knot entries so that arguments in the pre-domain and split knots (mult = p+1)
+    are handled by the standard rightmost-span convention without special cases.
+  - New helpers: `_blossom_ec(full_ctrl, full_U, p, args)` (span-find + de Boor triangular reduction)
+    and `_blossom_ec_r()` (recursive de Boor step). `assert(Q != [])` removed (no solve).
+  - `bar_knots_new` construction from v174 preserved unchanged (correct periodic wrap).
+  - Fixes `Bugs/singular.scad` (p=2, mult=3 interior knot, times=2) and
+    `Bugs/singular2.scad` (p=3, all-distinct knots, times=1): `echo(approx(c1,c2))` → true.
+
+## v176
+- **`_elevate_once_closed` — replaced blossom with periodic collocation** (root-cause analysis of v175 failure):
+  v175's blossom/polar-form approach was mathematically unsound for the closed/periodic case: `T_args` for small `j` indices contains pre-domain values (encoded as `pre_new[k] = active_new[n_new-p_new+k] - T`). Evaluating the periodic B-spline's polar form using a single fixed knot span `k` (chosen by `u_max`) and extrapolating back through multiple polynomial pieces gives wrong results — the periodic B-spline blossom is piecewise-global, not equivalent to any single polynomial piece extrapolated over multiple spans.
+  - **Root cause**: `_blossom_ec` used the span containing `u_max` and the de Boor triangular algorithm to extrapolate to arguments spanning distant spans (e.g., `u_max = 25/21` extrapolated back to `a_old = 13/21`), producing wildly incorrect coefficients due to large negative alphas (-11, -4.5, etc.).
+  - **New algorithm** — periodic collocation (same structure as the successful `_elevate_once_clamped`):
+    - `n_new` uniform collocation points in `[a, b)`, one per degree of freedom.
+    - Original curve evaluated at each site with periodic wrap: `B_j(u) = N_j(u) + (j < p ? N_{j+n}(u) : 0)`.
+    - Elevated collocation matrix uses the same periodic wrap for the degree-`p_new` basis.
+    - `linear_solve` recovers the exact elevated ctrl (the elevated B-spline space contains the original).
+  - Removed `_blossom_ec` and `_blossom_ec_r` helpers (superseded).
+  - `bar_knots_new` construction from v174/v175 preserved unchanged.
+  - Fixes `Bugs/singular.scad` (p=2, mult=3 interior knot, times=2) and
+    `Bugs/singular2.scad` (p=3, all-distinct knots, times=1): `echo(approx(c1,c2))` → true.
+
+## v177
+- **`_elevate_once_closed` — replaced periodic collocation with Bézier extraction** (v176's collocation also singular for these cases):
+  - **Root cause of v176 failure**: Greville abscissae are not unisolvent for periodic B-splines. Uniform sites also fail: the elevated knot vector has interior values repeated `p_new` times, creating zero-width spans that collapse rows of the collocation matrix to identical values → structural rank deficiency. No choice of collocation sites can fix this.
+  - **New algorithm** — Bézier extraction via Boehm knot insertion (no `linear_solve`):
+    1. Build virtual extended ctrl `Q_ext[j] = ctrl[j % n]` for `j = 0..n+p-1`.
+    2. Collect distinct interior knot values in `(a, b)` from `U_old`; insert each up to multiplicity `p` via repeated Boehm insertion → full Bézier decomposition.
+    3. Find non-zero spans in `[a, b]`; `s = len(span_ks)`, `n_new = s * (p+1)`.
+    4. Elevate each Bézier segment of degree `p` to degree `p+1` via the exact formula.
+    5. Assemble elevated segments (drop shared endpoint of each seg after the first).
+    6. Re-impose periodicity: `ctrl_new[0] = (assembled[0] + assembled[n_new]) / 2`.
+    7. Build `active_new` with `b` repeated `p_new` times → `bar_knots_new` with correct periodic pre-domain wrap.
+  - C0 corner knots (mult `p+1` in `U_old`): `r = max(0, p - mult) = 0` insertions; zero-width spans automatically filtered by non-zero span check — C0 junctions preserved.
+  - New helpers: `_distinct_vals()`, `_boehm_insert_closed()`, `_boehm_insert_closed_r()`, `_bezier_extract()`, `_elev_bez()`.
+  - Removed old helpers: `linear_solve` call removed from `_elevate_once_closed`.
+  - Fixes `Bugs/singular.scad` (p=2, C0 interior knot mult=p+1, times=2) and `Bugs/singular2.scad` (p=3, all-distinct knots, times=1): `echo(approx(c1,c2))` → true.
+
+## v178
+- Removed degree elevation support for `type="closed"`:
+  - `assert` in `nurbs_elevate_degree()` now rejects `type="closed"` (previously allowed).
+  - Deleted `_elevate_once_closed()` and all five helpers introduced in v177: `_distinct_vals()`, `_boehm_insert_closed()`, `_boehm_insert_closed_r()`, `_bezier_extract()`, `_elev_bez()`.
+  - Removed `closed_mult0` let-binding and closed branch of `elevate_once` dispatch.
+  - Removed closed-specific knot-normalization branches from `xknots` computation.
+  - Updated doc comment: `type=` now documented as `"clamped"` or `"open"` only.

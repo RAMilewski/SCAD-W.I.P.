@@ -22,7 +22,7 @@
 //
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 178
+// Development Version 171
 //////////////////////////////////////////////////////////////////////
 
 
@@ -881,6 +881,147 @@ function _elevate_once_open(ctrl, p, knots) =
     [Q, U_new, p_new];
 
 
+// Single degree elevation of a closed (periodic) B-spline via exact Greville
+// collocation with incremented knot multiplicities.
+//
+// Knot structure: every distinct knot value's multiplicity is incremented by 1.
+// Critically, the LAST endpoint in xknots is also incremented (from curr_m[B-1]
+// to curr_m[B-1]+1 copies).  This increases the seam's effective multiplicity
+// (gmult[0]+last(gmult)) by 1, which is required for the original degree-p curve
+// to lie in the elevated degree-(p+1) spline space.  Without this increment the
+// elevated space has strictly higher smoothness at the seam than the original,
+// making exact degree elevation impossible via collocation.
+//
+// Greville sites: _greville(U_new, p_new) may return early sites below a_new
+// (the left boundary of the active domain).  Those sites are skipped: start from
+// the first index ≥ a_new and take the next n_new consecutive sites.  Sites that
+// drift above b_new are wrapped back into [a_new, b_new) by subtracting T.
+//
+// Input:  ctrl      = n_old control points (no closing repeat)
+//         p         = current degree
+//         bar_knots = BOSL2-format closed knot vector.  The first entry appears
+//                     curr_m[0] times and the last entry appears curr_m[B-1]
+//                     times; interior positions appear curr_m[i] times.
+//                     Repeated consecutive values are deduped automatically.
+//         curr_mult = per-position multiplicity vector (undef → auto-detect)
+// Output: [new_ctrl, xknots_new, p+1]
+//         xknots_new is BOSL2-compatible bar_knots for the elevated curve.
+
+function _elevate_once_closed(ctrl, p, bar_knots, curr_mult=undef) =
+    let(
+        B_raw  = len(bar_knots),
+        n_old  = len(ctrl),
+        dim    = len(ctrl[0]),
+        p_new  = p + 1,
+        T      = last(bar_knots) - bar_knots[0],
+
+        // Deduplicate bar_knots: find indices where a new distinct value starts.
+        uniq_idx  = [for (i = [0:1:B_raw-1])
+            if (i == 0 || abs(bar_knots[i] - bar_knots[i-1]) > 1e-12) i],
+        true_bar  = [for (i = uniq_idx) bar_knots[i]],
+        B         = len(true_bar),
+
+        // Auto-multiplicity: count occurrences of each unique position.
+        auto_m = [for (k = [0:1:B-1])
+            (k == B-1 ? B_raw : uniq_idx[k+1]) - uniq_idx[k]
+        ],
+
+        curr_m = is_undef(curr_mult) ? auto_m : curr_mult,
+        new_m  = [for (m = curr_m) m + 1],
+
+        // xknots: BOSL2 bar_knots format.
+        // The first endpoint appears curr_m[0] times; interior positions appear
+        // curr_m[i]/new_m[i] times; the LAST endpoint appears curr_m[B-1] times
+        // in xknots_old and new_m[B-1] = curr_m[B-1]+1 times in xknots_new.
+        // Incrementing the last endpoint raises the seam's effective multiplicity
+        // (gmult_old[0]+curr_m[B-1]) → (curr_m[0]+new_m[B-1]) by 1, which is
+        // the necessary condition for the original curve to lie in the elevated
+        // B-spline space (Boehm's degree-elevation theorem for periodic B-splines).
+        xknots_old = B <= 2
+            ? [each repeat(true_bar[0], curr_m[0]),
+               each repeat(last(true_bar), curr_m[B-1])]
+            : [each repeat(true_bar[0], curr_m[0]),
+               for (i = [1:1:B-2]) each repeat(true_bar[i], curr_m[i]),
+               each repeat(last(true_bar), curr_m[B-1])],
+        xknots_new = B <= 2
+            ? [each repeat(true_bar[0], curr_m[0]),
+               each repeat(last(true_bar), new_m[B-1])]
+            : [each repeat(true_bar[0], curr_m[0]),
+               for (i = [1:1:B-2]) each repeat(true_bar[i], new_m[i]),
+               each repeat(last(true_bar), new_m[B-1])],
+
+        n_new = len(xknots_new) - 1,
+
+        // Full periodic knot vectors via BOSL2's extension algorithm.
+        U_old = _extend_knot_vector(xknots_old, 0, n_old + 2*p     + 1),
+        U_new = _extend_knot_vector(xknots_new, 0, n_new + 2*p_new + 1),
+
+        a_old = U_old[p],
+        a_new = U_new[p_new],
+        b_new = U_new[n_new + p_new],
+
+        // Domain alignment: BOSL2 maps u∈[0,1] to [U[p], U[n+p]] for each curve.
+        // For p≥3 the elevated xknots_new can put U_new[p_new] at a different phase
+        // than U_old[p], so c1 and c2 are evaluated over shifted parameter ranges.
+        // Shifting all of xknots_new by delta realigns a_new_aligned = a_old without
+        // changing the curve shape (translation invariance of _nip).
+        delta = a_old - a_new,
+
+        // Greville abscissae.  _greville(U_new, p_new) returns n_new+p_new values.
+        // Skip sites below a_new; take the next n_new consecutive sites; wrap sites
+        // above b_new back by subtracting T.
+        grev_all = _greville(U_new, p_new),
+        start    = sum([for (g = grev_all) g < a_new - 1e-12 ? 1 : 0]),
+        grev_raw = [for (i = [start:1:start + n_new - 1]) grev_all[i]],
+        grev     = [for (g = grev_raw) g > b_new + 1e-12 ? g - T : g],
+
+        // Collision guard: high-multiplicity interior knots can produce wrapped
+        // Greville sites that collide with unwrapped ones → singular matrix.
+        // Fall back to uniformly-spaced sites when any two sites are too close.
+        grev_sorted = sort(grev),
+        grev_diffs  = n_new > 1
+            ? [for (i = [0:1:n_new-2]) abs(grev_sorted[i+1] - grev_sorted[i])]
+            : [1],
+        has_dup    = min(grev_diffs) < 1e-10,
+        grev_final = !has_dup ? grev
+                   : [for (k = [0:1:n_new-1]) a_new + (k + 0.5) * T / n_new],
+
+        // Shift sites to the original domain for C_vals evaluation.
+        // grev_final ∈ [a_new, b_new) → grev_cvals ∈ [a_old, b_old) ⊆ U_old range.
+        grev_cvals = [for (g = grev_final) g + delta],
+
+        // Extended control points for periodic curve evaluation.
+        ext_ctrl = [each ctrl, for (k = [0:1:p-1]) ctrl[k]],
+        n_ext    = n_old + p,
+
+        // Evaluate original curve at each (domain-aligned) collocation site.
+        C_vals = [for (u = grev_cvals)
+            let(row = [for (j = [0:1:n_ext-1]) _nip(j, p, u, U_old)])
+            [for (d = [0:1:dim-1])
+                sum([for (j = [0:1:n_ext-1]) row[j] * ext_ctrl[j][d]])]
+        ],
+
+        // Periodic collocation matrix (n_new × n_new).
+        // Low-index functions (j < p_new) also contribute via the wraparound
+        // copy at index j+n_new.  Uses grev_final (U_new domain) — A is
+        // translation-invariant so grev_final and grev_cvals give the same A.
+        A = [for (k = [0:1:n_new-1])
+            [for (j = [0:1:n_new-1])
+                let(wrap = j < p_new ? _nip(j + n_new, p_new, grev_final[k], U_new) : 0)
+                _nip(j, p_new, grev_final[k], U_new) + wrap
+            ]
+        ],
+        Q = linear_solve(A, C_vals),
+
+        // Shift xknots_new to align its active domain with U_old's active domain.
+        xknots_aligned = abs(delta) < 1e-12 ? xknots_new
+                       : [for (x = xknots_new) x + delta]
+    )
+    assert(Q != [],
+           "nurbs_elevate_degree: singular periodic collocation (closed)")
+    [Q, xknots_aligned, p_new];
+
+
 // Function: nurbs_elevate_degree()
 // Synopsis: Raises the degree of a NURBS curve while exactly preserving its shape.
 // Topics: NURBS Curves
@@ -894,20 +1035,21 @@ function _elevate_once_open(ctrl, p, knots) =
 //   Raises the degree of a B-spline or rational NURBS curve by `times` steps, producing
 //   a geometrically identical curve at the higher degree.  The result is a NURBS
 //   parameter list that can be passed directly to {{nurbs_curve()}}.
-//   Supported types are `"clamped"` and `"open"`; `"closed"` is not supported.
 //   .
-//   This function works by increasing the knot multiplicity by `times`.
+//   This function works by increasing the knot multiplicity by `times`.  
 //   An elevated curve has the same smoothness as the original curve at knots.  A degree 2
 //   curve is $C^1$ at its knots and after elevation to degree 3 will still be $C^1$ at its
 //   knots, not $C^2$ like a cubic NURBS without duplicated knots.
 //   .
 //   Knots can be specified the same way as for `{{nurbs_curve()}}`: omit both `knots=`
 //   and `mult=` for uniform knots (BOSL2-compatible defaults), give `knots=` alone
-//   (interior-format vector for clamped/open; knots need not lie in [0,1]), give `mult=`
-//   alone (uniform positions 0..1 with those multiplicities; for clamped, endpoint
-//   multiplicities are forced to `degree+1` matching BOSL2), or give both `knots=` and
-//   `mult=` (distinct positions with per-knot multiplicities; for clamped endpoint mult
-//   is forced to `degree+1`).
+//   (interior-format vector for clamped/open, bar_knots for closed; knots need not lie
+//   in [0,1]), give `mult=` alone (uniform positions 0..1 with those multiplicities;
+//   for clamped, endpoint multiplicities are forced to `degree+1` matching BOSL2), or
+//   give both `knots=` and `mult=` (distinct positions with per-knot multiplicities;
+//   for clamped endpoint mult is forced to `degree+1`).  For closed curves, `mult=`
+//   gives the per-position multiplicity vector (same length as `knots=`); endpoint
+//   positions appear once in the periodic knot vector regardless of their mult value.
 //   .
 //   Instead of providing separate parameters you can give the first argument as a NURBS
 //   parameter list `[type, degree, control, knots, mult, weights]`.
@@ -919,7 +1061,7 @@ function _elevate_once_open(ctrl, p, knots) =
 //   ---
 //   knots   = Knot positions.  With `mult=`: distinct positions (any range).  Without `mult=`: interior-format vector including endpoints.  Default: `undef` (uniform)
 //   mult    = Per-knot multiplicity list (same length as `knots`).  If given without `knots=`, uniform positions 0..1 are used; for clamped, endpoint mult is forced to `degree+1`.  Default: `undef` (uniform, mult 1)
-//   type    = `"clamped"` or `"open"`.  Default: `"clamped"`
+//   type    = `"clamped"`, `"closed"`, or `"open"`.  Default: `"clamped"`
 //   times   = Number of degree-elevation steps.  `0` returns the input unchanged.  Default: `1`
 //   weights = Weight at each control point.  Default: 1
 
@@ -937,8 +1079,8 @@ function nurbs_elevate_degree(control, degree, knots=undef,
                                 weights=control[5], mult=control[4])
   : times == 0
     ? [type, degree, control, knots, mult, weights]
-    : assert(type == "clamped" || type == "open",
-             str("nurbs_elevate_degree: type must be \"clamped\" or \"open\", got \"", type, "\""))
+    : assert(type == "clamped" || type == "closed" || type == "open",
+             str("nurbs_elevate_degree: type must be \"clamped\", \"closed\", or \"open\", got \"", type, "\""))
       assert(is_num(times) && times >= 1,
              "nurbs_elevate_degree: times must be a positive integer")
     assert(is_num(degree) && degree >= 1,
@@ -960,24 +1102,31 @@ function nurbs_elevate_degree(control, degree, knots=undef,
         //            convention) then stripped, so _elevate_once_clamped always receives
         //            the standard interior-format [k0, k1..kn-1, km].
         //   open:    xknots = full expanded knot vector (all repetitions).
+        //   closed:  xknots = bar_knots (distinct positions only).
+        //            Per-position multiplicities are tracked separately in closed_mult0
+        //            and threaded through _elevate_once_closed.
         //
         // Neither knots nor mult → BOSL2-compatible uniform knots.
         //   clamped → interior format [0, uniform interior..., 1]
         //   open    → full expanded vector (length n+p+2, uniform)
+        //   closed  → bar_knots format (length n+1, all distinct)
         //
-        // knots only (no mult): pass through unchanged.
+        // knots only (no mult): pass through unchanged (all types).
         //
         // mult only (no knots): uniform positions 0..1 with given multiplicities.
         //   clamped: endpoint mult forced to degree+1; expand then strip.
         //   open:    full expanded vector.
+        //   closed:  return only the distinct uniform positions; mult is separate.
         //
         // knots + mult: explicit distinct positions with per-knot multiplicities.
         //   clamped: endpoint mult forced to degree+1; expand then strip.
         //   open:    full expanded vector.
+        //   closed:  return only the knot positions; mult is separate.
         xknots =
             is_undef(knots) && is_undef(mult)
             ? ( type == "clamped" ? lerpn(0, 1, len(control) - degree + 1)
-              :                     lerpn(0, 1, len(control) + degree + 1) )
+              : type == "open"    ? lerpn(0, 1, len(control) + degree + 1)
+              :                     lerpn(0, 1, len(control) + 1) )
             : is_undef(mult) ? knots
             : is_undef(knots)
               ? let(
@@ -991,6 +1140,8 @@ function nurbs_elevate_degree(control, degree, knots=undef,
                 )
                 type == "clamped"
                 ? [for (i = [degree : 1 : len(exp) - degree - 1]) exp[i]]
+                : type == "closed"
+                ? pos   // closed: return distinct positions; mult handled via closed_mult0
                 : exp   // open: full expanded
               : let(
                     m   = len(mult),
@@ -1002,7 +1153,9 @@ function nurbs_elevate_degree(control, degree, knots=undef,
                 )
                 type == "clamped"
                 ? [for (i = [degree : 1 : len(exp) - degree - 1]) exp[i]]
-                : exp   // open: full expanded
+                : type == "closed"
+                ? knots   // closed: return distinct positions; mult handled via closed_mult0
+                : exp     // open: full expanded
     )
     assert(type != "clamped" || len(xknots) >= 2,
            "nurbs_elevate_degree: clamped knots must have at least 2 entries [first,...,last]")
@@ -1010,12 +1163,23 @@ function nurbs_elevate_degree(control, degree, knots=undef,
            str("nurbs_elevate_degree: open knots must have length len(control)+degree+1 = ",
                len(control) + degree + 1, ", got ", len(xknots)))
     let(
+        // For closed type, pass the user's mult= to _elevate_once_closed on the
+        // first call so it can build the correct xknots_old (matching BOSL2's
+        // internal knot vector for c1).  On recursive calls mult=undef (default),
+        // so _elevate_once_closed auto-detects multiplicities from xknots_new
+        // (which carries the correct interior mults from the previous elevation).
+        closed_mult0 = type != "closed" ? undef : mult,
+
         elevate_once = type == "clamped" ? function(c, p, k) _elevate_once_clamped(c, p, k)
-                     :                    function(c, p, k) _elevate_once_open(c, p, k)
+                     : type == "open"    ? function(c, p, k) _elevate_once_open(c, p, k)
+                     :                    function(c, p, k) _elevate_once_closed(c, p, k, closed_mult0)
     )
     is_undef(weights)
     ? // Non-rational B-spline: elevate directly.
-      // r = [new_ctrl, new_knots, p_new] for both types.
+      // r = [new_ctrl, new_knots, p_new] for all types.
+      // For closed: r[1] = xknots_new (BOSL2-compatible bar_knots).
+      //   Recursive call passes xknots_new as bar_knots and mult=undef so that
+      //   _elevate_once_closed auto-detects interior mults from xknots_new. ✓
       let(r = elevate_once(control, degree, xknots))
       times == 1
       ? [type, r[2], r[0], r[1], undef, undef]

@@ -1,13 +1,14 @@
 include<BOSL2/std.scad>
 
-shell = [46,46,15];
-disc = [8.5,undef,8.1];
-plate = [41,41,shell.z];
-stamp = [40,40,1];
-aperture = 16.7;
+shell = [46,46,16];
+disc = [10,undef,8];
+plate = [37,37,shell.z];
+stamp = [36,36,1];
+aperture = 14;
 $fn = 72;
 
 //back_half() 
+//holder(); right(shell.x) handle();  
 stamp();
 
 
