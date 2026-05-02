@@ -7,14 +7,16 @@ stamp = [36,36,1];
 aperture = 14;
 $fn = 72;
 
-//back_half() 
-//holder(); right(shell.x) handle();  
-stamp();
+/* [Select] */
+part = "set";  // [base, handle, set, stamp,set]
+
+if (part == "base")   {base();}
+if (part == "handle") {handle();}
+if (part == "set")    {left(shell.x/2) base(); right(shell.x/2) handle();}  
+if (part == "stamp")  {stamp();}   // print with softest available tpu
 
 
-module m3() { import("Mirror3Target.stl"); }
-
-module holder() {
+module base() {
     diff() {
         cuboid(shell, rounding = 3, except = BOT, anchor = BOT) {
             tag("remove") position(BOT){
@@ -23,7 +25,6 @@ module holder() {
             }
         }
     }
-    //color("dodgerblue") up(disc.z+1.5) xrot(180) m3();
 }
 
 module stamp() {

@@ -1,878 +1,34 @@
-/////////////////////////////////////////////////////////////////////
-// LibFile: nurbs.scad
-//   B-Splines and Non-uniform Rational B-Splines (NURBS) are a way to represent smooth curves and smoothly curving
-//   surfaces with a set of control points.  The curve or surface is defined by
-//   the control points and a set of "knot" points.  The NURBS can be "clamped" in which case the curve passes through
-//   the first and last point, or they can be "closed" in which case the first and last point are coincident.  Also possible
-//   are "open" curves which do not necessarily pass through any of their control points.  Unlike Bezier curves, a NURBS
-//   can have an unlimited number of control points and changes to the control points only affect the curve locally.
-//   
-// Includes:
-//   include <BOSL2/std.scad>
-//   include <BOSL2/nurbs.scad>
-// FileGroup: Advanced Modeling
-// FileSummary: NURBS and B-spline curves and surfaces.
-//////////////////////////////////////////////////////////////////////
-
-_BOSL2_NURBS = is_undef(_BOSL2_STD) && (is_undef(BOSL2_NO_STD_WARNING) || !BOSL2_NO_STD_WARNING) ?
-       echo("Warning: nurbs.scad included without std.scad; dependencies may be missing\nSet BOSL2_NO_STD_WARNING = true to mute this warning.") true : true;
-
-// Section: NURBS Curves
-
-// Function: nurbs_curve()
-// Synopsis: Computes one or more points on a NURBS curve.
-// SynTags: Path
-// Topics: NURBS Curves
-// See Also: debug_nurbs()
-// Usage:
-//   pts = nurbs_curve(control, degree, splinesteps, [mult=], [weights=], [type=], [knots=]);
-//   pts = nurbs_curve(control, degree, u=, [mult=], [weights=], [type=], [knots=]);
-// Description:
-//   Compute the points specified by a NURBS curve.  You specify the NURBS by supplying the control points, knots and weights.  
-//   Only the control points are required.  The knots and weights default to uniform, in which case you get a uniform B-spline.
-//   The length of `weights`, if given, must match the length of `control`.  
-//   You can specify endpoint behavior using the `type` parameter.  The default, "clamped", gives a curve which starts and
-//   ends at the first and last control points and moves in the tangent direction to the first and last control point segments.
-//   A "closed" curve is a one that starts where it ends.  An "open" spline is a generic curve that starts somewhere
-//   in the middle of the control points. The "open" curve is less common; you only need this if you are managing the
-//   knots and control points yourself to create your own clamped or closed curve, so avoid this type unless you know what you're doing.  
-//   Each of these types of curve require a different number of knots as described below.  
-//   .
-//   The control points are the most important control over the shape
-//   of the curve.  You must have at least degree+1 control points for clamped and open NURBS.  Don't confuse the degree of a
-//   NURBS with its *order*:  the order of a NURBS, often called $p$, is degree+1.  Unlike a bezier, there is no maximum
-//   number of control points.  A single NURBS is more like a bezier **path** than like a single bezier spline.
-//   .
-//   A NURBS or B-spline is a curve made from a moving average of several Bezier curves.  The knots specify when one Bezier fades
-//   away to be replaced by the next one.  The knot list is a non-increasing list of values that you specify using two parameters,
-//   `knots` and `mult`.  In practice changing the knot values doesn't have a strong effect on the curve, so it usually suffices
-//   to use a uniform knot vector, which is the default.  The major exception to this is repeated knot values.  
-//   At generic points in the NURBS, the curve is infinitely differentiable, but at a point that
-//   corresponds to a knot, a NURBS with degree $d$ will have a $(d-1)\mathrm{th}$ derivative that is continuous.
-//   However, if a value repeats in the knot vector that creates a knot with a multiplicity larger than 1, and each
-//   repetition decreases the smoothness of the curve at the corresponding NURBS point by 1.  This means that
-//   if the multiplicity equals the degree then the curve is not differentiable: it has a corner at the knot point.  Using the `mult` parameter
-//   without giving `knots` allows you to give a vector of multiplicities, which produces a knot vector that is uniform
-//   except it has some repeated knots.  A value of 1 in the `mult` vector means the knot is not repeated; a value of 2 means it is
-//   repeated twice.  The multiplicity can be as large as the degree but no larger.  (A special exception is at the ends for open
-//   NURBS, where multiplicity degree+1 is permitted.)  When you specify the multiplicity vector the total number of knots is the sum of that vector.  You can also list
-//   the knots explicitly yourself.  The knots exist in the parameter space of the NURBS, but the knot values you give can cover any range;
-//   they will be scaled to correspond properly to the NURBS parameter space: regardless of the knot values you give, the domain of evaluation
-//   for u is always the interval [0,1], and it will be scaled to give the entire valid portion of the curve you have chosen.
-//   . 
-//   For an open spline the number of knots must be `len(control)+degree+1`.  For a clamped spline the number of knots is `len(control)-degree+1`,
-//   and for a closed spline you need `len(control)+1` knots.  If you are using the default uniform knots then the way to
-//   ensure that you have the right number is to check that mult is not set or `sum(mult)` equals the correct value.
-//   .
-//   You can use this function to evaluate the NURBS at `u`, which can be a single point or a list of points.  You can also
-//   use it to evaluate the NURBS over its entire domain by giving a splinesteps value.  This specifies the number of segments
-//   to use between each knot and guarantees a point exactly at each knot.  This may be important if you set the knot multiplicity
-//   to the degree somewhere in your curve, which creates a corner at the knot, because it guarantees a sharp corner regardless
-//   of the number of points.  If you don't give `u` or `splinesteps` then `splinesteps=16` is used as the default evaluation.  
-//   .
-//   Instead of providing separate parameters you can give a first parameter of the form of a NURBS parameter list: `[type, degree, control, knots, mult, weights]`.  
-// Arguments:
-//   control = list of control points in any dimension or a NURBS parameter list
-//   degree = degree of NURBS
-//   splinesteps = evaluate whole spline with this number of segments between each pair of knots.  Default: 16 if `u` is not given
-//   ---
-//   u = list of values or range in the interval [0,1] where the NURBS should be evaluated
-//   mult = list of multiplicities of the knots.  Default: all 1
-//   weights = vector whose length is the same as control giving weights at each control point.  Default: all 1
-//   type = One of "clamped", "closed" or "open" to define end point handling of the spline.  Default: "clamped"
-//   knots = List of knot values.  Default: uniform
-// Example(2D,NoAxes): Compute some points and draw a curve and also some specific points:
-//   control = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   curve = nurbs_curve(control,2,splinesteps=16);
-//   pts = nurbs_curve(control,2,u=[0.4,0.8]);
-//   stroke(curve);
-//   color("red")move_copies(pts) circle(r=1.5,$fn=16);
-// Example(2D,NoAxes): Compute NURBS points and make a polygon
-//   control = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   curve = nurbs_curve(control,2,splinesteps=16,type="closed");
-//   polygon(curve);
-// Example(2D,NoAxes): Simple quadratic uniform clamped b-spline with some points computed using splinesteps.  
-//   pts = [[13,43],[30,52],[49,22],[24,3]];
-//   debug_nurbs(pts,2);
-//   npts = nurbs_curve(pts, 2, splinesteps=3);
-//   color("red")move_copies(npts) circle(r=1);
-// Example(2D,NoAxes): Simple quadratic uniform clamped b-spline with some points computed using the u parameter. Note that a uniform u parameter doesn't necessarily sample the curve uniformly.  
-//   pts = [[13,43],[30,52],[49,22],[24,3]];
-//   debug_nurbs(pts,2);
-//   npts = nurbs_curve(pts, 2, u=[0:.2:1]);
-//   color("red")move_copies(npts) circle(r=1);
-// Example(2D,NoAxes): Same control points, but cubic
-//   pts = [[13,43],[30,52],[49,22],[24,3]];
-//   debug_nurbs(pts,3);
-// Example(2D,NoAxes): Same control points, quadratic and closed
-//   pts = [[13,43],[30,52],[49,22],[24,3]];
-//   debug_nurbs(pts,2,type="closed");
-// Example(2D,NoAxes): Same control points, cubic and closed
-//   pts = [[13,43],[30,52],[49,22],[24,3]];
-//   debug_nurbs(pts,3,type="closed");
-// Example(2D,NoAxes): Ten control points, quadratic, clamped
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   debug_nurbs(pts,2);
-// Example(2D,NoAxes): Same thing, degree 4
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   debug_nurbs(pts,4);
-// Example(2D,NoAxes): Same control points, degree 2, open.  Note it doesn't reach the ends
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   debug_nurbs(pts,2, type="open");
-// Example(2D,NoAxes): Same control points, degree 4, open.  Note it starts farther from the ends
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   debug_nurbs(pts,4,type="open");
-// Example(2D,NoAxes): Same control points, degree 2, closed
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   debug_nurbs(pts,2,type="closed");
-// Example(2D,NoAxes): Same control points, degree 4, closed
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   debug_nurbs(pts,4,type="closed");
-// Example(2D,Med,NoAxes): Adding weights
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   weights = [1,1,1,3,1,1,3,1,1,1];
-//   debug_nurbs(pts,4,type="clamped",weights=weights);
-// Example(2D,NoAxes): Using knot multiplicity with quadratic clamped case.  Knot count is len(control)-degree+1 = 9.  The multiplicity 2 knot creates a corner for a quadratic.
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   mult = [1,1,1,2,1,1,1,1];
-//   debug_nurbs(pts,2,mult=mult,show_knots=true);
-// Example(2D,NoAxes): Using knot multiplicity with quadratic clamped case.  Two knots of multiplicity 2 gives two corners
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   mult = [1,1,1,2,2,1,1];
-//   debug_nurbs(pts,2,mult=mult,show_knots=true);
-// Example(2D,NoAxes): Using knot multiplicity with cubic clamped case.  Knot count is now 8.  We need multiplicity equal to degree (3) to create a corner.  
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   mult = [1,3,1,1,1,1];
-//   debug_nurbs(pts,3,mult=mult,show_knots=true);
-// Example(2D,NoAxes): Using knot multiplicity with cubic closed case.  Knot count is now len(control)+1=11.  Here are three corners.  
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   mult = [1,3,1,3,3];
-//   debug_nurbs(pts,3,mult=mult,type="closed",show_knots=true);
-// Example(2D,NoAxes): Explicitly specified knots only change the quadratic clamped curve slightly.  Knot count is len(control)-degree+1 = 9.
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   knots = [0,1,3,5,9,13,14,19,21];
-//   debug_nurbs(pts,2,knots=knots);
-// Example(2D,NoAxes): Combining explicit knots with mult for the quadratic curve to add a corner
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   knots = [0,1,3,9,13,14,19,21];
-//   mult = [1,1,1,2,1,1,1,1];
-//   debug_nurbs(pts,2,knots=knots,mult=mult);
-// Example(2D,NoAxes): Directly repeating a knot in the knot list to create a corner for a cubic spline
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   knots = [0,1,3,13,13,13,19,21];
-//   debug_nurbs(pts,3,knots=knots);
-// Example(2D,NoAxes): Open cubic spline with explicit knots
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   knots = [0,1,3,13,13,13,19,21,27,28,29,40,42,44];
-//   debug_nurbs(pts,3,knots=knots,type="open");
-// Example(2D,NoAxes): Closed quintic spline with explicit knots
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   knots = [0,1,3,13,13,13,19,21,27,28,33];
-//   debug_nurbs(pts,5,knots=knots,type="closed");
-// Example(2D,Med,NoAxes): Closed quintic spline with explicit knots and weights
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   weights = [1,2,3,4,5,6,7,6,5,4];
-//   knots = [0,1,3,13,13,13,19,21,27,28,33];
-//   debug_nurbs(pts,5,knots=knots,weights=weights,type="closed");
-// Example(2D,NoAxes): Circular arcs are possible with NURBS.  This example gives a semi-circle
-//   control = [[1,0],[1,2],[-1,2],[-1,0]];
-//   w = [1,1/3,1/3,1];
-//   debug_nurbs(control, 3, weights=w, width=0.1, size=.2);
-// Example(2D,NoAxes): Gluing two semi-circles together gives a whole circle.  Note that this is a clamped not closed NURBS.  The interface uses a knot of multiplicity 3 where the clamped ends of the semi-circles meet. 
-//   control = [[1,0],[1,2],[-1,2],[-1,0],[-1,-2],[1,-2],[1,0]];
-//   w = [1,1/3,1/3,1,1/3,1/3,1];
-//   debug_nurbs(control, 3, splinesteps=16,weights=w,mult=[1,3,1],width=.1,size=.2);
-// Example(2D,NoAxes): Circle constructed with type="closed"
-//   control = [[1,0],[1,2],[-1,2],[-1,0],[-1,-2],[1,-2]];
-//   w = [1,1/3,1/3,1,1/3,1/3];
-//   debug_nurbs(control, 3, splinesteps=16,weights=w,mult=[1,3,3],width=.1,size=.2,type="closed",show_knots=true);
-
-function nurbs_curve(control,degree,splinesteps,u,  mult,weights,type="clamped",knots) =
-    let(
-        splinesteps = !any_defined([splinesteps,u]) ? 16 : splinesteps
-    )
-    is_list(control) && in_list(control[0], ["closed","open","clamped"]) ?
-       assert(len(control)>=6, "Invalid NURBS parameter list")
-       assert(num_defined([degree,mult,weights,knots])==0,
-              "Cannot give degree, mult, weights or knots when you provide a NURBS parameter list")
-       nurbs_curve(control[2], control[1], splinesteps, u, weights=control[5],mult=control[4], type=control[0], knots=control[3])
-  : assert(num_defined([splinesteps,u])==1, "Must define exactly one of u and splinesteps")
-    is_finite(u) ? nurbs_curve(control,degree,u=[u],mult=mult,weights=weights,knots=knots,type=type)[0]
-  : assert(is_undef(splinesteps) || (is_int(splinesteps) && splinesteps>0), "splinesteps must be a positive integer")
-    let(u=is_range(u) ? list(u) : u)                  
-    assert(is_undef(u) || (is_vector(u) && min(u)>=0 && max(u)<=1), "u must be a list of points on the interval [0,1] or a range contained in that interval")
-    is_def(weights) ? assert(is_vector(weights, len(control)), "Weights should be a vector whose length is the number of control points")
-                      let(
-                           dim = len(control[0]),
-                           control = [for(i=idx(control)) [each control[i]*weights[i],weights[i]]],
-                           curve = nurbs_curve(control,degree,u=u,splinesteps=splinesteps, mult=mult, knots=knots, type=type)
-                      )
-                      [for(pt=curve) select(pt,0,-2)/last(pt)]
-  :
-    let(
-         uniform = is_undef(knots), 
-         dum=assert(in_list(type, ["closed","open","clamped"]), str("Unknown nurbs spline type: ", type))
-             assert(type=="closed" || len(control)>=degree+1, str(type," nurbs requires at least degree+1 control points"))
-             assert(is_undef(mult) || is_vector(mult), "mult must be a vector"),
-         badmult = is_undef(mult) ? []
-                 : [for(i=idx(mult)) if (!(
-                                            is_int(mult[i])
-                                              && mult[i]>0
-                                              && (mult[i]<=degree
-                                                   || (type!="closed"
-                                                       && mult[i]==degree+1
-                                                       && (i==0 || i==len(mult)-1)
-                                                      )
-                                                 )
-                                           )) i],
-         dummy0 = assert(badmult==[], str("mult vector should contain positive integers no larger than the degree, except at ends of open splines, ",
-                                          "where degree+1 is allowed.  The mult vector has bad values at indices: ",badmult))
-                  assert(is_undef(knots) || is_undef(mult) || len(mult)==len(knots), "If both mult and knots are given they must be vectors of the same length")
-                  assert(is_undef(mult) || type!="clamped" || sum(mult)==len(control)-degree+1,
-                         str("For clamped spline knot count (sum of multiplicity vector) must be ",len(control)-degree+1," but is instead ",mult?sum(mult):0))
-                  assert(is_undef(mult) || type!="closed" || sum(mult)==len(control)+1,
-                         str("For closed spline knot count (sum of multiplicity vector) must be ",len(control)+1," but is instead ",mult?sum(mult):0))
-                  assert(is_undef(mult) || type!="open" || sum(mult)==len(control)+degree+1,
-                         str("For open spline knot count (sum of multiplicity vector) must be ",len(control)+degree+1," but is instead ",mult?sum(mult):0))
-                  assert(uniform || is_increasing(knots), "Knot vector must be increasing"),
-         control = type=="open" ? control
-                 : type=="clamped" ? control  //concat(repeat(control[0], degree),control, repeat(last(control),degree))
-                 : /*type=="closed"*/ concat(control, select(control,count(degree))),
-         mult = !uniform ? mult
-              : type=="clamped" ? assert(is_undef(mult) || mult[0]==1 && last(mult)==1,"For clamped b-splines, first and last multiplicity must be 1")
-                                  [degree+1,each slice(default(mult, repeat(1,len(control)-degree+1)),1,-2),degree+1]
-              : is_undef(mult) ? repeat(1,len(control)+degree+1)
-              : type=="open" ? mult
-              : /* type=="closed" */
-                let(   // Closed spline requires that we identify first and last knots and then step at same
-                       // interval spacing periodically through the knot vector.  This means we pick up the first
-                       // multiplicity minus 1 and have to add it to the last multiplicity.  
-                     lastmult = last(mult)+mult[0]-1,
-                     dummy=assert(lastmult<=degree, "For closed spline, first and last knot multiplicity cannot total more than the degree+1"),
-                     adjlast = [
-                                 each select(mult,0,-2),
-                                 lastmult
-                               ]
-                )
-                _extend_knot_mult(adjlast,1,len(control)+degree+1),
-         knot = uniform && is_undef(mult) ? lerpn(0,1,len(control)+degree+1)
-              : uniform ? [for(i=idx(mult)) each repeat(i/(len(mult)-1),mult[i])]
-              : let(
-                    xknots = is_undef(mult)? knots
-                           : assert(len(mult) == len(knots), "Knot vector and mult vector must be the same length")
-                             [for(i=idx(mult)) each repeat(knots[i], mult[i])]
-                )
-                type=="open" ? assert(len(xknots)==len(control)+degree+1, str("For open spline, knot vector with multiplicity must have length ",
-                                                                        len(control)+degree+1," but has length ", len(xknots)))
-                               xknots
-              : type=="clamped" ? assert(len(xknots) == len(control)+1-degree, str("For clamped spline of degree ",degree,", knot vector with multiplicity must have length ",
-                                                                        len(control)+1-degree," but has length ", len(xknots)))
-                                  assert(xknots[0]!=xknots[1] && last(xknots)!=select(xknots,-2),
-                                         "For clamped spline, first and last knots cannot repeat (must have multiplicity one")
-                                  concat(repeat(xknots[0],degree), xknots, repeat(last(xknots),degree))
-              : /*type=="closed"*/ assert(len(xknots) == len(control)+1-degree,  str("For closed spline, knot vector (including multiplicity) must have length ",
-                                                                        len(control)+1-degree," but has length ", len(xknots),control))
-                                 let(gmult=_calc_mult(xknots))
-                                 assert(gmult[0]+last(gmult)<=degree+1, "For closed spline, first and last knot multiplicity together cannot total more than the degree+1")
-                                 _extend_knot_vector(xknots,0,len(control)+degree+1),
-         bound = type=="clamped" ? undef
-               : [knot[degree], knot[len(control)]],
-         adjusted_u_orig = !is_undef(splinesteps) ?
-                              [for(i=[degree:1:len(control)-1])
-                                each 
-                                  if (!approx(knot[i],knot[i+1]))
-                                    lerpn(knot[i],knot[i+1],splinesteps, endpoint=false),
-                               if (type!="closed") knot[len(control)]
-                              ]
-                         : is_undef(bound) ? u
-                         : add_scalar((bound[1]-bound[0])*u,bound[0]),
-         reorder = is_undef(splinesteps) && !is_increasing(adjusted_u_orig) ?
-                      let(ind = sortidx(adjusted_u_orig))
-                      [ind,sortidx(ind)]
-                 : false,
-         // The u list needs to be sorted for the algorithm to identify the knot spans, so sort it if necessary
-         adjusted_u = reorder ? select(adjusted_u_orig,reorder[0]) : adjusted_u_orig,
-         nurbs_pts = 
-                   uniform?
-                          let(
-                              msum = cumsum(mult)
-                          )
-                          [for(uval=adjusted_u)
-                             let(
-                                 mind = floor(uval*(len(mult)-1)),
-                                 knotidxR=msum[mind]-1,
-                                 knotidx = knotidxR<len(control) ? knotidxR : knotidxR - mult[mind]
-                             )
-                             _nurbs_pt(knot,select(control,knotidx-degree,knotidx),uval,1,degree,knotidx)
-                          ]
-                      : let(
-                          kmult = _calc_mult(knot),
-                          knotidx =
-                            [for(
-                                 kind = kmult[0]-1,
-                                 uind=0,
-                                 kmultind=1,
-                                 output=undef,
-                                 done=false
-                                    ;
-                                 !done
-                                    ;
-                                 output = (uind<len(adjusted_u) && approx(adjusted_u[uind],knot[kind]) && kind>kmult[0]-1
-                                           && ((kmultind>=len(kmult)-1 || kind+kmult[kmultind]>=len(control))))
-                                                           ?kind-kmult[kmultind-1]
-                                        : (uind<len(adjusted_u) && adjusted_u[uind]>=knot[kind] && adjusted_u[uind]>=knot[kind]
-                                            && adjusted_u[uind]<knot[kind+kmult[kmultind]]) ? kind
-                                        : undef,
-                                 done =  uind==len(adjusted_u), 
-                                 uind = is_def(output) ? uind+1 : uind,
-                                 inc_k = uind<len(adjusted_u) && adjusted_u[uind]>=knot[kind+kmult[kmultind]],
-                                 kind = inc_k ? kind+kmult[kmultind] : kind,
-                                 kmultind = inc_k ? kmultind+1 : kmultind
-                             )
-                             if (is_def(output)) output]
-                        )
-                        [for(i=idx(adjusted_u))
-                           _nurbs_pt(knot,slice(control, knotidx[i]-degree,knotidx[i]), adjusted_u[i], 1, degree, knotidx[i])
-                        ]
-         )
-         reorder ? select(nurbs_pts,reorder[1]) : nurbs_pts;
-
-// Function: nurbs_elevate_degree()
-// Synopsis: Raises the degree of a closed or open NURBS.
-// Topics: NURBS Curves
-// See Also: nurbs_interp(), nurbs_curve()
-//
-// Usage:
-//   result = nurbs_elevate_degree(control, degree, [knots=], [mult=], [type=], [times=], [weights=]);
-//   result = nurbs_elevate_degree(nurbs_param_list, [times=]);
-//
-// Description:
-//   Raises the degree of a "closed" or "open" NURBS by `times` steps, producing
-//   a geometrically identical curve at the higher degree.  Returns a NURBS parameter list
-//   of the form `[type, degree, control_points, knots, undef, weights]` that can be
-//   passed directly to {{nurbs_curve()}} and other NURBS functions.  The returned `mult`
-//   parameter is always undef; the returned `weights` will be defined only if you provided
-//   weights in your input.  If you give `times=0` your input parameters are returned unchanged.  
-//   .
-//   An elevated curve has the same smoothness as the original at each knot.  A degree-2
-//   curve that is $C^1$ at its knots will still be $C^1$ after elevation to degree 3,
-//   not $C^2$ as a fresh cubic NURBS with simple knots would be.
-//   .
-//   Instead of providing separate parameters you can give a first parameter of the form of a
-//   NURBS parameter list: `[type, degree, control, knots, mult, weights]`.  
-//
-// Arguments:
-//   control = Control points, or a NURBS parameter list `[type, degree, ctrl, knots, mult, weights]`
-//   degree  = Degree of NURBS
-//   ---
-//   knots   = Knot vector.  Default: uniform
-//   mult    = List of multiplicities of the knots.  Default: all 1
-//   type    = `"clamped"` or `"open"`.  Default: `"clamped"`
-//   times   = Number of degree-elevation steps.  Default: `1`
-//   weights = Weight at each control point
-
-function nurbs_elevate_degree(control, degree, knots=undef,
-                              type="clamped", times=1, weights=undef,
-                              mult=undef) =
-    // Accept a NURBS parameter list as the first argument.
-    is_list(control) && in_list(control[0], ["closed","open","clamped"]) ?
-         assert(len(control)>=6, "Invalid NURBS parameter list")
-         assert(num_defined([degree,mult,weights,knots])==0,
-                "Cannot give degree, mult, weights or knots when you provide a NURBS parameter list")
-         times == 0 ? control
-         : nurbs_elevate_degree(control[2], control[1], control[3],
-                                type=control[0], times=times,
-                                weights=control[5], mult=control[4])
-  : times == 0
-    ? [type, degree, control, knots, mult, weights]
-    // Rational NURBS: lift to homogeneous space, elevate as a plain B-spline,
-    // then extract weights from the last coordinate.  The recursive call handles
-    // all asserts, knot normalization, and the times loop.
-  : !is_undef(weights)
-    ? assert(len(weights) == len(control),
-             "nurbs_elevate_degree: weights must have same length as control points")
-      let(
-          homo      = [for (i = idx(control)) [each control[i]*weights[i],weights[i]]],
-          r         = nurbs_elevate_degree(homo, degree, knots=knots, type=type, times=times, mult=mult),
-          new_w     = [for (pt = r[2]) last(pt)],
-          new_ctrl  = [for (pt = r[2]) slice(pt,0,-2)/last(pt) ]
-      )
-      [r[0], r[1], new_ctrl, r[3], undef, new_w]
-    // Non-rational B-spline path.
-  : assert(type == "clamped" || type == "open",
-           str("nurbs_elevate_degree: type must be \"clamped\" or \"open\", got \"", type, "\""))
-    assert(is_num(times) && times >= 1,
-           "nurbs_elevate_degree: times must be a positive integer")
-    assert(is_num(degree) && degree >= 1,
-           "nurbs_elevate_degree: degree must be >= 1")
-    assert(is_list(control) && len(control) >= 2,
-           "nurbs_elevate_degree: need at least 2 control points")
-    assert(is_undef(knots) || is_undef(mult) || len(mult) == len(knots),
-           str("nurbs_elevate_degree: mult and knots must have the same length; got len(mult)=",
-               is_undef(mult) ? "undef" : len(mult),
-               " len(knots)=",
-               is_undef(knots) ? "undef" : len(knots)))
-    let(
-        // Normalize (knots, mult) → internal format for _elevate_once.
-        //
-        //   clamped: xknots = [k0, interior..., km] — one copy each including endpoints.
-        //   open:    xknots = full expanded knot vector (all multiplicities present).
-        //
-        // Neither knots nor mult → BOSL2-compatible uniform knots.
-        //   clamped → interior format [0, uniform interior..., 1]
-        //   open    → full expanded vector (length n+p+2, uniform)
-        //
-        // knots only (no mult): pass through unchanged.
-        //
-        // mult only (no knots): uniform positions 0..1 with given multiplicities.
-        //   clamped: endpoint mult forced to degree+1; expand then strip.
-        //   open:    full expanded vector.
-        //
-        // knots + mult: explicit distinct positions with per-knot multiplicities.
-        //   clamped: endpoint mult forced to degree+1; expand then strip.
-        //   open:    full expanded vector.
-        xknots =
-            is_undef(knots) && is_undef(mult)
-            ? ( type == "clamped" ? lerpn(0, 1, len(control) - degree + 1)
-              :                     lerpn(0, 1, len(control) + degree + 1) )
-            : is_undef(mult) ? knots
-            : is_undef(knots)
-              ? let(
-                    m   = len(mult),
-                    adj = type == "clamped" && m >= 2
-                          ? [degree+1, each [for (i = [1:1:m-2]) mult[i]], degree+1]
-                          : mult,
-                    pos = [for (i = [0:1:m-1]) m == 1 ? 0 : i / (m - 1)],
-                    exp = [for (i = [0:1:m-1]) each repeat(pos[i], adj[i])]
-                )
-                type == "clamped"
-                ? [for (i = [degree : 1 : len(exp) - degree - 1]) exp[i]]
-                : exp
-              : let(
-                    m   = len(mult),
-                    adj = type == "clamped" && m >= 2
-                          ? [degree+1, each [for (i = [1:1:m-2]) mult[i]], degree+1]
-                          : mult,
-                    exp = [for (i = [0:1:m-1]) each repeat(knots[i], adj[i])]
-                )
-                type == "clamped"
-                ? [for (i = [degree : 1 : len(exp) - degree - 1]) exp[i]]
-                : exp
-    )
-    assert(type != "clamped" || len(xknots) >= 2,
-           "nurbs_elevate_degree: clamped knots must have at least 2 entries [first,...,last]")
-    assert(type != "open" || len(xknots) == len(control) + degree + 1,
-           str("nurbs_elevate_degree: open knots must have length len(control)+degree+1 = ",
-               len(control) + degree + 1, ", got ", len(xknots)))
-    let(
-        // _elevate_once works on the full expanded knot vector.
-        // Clamped xknots = [k0, interior..., km]; expand to full by adding p copies
-        // of each endpoint.  Open xknots is already full.  After elevation, strip the
-        // p+1 endpoint copies back off for clamped so the output stays in xknots format.
-        U_full    = type == "clamped"
-                    ? concat(repeat(xknots[0], degree), xknots, repeat(last(xknots), degree))
-                    : xknots,
-        r         = _elevate_once(control, degree, U_full),
-        new_knots = type == "clamped"
-                    ? slice(r[1], degree+1, -degree-2)
-                    : r[1]
-    )
-    times == 1
-    ? [type, r[2], r[0], new_knots, undef, undef]
-    : nurbs_elevate_degree(r[0], r[2], new_knots, type=type, times=times-1);
-
-       
-
-function _nurbs_pt(knot, control, u, r, p, k) = 
-    r>p ? control[0]
-  :                          
-    let( 
-         ctrl_new = [for(i=[k-p+r:1:k])
-                       let(
-                            alpha = (u-knot[i]) / (knot[i+p-r+1]-knot[i])
-                       )
-                       (1-alpha) * control[i-1-(k-p)-r+1] + alpha*control[i-(k-p)-r+1]
-                    ]
-    )
-    _nurbs_pt(knot,ctrl_new,u,r+1,p,k);
-
-
-function _extend_knot_mult(mult, next, len) =
-    let(total = sum(mult))
-    total == len ? mult
-  : total>len ? [ each select(mult,0,-2), last(mult)-(total-len) ]
-  : _extend_knot_mult([each mult,mult[next]], next+1, len);
-
-function _extend_knot_vector(knots,next,len) =
-    len(knots)==len ? knots
-  : _extend_knot_vector([each knots, last(knots)+knots[next+1]-knots[next]], next+1, len);
-
-
-function _calc_mult(knots) =
-  let(
-      ind=[ 0,
-            for(i=[1:len(knots)-1])
-              if (!approx(knots[i],knots[i-1])) i,
-            len(knots)
-          ]
-  )
-  deltas(ind);
-
-
-// Module: debug_nurbs()
-// Synopsis: Shows a NURBS curve and its control points, knots and weights
-// SynTags: Geom
-// Topics: NURBS, Debugging
-// See Also: nurbs_curve()
-// Usage:
-//   debug_nurbs(control, degree, [width], [splinesteps=], [type=], [mult=], [knots=], [size=], [show_weights=], [show_knots=], [show_idx=]);
-// Description:
-//   Displays a 2D or 3D NURBS and the associated control points to help debug NURBS curves.  You can display the
-//   control point indices and weights, and can also display the knot points.
-//   Instead of providing separate parameters you can give a first parameter of the form of a NURBS parameter list: `[type, degree, control, knots, mult, weights]`.  
-// Arguments:
-//   control = list of control points in any dimension or a NURBS parameter list
-//   degree = degree of NURBS
-//   splinesteps = number of segments between each pair of knots.  Default: 16
-//   width = width of the line.  Default: 1
-//   size = size of text annotations.  Default: 3 times the width
-//   mult = multiplicity vector for NURBS
-//   weights = weight vector for NURBS
-//   type = NURBS type, one of "clamped", "open" or "closed".  Default: "clamped"
-//   show_index = if true then display index of each control point vertex.  Default: true
-//   show_weights = if true then display any non-unity weights.  Default: true if weights vector is supplied, false otherwise
-//   show_knots = If true then show the knots on the spline curve.  Default: false
-//   show_control = If true then show the control points and its polygon.  Default: true
-// Example(2D,Med,NoAxes): The default display includes the control point polygon with its vertices numbered, and the NURBS curve
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   debug_nurbs(pts,4,type="closed");
-// Example(2D,Med,NoAxes): If you want to see the knots set `show_knots=true`:
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   debug_nurbs(pts,4,type="clamped",show_knots=true);
-// Example(2D,Med,NoAxes): Non-unity weights are displayed if you give a weight vector
-//   pts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]];
-//   weights = [1,1,1,7,1,1,7,1,1,1];
-//   debug_nurbs(pts,4,type="closed",weights=weights);
-
-module debug_nurbs(control,degree,splinesteps=16,width=1, size, mult,weights,type="clamped",knots, show_weights, show_knots=false, show_index=true, show_control=true)
-{
-  if (is_list(control) && in_list(control[0], ["closed","open","clamped"])) {
-    assert(len(control)>=6, "Invalid NURBS parameter list")
-    assert(num_defined([degree,mult,weights,knots])==0,
-           "Cannot give degree, mult, weights or knots when you provide a NURBS parameter list")
-    debug_nurbs(control[2], control[1], splinesteps, width, size, weights=control[5],mult=control[4], type=control[0], knots=control[3],
-                show_weights=show_weights, show_knots=show_knots, show_index=show_index, show_control=show_control);
-  }
-  else {
-    $fn=8;
-    size = default(size, 3*width);
-    show_weights = default(show_weights, is_def(weights));
-    N=len(control);
-    twodim = len(control[0])==2;
-    curve = nurbs_curve(control=control,degree=degree,splinesteps=splinesteps, mult=mult,weights=weights, type=type, knots=knots);
-    stroke(curve, width=width, closed=type=="closed");//, color="green");
-    if (show_control)
-      stroke(control, width=width/2, color="white", closed=type=="closed");
-    if (show_knots){
-      knotpts = nurbs_curve(control=control, degree=degree, splinesteps=1, mult=mult, weights=weights, type=type, knots=knots);
-      echo(knotpts);
-        color([0,.8,0])
-        move_copies(knotpts)
-          if (twodim) union(){rect([3*width,width]); rect([width,3*width]);} //circle(r=width);
-          else for(i=[0:2]) cuboid(list_rotate([3*width,width,width],i));
-    }
-    color("blue")
-      if (show_index && show_control)
-        move_copies(control){
-          let(label = str($idx),
-              anch = show_weights && is_def(weights[$idx]) && weights[$idx]!=1 ? FWD : CENTER)
-            if (twodim) text(text=label, size=size, anchor=anch);
-            else rot($vpr) text3d(text=label, size=size, anchor=anch);
-      }
-    color("blue")
-      if ( show_weights)
-        move_copies(control){
-          if(is_def(weights[$idx]) && weights[$idx]!=1)
-            let(label = str("w=",weights[$idx]), 
-                anch = show_index ? BACK : CENTER
-                )
-            if (twodim) fwd(size/2*0)text(text=label, size=size, anchor=anch);
-            else rot($vpr) text3d(text=label, size=size, anchor=anch);
-      }
-  }
-}  
-
-
-// Section: NURBS Surfaces
-
-
-// Function: is_nurbs_patch()
-// Synopsis: Returns true if the given item looks like a NURBS patch.
-// Topics: NURBS Patches, Type Checking
-// Usage:
-//   bool = is_nurbs_patch(x);
-// Description:
-//   Returns true if the given item looks like a NURBS patch. (a 2D array of 3D points.)
-// Arguments:
-//   x = The value to check the type of.
-function is_nurbs_patch(x) =
-    is_list(x) && is_list(x[0]) && is_vector(x[0][0]) && len(x[0]) == len(x[len(x)-1]);  
-
-
-
-// Function: nurbs_patch_points()
-// Synopsis: Computes specifies point(s) on a NURBS surface patch
-// Topics: NURBS Patches
-// See Also: nurbs_vnf(), nurbs_curve()
-// Usage:
-//   pointgrid = nurbs_patch_points(patch, degree, [splinesteps], [u=], [v=], [weights=], [type=], [mult=], [knots=]);
-// Description:
-//   Sample a NURBS patch on a point set.  If you give splinesteps then it will sampled uniformly in the spline
-//   parameter between the knots, ensuring that a sample appears at every knot.  If you instead give u and v then
-//   the values at those points in parameter space will be returned.  The various NURBS parameters can all be
-//   single values, if the NURBS has the same parameters in both directions, or pairs listing the value for the
-//   two directions.  If you want uniform knots in one direction and specified knots in the other you can
-//   give `undef` as the knot vector, e.g., `[undef,vknots]` to have uniform knots in the first dimension and
-//   specified knots in the second one.  You can do the same thing with the `mult` parameter.   
-// Arguments:
-//   patch = rectangular list of control points in any dimension, or a NURBS parameter list
-//   degree = a scalar or 2-vector giving the degree of the NURBS in the two directions
-//   splinesteps = a scalar or 2-vector giving the number of segments between each knot in the two directions
-//   ---
-//   u = evaluation points in the u direction of the patch
-//   v = evaluation points in the v direction of the patch
-//   mult = a single list or pair of lists giving the knot multiplicity in the two directions. Default: all 1
-//   knots = a single list or pair of lists giving the knot vector in each of the two directions.  Default: uniform
-//   weights = a matrix whose size corresponds to `patch` giving the weight at each control point in the patch.  Default: all 1
-//   type = a single string or pair of strings giving the NURBS type, where each entry is one of "clamped", "open" or "closed".  Default: "clamped"
-// Example(3D,NoScale): Computing points on a patch using ranges
-//   patch = [
-//       [[-50, 50,  0], [-16, 50,  20], [ 16, 50,  20], [50, 50,  0]],
-//       [[-50, 16, 20], [-16, 16,  40], [ 16, 16,  40], [50, 16, 20]],
-//       [[-50,-16, 20], [-16,-16,  40], [ 16,-16,  40], [50,-16, 20]],
-//       [[-50,-50,  0], [-16,-50,  20], [ 16,-50,  20], [50,-50,  0]],
-//   ];
-//   pts = nurbs_patch_points(patch, 3, u=[0:.1:1], v=[0:.3:1]);
-//   move_copies(flatten(pts)) sphere(r=2,$fn=16);
-// Example(3D,NoScale): Computing points using splinesteps
-//   patch = [
-//       [[-50, 50,  0], [-16, 50,  20], [ 16, 50,  20], [50, 50,  0]],
-//       [[-50, 16, 20], [-16, 16,  40], [ 16, 16,  40], [50, 16, 20]],
-//       [[-50,-16, 20], [-16,-16,  40], [ 16,-16,  40], [50,-16, 20]],
-//       [[-50,-50,  0], [-16,-50,  20], [ 16,-50,  20], [50,-50,  0]],
-//   ];
-//   pts = nurbs_patch_points(patch, 3, splinesteps=5);
-//   move_copies(flatten(pts)) sphere(r=2,$fn=16);
-
-function nurbs_patch_points(patch, degree, splinesteps, u, v, weights, type=["clamped","clamped"], mult=[undef,undef], knots=[undef,undef]) =
-    is_list(patch) && _valid_surface_type(patch[0]) ?
-       assert(len(patch)>=6, "NURBS parameter list is invalid")
-       assert(num_defined([degree,weights])==0 && mult==[undef,undef] && knots==[undef,undef],
-              "Cannot give degree, mult, weights or knots when you provide a NURBS parameter list")
-       nurbs_patch_points(patch[2], patch[1], splinesteps, u, v, patch[5], patch[0], knots=patch[3],mult=patch[4])
-  : assert(is_undef(splinesteps) || !any_defined([u,v]), "Cannot combine splinesteps with u and v")
-    is_def(weights) ?
-       assert(is_matrix(weights,len(patch),len(patch[0])), "The weights parameter must be a matrix that matches the size of the patch array")
-       let(
-            patch = [for(i=idx(patch)) [for (j=idx(patch[0])) [each patch[i][j]*weights[i][j], weights[i][j]]]],
-            pts = nurbs_patch_points(patch=patch, degree=degree, splinesteps=splinesteps, u=u, v=v, type=type, mult=mult, knots=knots)
-       )
-       [for(row=pts) [for (pt=row) select(pt,0,-2)/last(pt)]]
-   :
-    assert(is_undef(u) || is_range(u) || is_vector(u) || is_finite(u), "Input u is invalid")
-    assert(is_undef(v) || is_range(v) || is_vector(v) || is_finite(v), "Input v is invalid")
-    assert(num_defined([u,v])!=1, "Must define both u and v (when using)")
-    let(
-        u=is_range(u) ? list(u) : u,
-        v=is_range(v) ? list(v) : v,
-        degree = force_list(degree,2),
-        type = force_list(type,2),
-        splinesteps = is_undef(splinesteps) ? [undef,undef] : force_list(splinesteps,2),
-        mult = is_vector(mult) || is_undef(mult) ? [mult,mult]
-             : assert((is_undef(mult[0]) || is_vector(mult[0])) && (is_undef(mult[1]) || is_vector(mult[1])), "mult must be a vector or list of two vectors")
-               mult,
-        knots = is_vector(knots) || is_undef(knots) ? [knots,knots]
-              : assert((is_undef(knots[0]) || is_vector(knots[0])) && (is_undef(knots[1]) || is_vector(knots[1])), "knots must be a vector or list of two vectors")
-                knots
-    )
-    is_num(u) && is_num(v)? nurbs_curve([for (control=patch) nurbs_curve(control, degree[1], u=v, type=type[1], mult=mult[1], knots=knots[1])],
-                                        degree[0], u=u, type=type[0], mult=mult[0], knots=knots[0])
-  : is_num(u) ? nurbs_patch_points(patch, degree, u=[u], v=v, knots=knots, mult=mult, type=type)[0]
-  : is_num(v) ? column(nurbs_patch_points(patch, degree, u=u, v=[v], knots=knots, mult=mult, type=type),0)
-  :                                      
-    let(
-        vsplines = [for (i = idx(patch[0])) nurbs_curve(column(patch,i), degree[0], splinesteps=splinesteps[0],u=u, type=type[0],mult=mult[0],knots=knots[0])]
-    )
-    [for (i = idx(vsplines[0])) nurbs_curve(column(vsplines,i), degree[1], splinesteps=splinesteps[1], u=v, mult=mult[1], knots=knots[1], type=type[1])];
-
-    
-// Function&Module: nurbs_vnf()
-// Synopsis: Generates a (possibly non-manifold) VNF for a single NURBS surface patch.
-// SynTags: VNF
-// Topics: NURBS Patches
-// See Also: nurbs_patch_points()
-// Usage: (as a function)
-//   vnf = nurbs_vnf(patch, degree, [splinesteps], [mult=], [knots=], [weights=], [type=], [style=], [reverse=], [triangulate=], [caps=], [caps1=], [caps2=]);
-// Usage: (as a module)
-//   nurbs_vnf(patch, degree, [splinesteps], [mult=], [knots=], [weights=], [type=], [style=], [reverse=], [triangulate=], [caps=], [caps1=], [caps2=], [convexity=],[atype=],[cp=], [cp=], [atype=], ...) CHILDREN;
-// Description:
-//   Compute a (possibly non-manifold) VNF for a NURBS.  The input patch must be an array of control points or a NURBS parameter list.  If weights is given it
-//   must be an array of weights that matches the size of the control points.  The style parameter
-//   gives the {{vnf_vertex_array()}} style to use.  The other parameters may specify the NURBS parameters in the two directions
-//   by giving a single value, which applies to both directions, or a list of two values to specify different values in each direction.
-//   You can specify undef for for a direction to keep the default, such as `mult=[undef,v_multiplicity]`.
-//   .
-//   Instead of providing separate parameters you can give a first parameter as a NURBS parameter list: `[type, degree, control, knots, mult, weights]`.  
-// Arguments:
-//   patch = rectangular list of control points in any dimension, or a NURBS parameter list
-//   degree = a scalar or 2-vector giving the degree of the NURBS in the two directions
-//   splinesteps = a scalar or 2-vector giving the number of segments between each knot in the two directions.  Default: 16
-//   ---
-//   mult = a single list or pair of lists giving the knot multiplicity in the two directions.  Default: all 1
-//   knots = a single list of pair of lists giving the knot vector in each of the two directions.  Default: uniform
-//   weights = a single list or pair of lists giving the weight at each control point in the.  Default: all 1
-//   type = a single string or pair of strings giving the NURBS type, where each entry is one of "clamped", "open" or "closed".  Default: "clamped"
-//   caps = If true, add endcap faces to both ends.  The type must be ["clamped","closed"] or ["closed","clamped"] to enable caps.  
-//   cap1 = If true, add an endcap face to the first end.
-//   cap2 = If true, add an endcap face to the second end.
-//   reverse = If true, reverse all face normals.
-//   style = {{vnf_vertex_array ()}} style to use for triangulating the surface.  Default: "default"
-//   triangulate = If true, triangulates endcaps to resolve possible CGAL issues.  This can be an expensive operation if the endcaps are complex.  Default: false
-//   cp = (module) Centerpoint for determining intersection anchors or centering the shape.  Determines the base of the anchor vector.  Can be "centroid", "mean", "box" or a 3D point.  Default: "centroid"
-//   anchor = (module) Translate so anchor point is at origin (0,0,0).  See [anchor](attachments.scad#subsection-anchor).  Default: `"origin"`
-//   spin = (module) Rotate this many degrees around the Z axis after anchor.  See [spin](attachments.scad#subsection-spin).  Default: `0`
-//   orient = (module) Vector to rotate top toward, after spin. See [orient](attachments.scad#subsection-orient).  Default: `UP`
-//   atype = (module) Select "hull" or "intersect" anchor type.  Default: "hull"
-// Example(3D): Quadratic B-spline surface
-//   patch = [
-//       [[-50, 50,  0], [-16, 50,  20], [ 16, 50,  20], [50, 50,  0]],
-//       [[-50, 16, 20], [-16, 16,  40], [ 16, 16,  40], [50, 16, 20]],
-//       [[-50,-16, 20], [-16,-16,  40], [ 16,-16,  40], [50,-16, 20]],
-//       [[-50,-50,  0], [-16,-50,  20], [ 16,-50,  20], [50,-50,  0]],
-//   ];
-//   vnf = nurbs_vnf(patch, 2);
-//   vnf_polyhedron(vnf);
-// Example(3D): Cubic B-spline surface
-//   patch = [
-//       [[-50, 50,  0], [-16, 50,  20], [ 16, 50,  20], [50, 50,  0]],
-//       [[-50, 16, 20], [-16, 16,  40], [ 16, 16,  40], [50, 16, 20]],
-//       [[-50,-16, 20], [-16,-16,  40], [ 16,-16,  40], [50,-16, 20]],
-//       [[-50,-50,  0], [-16,-50,  20], [ 16,-50,  20], [50,-50,  0]],
-//   ];
-//   vnf = nurbs_vnf(patch, 3);
-//   vnf_polyhedron(vnf); 
-// Example(3D): Cubic B-spline surface, closed in one direction
-//   patch = [
-//       [[-50, 50,  0], [-16, 50,  20], [ 16, 50,  20], [50, 50,  0]],
-//       [[-50, 16, 20], [-16, 16,  40], [ 16, 16,  40], [50, 16, 20]],
-//       [[-50,-16, 20], [-16,-16,  40], [ 16,-16,  40], [50,-16, 20]],
-//       [[-50,-50,  0], [-16,-50,  20], [ 16,-50,  20], [50,-50,  0]],
-//   ];
-//   vnf = nurbs_vnf(patch, 3, type=["closed","clamped"]);
-//   vnf_polyhedron(vnf); 
-// Example(3D): B-spline surface cubic in one direction, quadratic in the other
-//   patch = [
-//       [[-50, 50,  0], [-16, 50,  20], [ 16, 50,  20], [50, 50,  0]],
-//       [[-50, 16, 20], [-16, 16,  40], [ 16, 16,  40], [50, 16, 20]],
-//       [[-50,-16, 20], [-16,-16,  40], [ 16,-16,  40], [50,-16, 20]],
-//       [[-50,-50,  0], [-16,-50,  20], [ 16,-50,  20], [50,-50,  0]],
-//   ];
-//   vnf = nurbs_vnf(patch, [3,2],type=["closed","clamped"]);
-//   vnf_polyhedron(vnf); 
-// Example(3D): The sphere can be represented using NURBS
-//   patch = [
-//             [[0,0,1], [0,0,1], [0,0,1],  [0,0,1],  [0,0,1],    [0,0,1],  [0,0,1]],
-//             [[2,0,1], [2,4,1], [-2,4,1], [-2,0,1], [-2,-4,1],  [2,-4,1], [2,0,1]],
-//             [[2,0,-1],[2,4,-1],[-2,4,-1],[-2,0,-1],[-2,-4,-1], [2,-4,-1],[2,0,-1]],
-//             [[0,0,-1],[0,0,-1],[0,0,-1], [0,0,-1], [0,0,-1],   [0,0,-1], [0,0,-1]]
-//           ];
-//   weights = [
-//              [9,3,3,9,3,3,9],
-//              [3,1,1,3,1,1,3],
-//              [3,1,1,3,1,1,3],
-//              [9,3,3,9,3,3,9],
-//             ]/9;
-//   vknots = [0, 1/2, 1/2, 1/2, 1];               
-//   vnf = nurbs_vnf(patch, 3,weights=weights, knots=[undef,vknots]);
-//   vnf_polyhedron(vnf);    
-function nurbs_vnf(patch, degree, splinesteps=16, weights, type="clamped", mult, knots, style="default", reverse=false, triangulate=false, caps,cap1,cap2) =
-   is_list(patch) && _valid_surface_type(patch[0]) ?
-      assert(len(patch)>=6, "NURBS parameter list is invalid")
-      assert(num_defined([degree,mult,weights,knots]==0),
-              "Cannot give degree, mult, weights or knots when you provide a NURBS parameter list")
-      nurbs_vnf(patch[2], patch[1], splinesteps, patch[5], patch[0], knots=patch[3], mult=patch[4], style=style,caps=caps,cap1=cap1,cap2=cap2,
-                                                               reverse=reverse, triangulate=triangulate)
- : assert(is_nurbs_patch(patch),"Input patch is not a rectangular aray of points")
-   assert(_valid_surface_type(type), "type must be one of or a list of two of: \"closed\", \"clamped\" and \"open\"")
-   let(havecaps = num_true([caps,cap1,cap2])>0)
-   assert(!havecaps || type==["clamped","closed"] || type==["closed","clamped"],
-                    "Surface must be [\"closed\",\"clamped\"] or [\"clamped\",\"closed\"] to for caps to be created")
-   let(
-        type = force_list(type,2),
-        havecaps = num_true([caps,cap1,cap2])>0,
-        flip = havecaps && type[0]=="closed",
-        pts = nurbs_patch_points(patch=patch, degree=degree, splinesteps=splinesteps, type=type, mult=mult, knots=knots, weights=weights),
-        tpts = flip ? (transpose(pts)) : pts
-   )
-   vnf_vertex_array(tpts, style=style, row_wrap=type[flip?1:0]=="closed", col_wrap=type[flip?0:1]=="closed",reverse=reverse,triangulate=triangulate,
-                    caps=caps,cap1=cap1,cap2=cap2);
-
-
-function _valid_surface_type(type) =
-    in_list(type,["closed","clamped","open"]) ? true
-  : !is_list(type) || len(type)!=2 ? false
-  : _valid_surface_type(type[0]) && _valid_surface_type(type[1]);
-  
-
-
-module nurbs_vnf(patch, degree, splinesteps=16, weights, type="clamped", mult, knots, style="default", reverse=false, triangulate=false,
-                 convexity=2, cp="centroid", anchor="origin", spin=0, orient=UP, atype="hull", caps, cap1, cap2) 
-{
-   if (is_list(patch) && _valid_surface_type(patch[0])){
-       assert(len(patch)>=6, "NURBS parameter list is invalid");
-       assert(num_defined([degree,mult,weights,knots]==0),
-              "Cannot give degree, mult, weights or knots when you provide a NURBS parameter list");
-       nurbs_vnf(patch[2], patch[1], splinesteps, patch[5], patch[0], mult=patch[4], knots=patch[3], style=style, reverse=reverse, triangulate=triangulate,
-                 convexity=convexity, cp=cp, anchor=anchor, spin=spin, orient=orient, atype=atype, caps=caps, cap1=cap1, cap2=cap2) children();
-   }
-   else {
-       type = force_list(type,2);
-       havecaps = num_true([caps,cap1,cap2])>0;
-       dummy = 
-               assert(is_nurbs_patch(patch),"Input patch is not a rectangular aray of points")
-               assert(_valid_surface_type(type), "type must be one of or a list of two of: \"closed\", \"clamped\" and \"open\"")
-               assert(!havecaps || type==["clamped","closed"] || type==["closed","clamped"],
-                      "Surface must be [\"closed\",\"clamped\"] or [\"clamped\",\"closed\"] to for caps to be created");
-       flip = havecaps && type[0]=="closed";
-       pts = nurbs_patch_points(patch=patch, degree=degree, splinesteps=splinesteps, type=type, mult=mult, knots=knots, weights=weights);
-       tpts = flip ? (transpose(pts)) : pts;
-       vnf_vertex_array(tpts, style=style, row_wrap=type[flip?1:0]=="closed", col_wrap=type[flip?0:1]=="closed", reverse=reverse, triangulate=triangulate, cp=cp,
-                        convexity=convexity, anchor=anchor, spin=spin, orient=orient, atype=atype, caps=caps, cap1=cap1, cap2=cap2) children();
-   }
-}
-
-
 //////////////////////////////////////////////////////////////////////
 // LibFile: nurbs_interp.scad
-//   NURBS curve and surface interpolation through data points.
-//   Given a set of data points, computes the control points and knot
-//   vector of a B-spline that passes exactly through every data point.
-//   Supports clamped curves (open-ended), closed curves (smooth loops),
-//   and surfaces of both types in each parametric direction.
-//   Optional per-point derivative and curvature constraints are supported.
-//   .
+//   NURBS Curve Interpolation through Data Points
+//
+//   Given a set of data points, computes the NURBS control points and
+//   knot vector such that the resulting curve passes exactly through
+//   every data point.  Supports two BOSL2 NURBS types:
+//     "clamped" - curve starts/ends at first/last data point
+//     "closed"  - curve forms a smooth closed loop through all points
+//
+//   Optional per-point derivative (tangent) constraints can be applied
+//   to both curve types via the deriv= parameter.  The clamped
+//   type also accepts the start_deriv=/end_deriv= shorthand arguments.
+//   (Piegl & Tiller, "The NURBS Book", Section 9.2.2.)
+//
 //   Algorithm from Piegl & Tiller, "The NURBS Book", Chapters 2 & 9.
-// Includes:
-//   include <BOSL2/std.scad>
-//   include <BOSL2/nurbs.scad>
-//   include <nurbs_interp.scad>
+//
+//   Requires BOSL2.  To use, add these lines to the top of your file:
+//     include <BOSL2/std.scad>
+//     include <BOSL2/nurbs.scad>
+//     include <nurbs_interp.scad>
+//
 // Author: Claude (Anthropic), 2026
 // License: BSD-2-Clause (same as BOSL2)
-// Development Version 192
+// Development Version 180
 //////////////////////////////////////////////////////////////////////
 
 
-// Section: Internal B-spline Basis Functions
+// =====================================================================
+// SECTION: Internal B-spline Basis Functions
+// =====================================================================
 
 // Cox-de Boor recursive B-spline basis function N_{i,p}(u).
 // Returns 0 for out-of-range indices (safe for periodic evaluation).
@@ -922,7 +78,9 @@ function _d2nip(j, p, u, U) =
     - (abs(d2) > 1e-15 ? p * _dnip(j+1, p-1, u, U) / d2 : 0);
 
 
-// Section: Input Helpers
+// =====================================================================
+// SECTION: Input Helpers
+// =====================================================================
 
 // Validate and coerce a single derivative vector to the required dimension.
 //
@@ -1028,7 +186,9 @@ function _merge_curv_list(n, curvature, dim=undef, start_curvature=undef, end_cu
     : [for (v = raw) (is_undef(v) || is_num(v)) ? v : _force_deriv_dim(v, dim)];
 
 
-// Section: Parameterization
+// =====================================================================
+// SECTION: Parameterization
+// =====================================================================
 
 
 // Dynamic centripetal parameterization (Balta et al., IEEE Access 2020 §III).
@@ -1158,7 +318,9 @@ function _interp_params(points, method="centripetal", closed=false) =
                : [0, each [for (x = list_head(cs)) x / total], 1];
 
 
-// Section: Knot Vector Construction
+// =====================================================================
+// SECTION: Knot Vector Construction
+// =====================================================================
 
 // Interior knots by averaging (Piegl & Tiller eq 9.8).
 
@@ -1495,150 +657,53 @@ function _gauss_legendre(n) =
       0.4786286704993665, 0.2369268850561891]];
 
 
-// One step of the de Boor recurrence: lifts degree-(k-1) to degree-k basis values
-// at parameter t in span s of U.
-// b_prev[lj] = N_{s-(k-1)+lj, k-1}(t)  for lj = 0..k-1  (k entries)
-// Returns b[lj] = N_{s-k+lj, k}(t)     for lj = 0..k    (k+1 entries)
-
-function _deboor_step(b_prev, k, s, t, U) =
-    [for (lj = [0:1:k])
-        let(
-            j  = s - k + lj,
-            e1 = U[s + lj]     - U[j],       // U[j+k]   - U[j]
-            e2 = U[s + lj + 1] - U[j + 1]    // U[j+k+1] - U[j+1]
-        )
-        (lj > 0 && abs(e1) > 1e-15 ? (t - U[j])      / e1 * b_prev[lj - 1] : 0)
-      + (lj < k && abs(e2) > 1e-15 ? (U[s+lj+1] - t) / e2 * b_prev[lj]     : 0)
-    ];
-
-
-// Returns the (k+1)-element vector of non-zero degree-k basis values at t in span s:
-// b[lj] = N_{s-k+lj, k}(t)  for lj = 0..k.
-
-function _deboor_to_degree(s, k, t, U) =
-    k == 0 ? [1]
-    : _deboor_step(_deboor_to_degree(s, k - 1, t, U), k, s, t, U);
-
-
-// Returns the (p+1)-element vector of non-zero degree-p second-derivative values
-// at parameter t, which lies in knot span s of U.
-// d2[lj] = N''_{s-p+lj, p}(t)  for lj = 0..p.
-// Uses the de Boor triangle to degree p-2, then lifts twice via the derivative
-// recurrence (P&T §2.3 eq. 2.9): O(p²) work instead of M separate _d2nip() calls.
-
-function _d2nip_span(s, p, t, U) =
-    p <= 1
-    ? [for (lj = [0:1:p]) 0]
-    : let(
-          // Degree-(p-2) basis: b2[lj] = N_{s-(p-2)+lj, p-2}(t)  for lj = 0..p-2.
-          b2  = _deboor_to_degree(s, p - 2, t, U),
-
-          // First lift: d1[lj] = N'_{s-(p-1)+lj, p-1}(t)  for lj = 0..p-1.
-          // N'_{j,p-1} = (p-1)/(U[j+p-1]-U[j])*N_{j,p-2} - (p-1)/(U[j+p]-U[j+1])*N_{j+1,p-2}
-          // with N_{j,p-2} = b2[lj-1]  and  N_{j+1,p-2} = b2[lj].
-          q1  = p - 1,
-          d1  = [for (lj = [0:1:q1])
-                    let(
-                        j  = s - q1 + lj,
-                        e1 = U[s + lj]     - U[j],       // U[j+q1]   - U[j]
-                        e2 = U[s + lj + 1] - U[j + 1]    // U[j+q1+1] - U[j+1]
-                    )
-                    (lj > 0  && abs(e1) > 1e-15 ? q1 * b2[lj - 1] / e1 : 0)
-                  - (lj < q1 && abs(e2) > 1e-15 ? q1 * b2[lj]     / e2 : 0)
-                ],
-
-          // Second lift: d2[lj] = N''_{s-p+lj, p}(t)  for lj = 0..p.
-          // N''_{j,p} = p/(U[j+p]-U[j])*N'_{j,p-1} - p/(U[j+p+1]-U[j+1])*N'_{j+1,p-1}
-          // with N'_{j,p-1} = d1[lj-1]  and  N'_{j+1,p-1} = d1[lj].
-          d2  = [for (lj = [0:1:p])
-                    let(
-                        j  = s - p + lj,
-                        e1 = U[s + lj]     - U[j],       // U[j+p]   - U[j]
-                        e2 = U[s + lj + 1] - U[j + 1]    // U[j+p+1] - U[j+1]
-                    )
-                    (lj > 0 && abs(e1) > 1e-15 ? p * d1[lj - 1] / e1 : 0)
-                  - (lj < p && abs(e2) > 1e-15 ? p * d1[lj]     / e2 : 0)
-                ]
-      )
-      d2;
-
-
 // Bending-energy regularization matrix R for the null-space solver.
 // R[j][k] = ∫ B''_j(t) B''_k(t) dt  (integrated squared second derivative).
-// For clamped: B_j = N_{j,p}, integrated over the full domain.
+// For clamped: B_j = N_{j,p}, integrated over full domain.
 // For closed/periodic: B_j = N_j + (j<p ? N_{j+M} : 0), integrated over
 // one period [U[p], U[M+p]].
-// Uses Gauss-Legendre quadrature with max(2, p-1) points per knot span (exact
-// for p <= 6).  Assembly is banded (|j-k| > p → 0 for clamped; circular
-// distance > p → 0 for periodic) with per-span second derivatives supplied by
-// _d2nip_span: O(p²) per quadrature point instead of O(M·p²) with individual
-// _d2nip() calls.
+// Uses Gauss-Legendre quadrature with max(2, p-1) points per knot span
+// (exact for p <= 6).
 
 function _bending_energy_matrix(M, p, U_full, periodic=false) =
     let(
-        n_gauss   = max(2, p - 1),
-        gl        = _gauss_legendre(n_gauss),
-        gl_nodes  = gl[0],
-        gl_wts    = gl[1],
-        n_knots   = len(U_full),
-        span_lo   = periodic ? p : 0,
-        span_hi   = periodic ? M + p - 1 : n_knots - 2,
+        n_gauss  = max(2, p - 1),
+        gl       = _gauss_legendre(n_gauss),
+        gl_nodes = gl[0],
+        gl_wts   = gl[1],
+        n_knots  = len(U_full),
+        span_lo  = periodic ? p : 0,
+        span_hi  = periodic ? M + p - 1 : n_knots - 2,
 
-        // Per-quadrature-point data: [span_index, weight, d2_local].
-        // d2_local[lj] = N''_{s-p+lj, p}(t)  for lj = 0..p  (p+1 unaliased values).
-        quad_data = [for (i = [span_lo:1:span_hi])
-                         if (U_full[i+1] - U_full[i] > 1e-15)
-                         let(a = U_full[i], b = U_full[i+1],
-                             hw = (b - a) / 2, mid = (a + b) / 2)
-                         for (g = [0:1:n_gauss-1])
-                         let(t = mid + hw * gl_nodes[g],
-                             w = gl_wts[g] * hw)
-                         [i, w, _d2nip_span(i, p, t, U_full)]
-                    ],
-        nq = len(quad_data)
+        // Quadrature points: [parameter_value, scaled_weight]
+        quad_pts = [for (i = [span_lo:1:span_hi])
+                        if (U_full[i+1] - U_full[i] > 1e-15)
+                        let(a = U_full[i], b = U_full[i+1],
+                            hw = (b - a) / 2, mid = (a + b) / 2)
+                        for (g = [0:1:n_gauss-1])
+                        [mid + hw * gl_nodes[g], gl_wts[g] * hw]
+                   ],
+
+        // Precompute all M (aliased) second derivatives at each quad point.
+        d2_at = [for (q = quad_pts)
+                    let(t = q[0])
+                    [for (j = [0:1:M-1])
+                        periodic
+                        ? _d2nip(j, p, t, U_full)
+                          + (j < p ? _d2nip(j + M, p, t, U_full) : 0)
+                        : _d2nip(j, p, t, U_full)
+                    ]
+                ],
+        nq = len(quad_pts)
     )
-    // Banded assembly: skip entries where j and k have no overlapping support.
-    // Clamped: zero when |j-k| > p.
-    // Periodic: zero when circular distance min(|j-k|, M-|j-k|) > p.
+    // Assemble R[j][k] = sum_q  w_q * d2[q][j] * d2[q][k]
     [for (j = [0:1:M-1])
         [for (k = [0:1:M-1])
-            (periodic ? min(abs(j - k), M - abs(j - k)) > p : abs(j - k) > p)
-            ? 0
-            : sum([for (q = [0:1:nq-1])
-                      let(
-                          s    = quad_data[q][0],
-                          w    = quad_data[q][1],
-                          d2v  = quad_data[q][2],
-                          // Local indices of global bases j and k in this span.
-                          lj   = j - (s - p),
-                          lk   = k - (s - p),
-                          // Periodic aliasing: unaliased index j+M (resp. k+M)
-                          // may also land in the support [s-p, s] of this span.
-                          lj_a = periodic ? j + M - (s - p) : -1,
-                          lk_a = periodic ? k + M - (s - p) : -1,
-                          // Direct values (unaliased index in support of span s).
-                          vj   = (lj  >= 0 && lj  <= p) ? d2v[lj]  : 0,
-                          vk   = (lk  >= 0 && lk  <= p) ? d2v[lk]  : 0,
-                          // Aliased values (only for j < p with j+M in support).
-                          vj_a = (periodic && j < p && lj_a >= 0 && lj_a <= p) ? d2v[lj_a] : 0,
-                          vk_a = (periodic && k < p && lk_a >= 0 && lk_a <= p) ? d2v[lk_a] : 0,
-                          Bj   = vj + vj_a,
-                          Bk   = vk + vk_a
-                      )
-                      w * Bj * Bk
-                  ])
+            sum([for (q = [0:1:nq-1])
+                quad_pts[q][1] * d2_at[q][j] * d2_at[q][k]
+            ])
         ]
     ];
-
-
-// Regularization matrix dispatcher.
-// Returns an M×M regularization matrix: L^T L difference matrix when smooth<=2,
-// integrated squared second-derivative (bending energy) matrix otherwise.
-
-function _regularization_matrix(M, smooth, p, U_full, periodic=false) =
-    smooth <= 2
-    ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth, periodic=periodic)]
-    : _bending_energy_matrix(M, p, U_full, periodic=periodic);
 
 
 // Full periodic knot vector for "closed" type evaluation.
@@ -1650,7 +715,9 @@ function _full_closed_knots(bar_knots, n, p) =
     _extend_knot_vector(bar_knots, 0, n + 2*p + 1);
 
 
-// Section: Collocation Matrices
+// =====================================================================
+// SECTION: Collocation Matrices
+// =====================================================================
 
 // Standard collocation matrix for clamped type.
 
@@ -1679,7 +746,9 @@ function _collocation_matrix_periodic(params, n, p, U_periodic) =
     ];
 
 
-// Section: Degree Elevation
+// =====================================================================
+// SECTION: Degree Elevation
+// =====================================================================
 
 // Greville abscissae for B-spline basis of degree p with full knot
 // vector U.  Returns n+1 values where n = len(U) - p - 2.  Each g_i
@@ -1745,36 +814,204 @@ function _elevate_once(ctrl, p, U) =
     [Q, U_new, p_new];
 
 
+// Function: nurbs_elevate_degree()
+// Synopsis: Raises the degree of a NURBS curve while exactly preserving its shape.
+// Topics: NURBS Curves
+// See Also: nurbs_interp(), nurbs_curve()
+//
+// Usage:
+//   result = nurbs_elevate_degree(control, degree, [knots=], [mult=], [type=], [times=], [weights=]);
+//   result = nurbs_elevate_degree(nurbs_param_list, [times=]);
+//
+// Description:
+//   Raises the degree of a B-spline or rational NURBS curve by `times` steps, producing
+//   a geometrically identical curve at the higher degree.  The result is a NURBS
+//   parameter list that can be passed directly to `{{nurbs_curve()}}`.
+//   Supported types are `"clamped"` and `"open"`; `"closed"` is not supported.
+//   .
+//   An elevated curve has the same smoothness as the original at each knot.  A degree-2
+//   curve that is $C^1$ at its knots will still be $C^1$ after elevation to degree 3,
+//   not $C^2$ as a fresh cubic NURBS with simple knots would be.
+//   .
+//   For rational NURBS (`weights=` given), the control points are lifted to homogeneous
+//   space, elevated as a plain B-spline, then projected back; the result carries the
+//   new weights in `result[5]`.
+//   .
+//   Knots may be omitted (uniform defaults), given as a plain vector (passed through
+//   unchanged), or specified as distinct positions plus a per-knot multiplicity list.
+//   For clamped curves, endpoint multiplicities are forced to `degree+1` (BOSL2
+//   convention).  Instead of separate parameters you may pass a NURBS parameter list
+//   `[type, degree, control, knots, mult, weights]` as the first argument; the return
+//   is a list of the same form.
+//
+// Arguments:
+//   control = Control points, or a NURBS parameter list `[type, degree, ctrl, knots, mult, weights]`
+//   degree  = Degree of the B-spline (ignored when a param list is supplied)
+//   ---
+//   knots   = Knot vector.  For clamped: interior format `[k0,...,km]`.  For open: full expanded vector.  Default: `undef` (uniform)
+//   mult    = Per-knot multiplicity list (same length as `knots`).  Endpoint mult forced to `degree+1` for clamped.  Default: `undef`
+//   type    = `"clamped"` or `"open"`.  Default: `"clamped"`
+//   times   = Number of degree-elevation steps; `0` returns the input unchanged.  Default: `1`
+//   weights = Weight at each control point (rational NURBS).  Default: `undef`
+
+function nurbs_elevate_degree(control, degree, knots=undef,
+                              type="clamped", times=1, weights=undef,
+                              mult=undef) =
+    // Accept a NURBS parameter list as the first argument.
+    is_list(control) && in_list(control[0], ["closed","open","clamped"]) ?
+         assert(len(control)>=6, "Invalid NURBS parameter list")
+         assert(num_defined([degree,mult,weights,knots])==0,
+                "Cannot give degree, mult, weights or knots when you provide a NURBS parameter list")
+         times == 0 ? control
+         : nurbs_elevate_degree(control[2], control[1], control[3],
+                                type=control[0], times=times,
+                                weights=control[5], mult=control[4])
+  : times == 0
+    ? [type, degree, control, knots, mult, weights]
+    // Rational NURBS: lift to homogeneous space, elevate as a plain B-spline,
+    // then extract weights from the last coordinate.  The recursive call handles
+    // all asserts, knot normalization, and the times loop.
+  : !is_undef(weights)
+    ? assert(len(weights) == len(control),
+             "nurbs_elevate_degree: weights must have same length as control points")
+      let(
+          dim       = len(control[0]),
+          homo      = [for (i = [0:1:len(control)-1])
+              [for (d = [0:1:dim-1]) weights[i] * control[i][d], weights[i]]
+          ],
+          r         = nurbs_elevate_degree(homo, degree, knots=knots, type=type,
+                                           times=times, mult=mult),
+          new_w     = [for (pt = r[2]) last(pt)],
+          new_ctrl  = [for (pt = r[2])
+              let(w = last(pt))
+              [for (d = [0:1:dim-1]) pt[d] / w]
+          ]
+      )
+      [r[0], r[1], new_ctrl, r[3], undef, new_w]
+    // Non-rational B-spline path.
+  : assert(type == "clamped" || type == "open",
+           str("nurbs_elevate_degree: type must be \"clamped\" or \"open\", got \"", type, "\""))
+    assert(is_num(times) && times >= 1,
+           "nurbs_elevate_degree: times must be a positive integer")
+    assert(is_num(degree) && degree >= 1,
+           "nurbs_elevate_degree: degree must be >= 1")
+    assert(is_list(control) && len(control) >= 2,
+           "nurbs_elevate_degree: need at least 2 control points")
+    assert(is_undef(knots) || is_undef(mult) || len(mult) == len(knots),
+           str("nurbs_elevate_degree: mult and knots must have the same length; got len(mult)=",
+               is_undef(mult) ? "undef" : len(mult),
+               " len(knots)=",
+               is_undef(knots) ? "undef" : len(knots)))
+    let(
+        // Normalize (knots, mult) → internal format for _elevate_once.
+        //
+        //   clamped: xknots = [k0, interior..., km] — one copy each including endpoints.
+        //   open:    xknots = full expanded knot vector (all multiplicities present).
+        //
+        // Neither knots nor mult → BOSL2-compatible uniform knots.
+        //   clamped → interior format [0, uniform interior..., 1]
+        //   open    → full expanded vector (length n+p+2, uniform)
+        //
+        // knots only (no mult): pass through unchanged.
+        //
+        // mult only (no knots): uniform positions 0..1 with given multiplicities.
+        //   clamped: endpoint mult forced to degree+1; expand then strip.
+        //   open:    full expanded vector.
+        //
+        // knots + mult: explicit distinct positions with per-knot multiplicities.
+        //   clamped: endpoint mult forced to degree+1; expand then strip.
+        //   open:    full expanded vector.
+        xknots =
+            is_undef(knots) && is_undef(mult)
+            ? ( type == "clamped" ? lerpn(0, 1, len(control) - degree + 1)
+              :                     lerpn(0, 1, len(control) + degree + 1) )
+            : is_undef(mult) ? knots
+            : is_undef(knots)
+              ? let(
+                    m   = len(mult),
+                    adj = type == "clamped" && m >= 2
+                          ? [degree+1, each [for (i = [1:1:m-2]) mult[i]], degree+1]
+                          : mult,
+                    pos = [for (i = [0:1:m-1]) m == 1 ? 0 : i / (m - 1)],
+                    exp = [for (i = [0:1:m-1]) each repeat(pos[i], adj[i])]
+                )
+                type == "clamped"
+                ? [for (i = [degree : 1 : len(exp) - degree - 1]) exp[i]]
+                : exp
+              : let(
+                    m   = len(mult),
+                    adj = type == "clamped" && m >= 2
+                          ? [degree+1, each [for (i = [1:1:m-2]) mult[i]], degree+1]
+                          : mult,
+                    exp = [for (i = [0:1:m-1]) each repeat(knots[i], adj[i])]
+                )
+                type == "clamped"
+                ? [for (i = [degree : 1 : len(exp) - degree - 1]) exp[i]]
+                : exp
+    )
+    assert(type != "clamped" || len(xknots) >= 2,
+           "nurbs_elevate_degree: clamped knots must have at least 2 entries [first,...,last]")
+    assert(type != "open" || len(xknots) == len(control) + degree + 1,
+           str("nurbs_elevate_degree: open knots must have length len(control)+degree+1 = ",
+               len(control) + degree + 1, ", got ", len(xknots)))
+    let(
+        // _elevate_once works on the full expanded knot vector.
+        // Clamped xknots = [k0, interior..., km]; expand to full by adding p copies
+        // of each endpoint.  Open xknots is already full.  After elevation, strip the
+        // p+1 endpoint copies back off for clamped so the output stays in xknots format.
+        U_full    = type == "clamped"
+                    ? concat(repeat(xknots[0], degree), xknots, repeat(last(xknots), degree))
+                    : xknots,
+        r         = _elevate_once(control, degree, U_full),
+        new_knots = type == "clamped"
+                    ? [for (i = [degree+1:1:len(r[1])-degree-2]) r[1][i]]
+                    : r[1]
+    )
+    times == 1
+    ? [type, r[2], r[0], new_knots, undef, undef]
+    : nurbs_elevate_degree(r[0], r[2], new_knots, type=type, times=times-1);
 
 
-// Section: Local Rational Quadratic Interpolation (P&T §9.3.3)
+// =====================================================================
+// SECTION: Local Rational Quadratic Interpolation (P&T §9.3.3)
+// =====================================================================
 
 
-// Section: Main Interpolation Function
+// =====================================================================
+// SECTION: Main Interpolation Function
+// =====================================================================
 
 // Function: nurbs_interp()
 // Synopsis: Finds a NURBS curve passing through a point list with optional derivative constraints.
 // Topics: NURBS Curves, Interpolation
+// SynTags: Geom
 // See Also: nurbs_curve(), debug_nurbs(), nurbs_interp_curve(), debug_nurbs_interp()
 //
 // Usage:
-//   nurbs_param = nurbs_interp(points, degree, [method=], [closed=], [start_deriv=], [end_deriv=], [curvature=], [start_curvature=], [end_curvature=], [corners=], [deriv=], [extra_pts=], [smooth=]);
+//   result = nurbs_interp(points, degree, [method=], [closed=],
+//                         [start_deriv=], [end_deriv=],
+//                         [curvature=], [start_curvature=], [end_curvature=],
+//                         [corners=], [deriv=], [extra_pts=], [smooth=]);
 //
 // Description:
-//   Given a list of data points and a NURBS degree, computes a curve of the specified degree
+//   Given a list of data points and a NURBS degree, computes a curve
 //   that passes exactly through every data point.  The computed curve always has
 //   uniform weights, but irregularly spaced knots, so it is actually a non-uniform B-spline.  
-//   Data points may 2D or any higher dimension.  Returns a NURBS parameter list of the form
-//   `[type, degree, control_points, knots, undef, undef, u]` that can be
-//   passed directly to {{nurbs_curve()}} and other NURBS functions. The extra return value `u`,
-//   described in detail below, enables you to locate your input points in the computed spline
+//   Data points may 2D or any higher dimension.
+//   Returns a NURBS parameter list of the form
+//   `[type, degree, control_points, knots, undef, undef, rotation, u]` that can be
+//   passed directly to {{nurbs_curve()}} and other NURBS functions.
+//   The 8th element `u` is the parameterization vector: `u[k]` is the NURBS
+//   parameter value assigned to `points[k]` during the interpolation solve.
 //   .
-//   When `closed=false` (the default) the output is a "clamped" NURBS.  
-//   When `closed=true`, the interpolation treats the data points as a loop and produces a
-//   curve that is smooth at the closing point.  The output will be a "closed" NURBS (unless you
-//   specify corners as described below).  
-//   If you instead duplicate the closing point and set `closed=false` then the
-//   result will have a corner at the closing point. 
+//   Set `closed=true` to produce a smooth closed loop through all data points.
+//   Set `closed=false` (the default) to produce a clamped curve that starts at
+//   `points[0]` and ends at the last point.
+//   Under some circumstances when you request `closed=true` the return type will be
+//   `"clamped"` (e.g. when `corners=` is specified for a closed curve).
+//   Choosing `closed=true` is different from duplicating the first point at the end:
+//   `closed=true` produces a smooth joint at the closing point, whereas
+//   repeating the point with `closed=false` creates a corner.
 //   .
 //   **Parameterization** (`method=`)
 //   .
@@ -1800,31 +1037,28 @@ function _elevate_once(ctrl, p, U) =
 //     change if you scale your input data. (Fang & Hung 2013).
 //   .
 //   The other required input to the interpolation is the location of the knots.
-//   We place knots using a moving average of `degree` consecutive parameter values, which links
+//   We place knots using a moving average `degree` consecutive parameter values, which links
 //   the knots to the local parameter spacing.  A consequence of this process for selection
 //   of the parameters and knot locations is that even if your input data has symmetry it is
 //   likely that the symmetry will be broken in the output.  For closed curves, another
 //   consequence is that the resulting curve will depend on which point is chosen as the
 //   starting point for the interpolation.  The algorithm chooses a starting point 
-//   that is expected to provide the best behaved interpolation curve.  Examining the
-//   knot positions with {{debug_nurbs_interp()}} may help you understand unexpected behavior
-//   you observe in the output.  If your curve does not
-//   behave as desired you may be able to adjust it by imposing additional constraints or
-//   by giving it more freedom using `extra_pts`.              
+//   that is expected to provide the best behaved interpolation curve.  
+//   If your curve does not
+//   behave as desired you may be able to adjust it by imposing additional constraints.  
 //   .
 //   **Derivative constraints** (`deriv=`, `start_deriv=`, `end_deriv=`)
 //   .
-//   `deriv[k]` specifies the tangent direction and speed the curve must have
-//   as it passes through `points[k]`.  The length of `deriv[k]` gives the speed
-//   as a multiple of `path_length(points)` which means a unit vector gives a natural
-//   speed that is a good starting point.  
+//   `deriv[k]` specifies the tangent direction (and speed) the curve must have
+//   as it passes through `points[k]`.  The vector is scaled by the
+//   total chord length, so a unit vector gives natural speed and is a good starting point.
 //   The speed has a big effect on the shape of the curve, so if the local shape is
-//   not as you desire you should try increasing it, which will make the curve around
-//   the point flatter or decreasing it, which will make the curve more pointy. 
+//   not what you desired you should try increasing it, which will make the curve around
+//   the point flatter or decrease it, which will make the curve more pointy. 
 //   Set `deriv[k] = undef` to leave point `k` unconstrained.  
 //   If you only want to set the derivative at the ends of a "clamped" curve you can use
 //   `start_deriv=` and `end_deriv=`, which set 
-//   `deriv[0]` and `last(deriv)` without the need to provide a list of undefs for all the interior points. 
+//   `deriv[0]` and `last(deriv)` with the need to provide a list of undefs for all the interior points. 
 //   .
 //   **Curvature constraints** (`curvature=`, `start_curvature=`, `end_curvature=`)
 //   .
@@ -1844,7 +1078,7 @@ function _elevate_once(ctrl, p, U) =
 //   For 2D curves you can also provide curvature as a scalar, with the sign indicating direction. 
 //   (positive = left/CCW,  negative = right/CW).
 //   .
-//   You can specify the curvature at the ends of "clamped" curves using
+//   As for derivatives you can specify the curvature at the ends of "clamped" curves using
 //   `start_curvature=` and `end_curvature=`, which specify `curvature[0]`
 //   and `last(curvature)` without the need to create undefs for all the interior points. 
 //   .
@@ -1853,14 +1087,14 @@ function _elevate_once(ctrl, p, U) =
 //   `corners=` is a list of interior point indices where the curve has
 //   a corner, a discontinuity in the derivative.  You can also specify a corner
 //   at point `k` by setting `deriv[k]=NAN`.  When you request corners, the
-//   algorithm chops up the input data into separate clamped splines that run from corner
-//   to corner.  When `closed=true` this results in a "clamped" output spline, and the curve
-//   will start at one of your corner points.              
+//   algorithm chops up the input data into separate clamped curves that run from corner
+//   to corner.  In the case of a "closed" curve this results in a "clamped" output.
 //   If you place corners close together, the effective degree of the short segment
 //   in between the corners may be reduced.  These curve sections are assembled into a single
-//   NURBS so this process is transparent to the user.  A limitation is that you cannot control
+//   NURBS so this process is transparent to the user.  For the "closed" case
+//   the curve will start at one of your corner points.  A limitation is that you cannot control
 //   the dervatives of the two segments that meet at a corner.  If you need to do this you
-//   must construct your own sequence of clamped interpolations.  
+//   should construct your own sequence of clamped interpolations.  
 //   .
 //   **Extra control points** (`extra_pts=`, `smooth=`)
 //   .
@@ -1868,7 +1102,7 @@ function _elevate_once(ctrl, p, U) =
 //   satisfy the interpolation and constraint conditions, which gives a unique
 //   solution.  This unique solution may be badly behaved, with undesirable oscillations.
 //   You can improve the behavior by requesting extra points.  
-//   Specifying `extra_pts=N` inserts `N` additional control points and knots, making the
+//   Specifying `extra_pts=N` inserts `N` additional knots, making the
 //   system underdetermined: infinitely many curves pass through the data points and satisfy 
 //   the constraints.  The solver picks the one that satisfies
 //   a smoothness criterion specified by `smooth=`:
@@ -1894,36 +1128,27 @@ function _elevate_once(ctrl, p, U) =
 //   exceed the requested number but will never be less.  A segment is eligible when
 //   its effective degree is 3 or higher, or when it is degree 2 with `smooth=1`.
 //   .
-//   **Locating points in the spline** — In order to locate your original data
-//   points in the spline you need the `u` parameter value that you
-//   can pass to {{nurbs_curve()}}.  The last return value `u` is a list
-//   where `u[k]` is the NURBS parameter at which the curve passes through
-//   `points[k]`.
+//   **Starting Point for closed curves**
 //   .
-//   **Smoothness** — The smoothness of B-splines is determined by the
-//   degree.  If you request a degree p spline then it will be C^(p-1) at
-//   knot points and C^inf everywhere else.  If you request corners then
-//   these are points where the curve is not differentiable; corners may
-//   also divide the curve into small segments that lack sufficient points
-//   to support an interpolation at your requested degree: a degree p interpolation
-//   requires p+1 points.  In this case, the interpolation is performed at a lower
-//   degree and elevated, which means it will be less smooth at knots.
+//   Closed curves may not start at `points[0]`.  The rotation applied is
+//   returned as `result[6]` (an integer index).  The parameterization `result[7]`
+//   is always rotated so that `result[7][k]` corresponds to `points[k]`.
 //
 // Arguments:
 //   points = List of data points to interpolate (2D or any higher dimension).
 //   degree = Degree of the NURBS.  Degree 3 (cubic) is the most common choice.
 //   ---
 //   method    = Parameterization method: `"length"`, `"centripetal"`, `"dynamic"`, `"foley"`, or `"fang"`. Default: `"centripetal"`
-//   closed    = If true treat point list as a loop .  Default: `false`
-//   start_deriv    = If `closed=false`, gives the tangent vector at the first point
-//   end_deriv      = If `closed=false`, gives tangent vector at the last point.  
-//   deriv     = List of tangent vector constraints for every point, NAN at corners or undef at unconstrained points.  Cannot be combined with `start_deriv=`/`end_deriv=`.
-//   start_curvature = If `closed=false` gives curvature at first point.  (Requires matching derivative.)
-//   end_curvature   = If `closed=false` gives curvature at last point.  (Requires matching derivative.)
-//   curvature = List of curvature constraints for every point, or undef at unconstrained points.  Each curvature constraint must be paired with a derivative constraint at the same point.  Cannot be combined with `start_curvature=`/`end_curvature=`. 
-//   corners   = List of interior point indices where corners are permitted.  Equivalent to setting entries of `deriv` to NAN.
-//   extra_pts = Number of extra control points to add to provide additional freedom to control undesirable oscillations.  Default: 0
-//   smooth    = Smoothness criterion used with extra control points.  Set to 1 (minimize control-polygon length), 2 (minimize control-polygon bending) or 3 (minimize curve bending energy).   Default: 3
+//   closed    = If true, interpolate as a smooth closed loop; if false, interpolate as a clamped (open-ended) curve.  Default: `false`
+//   start_deriv    = Tangent vector at the first point.  Clamped only.  Default: `undef`
+//   end_deriv      = Tangent vector at the last point.  Clamped only.  Default: `undef`
+//   deriv     = List of tangent vector constraints for every point, NAN at corners or undef at unconstrained points.  Cannot be combined with `start_deriv=`/`end_deriv=`.  Default: `undef`
+//   start_curvature = Curvature at first point.  Requires `start_deriv=` or `deriv[0]`.  Clamped only.  Default: `undef`
+//   end_curvature   = Curvature at last point.  Requires `end_deriv=` or `last(deriv)`.  Clamped only.  Default: `undef`
+//   curvature = List of curvature constraints for every point, or undef at unconstrained points.  Each defined entry must be paired with a defined `deriv` entry at the same index.  Cannot be combined with `start_curvature=`/`end_curvature=`.  Default: `undef`
+//   corners   = List of interior point indices where corners are permitted.  Equivalent to `deriv[k]=NAN`.  Default: `undef`
+//   extra_pts = Number of extra control points to add to provide additional freedom to control undesirable oscillations.  Default: `0`
+//   smooth    = Smoothness criterion used with extra control points.  Set to 1 (minimize control-polygon length), 2 (minimize control-polygon bending) or 3 (minimize curve bending energy).   Default: `3`
 
 function nurbs_interp(points, degree, method="centripetal", closed=false,
                       deriv=undef, start_deriv=undef, end_deriv=undef,
@@ -1976,20 +1201,13 @@ function nurbs_interp(points, degree, method="centripetal", closed=false,
                                     corners, extra_pts, smooth),
         eff_type = is_string(raw[3]) ? raw[3] : type,
         rot      = raw[2],
-        n        = len(points),
         u        = type == "closed" && !is_string(raw[3])
                    ? list_rotate(
                          _interp_params(list_rotate(points, rot), method, closed=true),
                          -rot)
-                   : type == "closed"
-                     ? let(
-                           aug_pts    = [for (k = [0:1:n-1]) points[(k + rot) % n], points[rot]],
-                           aug_params = _interp_params(aug_pts, method)
-                       )
-                       [for (j = [0:1:n-1]) aug_params[(j - rot + n) % n]]
                    : _interp_params(points, method)
     )
-    [eff_type, degree, raw[0], raw[1], undef, undef, u];
+    [eff_type, degree, raw[0], raw[1], undef, undef, rot, u];
 
 
 // ---------- CLAMPED interpolation ----------
@@ -2327,7 +1545,9 @@ function _nurbs_interp_clamped_constrained(points, p, method, eff_der, eff_curv,
     direct != []
     ? [direct, knots, 0]
     : let(
-        R    = _regularization_matrix(M, smooth, p, U_full),
+        R    = smooth <= 2
+             ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth)]
+             : _bending_energy_matrix(M, p, U_full),
         control = _nullspace_solve(R, A_constr, rhs_constr)
       )
       assert(!is_undef(control),
@@ -2508,10 +1728,26 @@ function _closed_basic_solve(points, n, p, method, rot, smooth=3) =
     : // Singular — fall back to constrained optimization.
       let(
         M    = n,
-        R    = _regularization_matrix(M, smooth, p, U_full, periodic=true),
+        R    = smooth <= 2
+             ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth, periodic=true)]
+             : _bending_energy_matrix(M, p, U_full, periodic=true),
         ctrl = _nullspace_solve(R, N_mat, pts)
       )
       is_undef(ctrl) ? undef : [ctrl, bar_knots, rot];
+
+
+// Control-point spread ratio: max extent of control points divided by
+// max extent of data points.  Values near 1 are ideal; large values
+// indicate oscillation from ill-conditioning.
+
+function _ctrl_point_ratio(points, control) =
+    let(
+        pbound = pointlist_bounds(points),
+        cbound = pointlist_bounds(control),
+        pmax   = max(pbound[1] - pbound[0]),
+        cmax   = max(cbound[1] - cbound[0])
+    )
+    cmax / max(pmax, 1e-15);
 
 
 // Basic closed interpolation — start-point independent.
@@ -2520,17 +1756,40 @@ function _closed_basic_solve(points, n, p, method, rot, smooth=3) =
 // averaging of Piegl & Tiller §9.2.4.  In exact arithmetic the resulting
 // curve is the same regardless of which data point is listed first; only
 // the parametric origin changes (the curve is just reparameterized).
-// The chord-ratio heuristic selects the starting rotation.
+//
+// The chord-ratio heuristic rotation is tried first.  If the resulting
+// control-point spread exceeds 2^p/p times the data spread (indicating
+// oscillation), all n rotations are tried and the one with the smallest
+// spread is selected.
 
 function _nurbs_interp_closed_basic(points, p, method, smooth=3) =
     let(
-        n       = len(points),
-        rot0    = _find_closed_rotation(points, n, p, method),
-        result0 = _closed_basic_solve(points, n, p, method, rot0, smooth)
+        n         = len(points),
+        rot0      = _find_closed_rotation(points, n, p, method),
+        result0   = _closed_basic_solve(points, n, p, method, rot0, smooth)
     )
-    assert(!is_undef(result0),
-           "nurbs_interp (closed): singular system — try adding extra_pts= to relax the knot structure")
-    result0;
+    assert(!is_undef(result0), "nurbs_interp (closed): singular system")
+    let(
+        ratio0    = _ctrl_point_ratio(points, result0[0]),
+        threshold = pow(2, p) / p
+    )
+    ratio0 <= threshold ? result0
+    : let(
+        // Heuristic rotation produced excessive control-point spread.
+        // Try all rotations and pick the one with the smallest spread.
+        candidates = [for (r = [0:1:n-1])
+                         let(res = _closed_basic_solve(points, n, p, method, r, smooth))
+                         if (!is_undef(res))
+                         [_ctrl_point_ratio(points, res[0]), res]],
+        _chk = assert(len(candidates) > 0,
+                       "nurbs_interp (closed): all rotations produce singular systems"),
+        best_idx = min_index([for (c = candidates) c[0]]),
+        best     = candidates[best_idx][1],
+        _echo    = echo(str("nurbs_interp (closed): rotation search chose ",
+                            best[2], " (spread ratio ",
+                            candidates[best_idx][0], ")"))
+    )
+    best;
 
 
 // Solve a constrained closed interpolation for a specific rotation.
@@ -2670,13 +1929,17 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot,
     direct != []
     ? [direct, aug_bar, rot]
     : let(
-        R    = _regularization_matrix(M, smooth, p, U_full, periodic=true),
+        R    = smooth <= 2
+             ? [for (i = [0:1:M-1]) _ltl_row(M, i, smooth, periodic=true)]
+             : _bending_energy_matrix(M, p, U_full, periodic=true),
         ctrl = _nullspace_solve(R, A_constr, rhs_constr)
       )
       is_undef(ctrl) ? undef : [ctrl, aug_bar, rot];
 
 
-// Section: Debug / Visualization
+// =====================================================================
+// SECTION: Debug / Visualization
+// =====================================================================
 
 // Module: debug_nurbs_interp()
 // Synopsis: Interpolates a NURBS using {{nurbs_interp()}} and displays the curve with informative overlays.
@@ -2718,8 +1981,8 @@ function _closed_constrained_solve(points, p, method, eff_der, eff_curv, rot,
 // Arguments:
 //   points  = List of 2-D or 3-D data points to interpolate through.
 //   degree  = NURBS degree.
-//   splinesteps     = Steps per knot span for curve rendering.  Default: `16`
 //   ---
+//   splinesteps     = Steps per knot span for curve rendering.  Default: `16`
 //   method          = Parameterization method; see {{nurbs_interp()}}.  Default: `"centripetal"`
 //   closed          = If true, interpolate as a closed loop; if false, interpolate as clamped.  Default: `false`
 //   deriv           = Per-point derivative constraints; see {{nurbs_interp()}}.  Default: `undef`
@@ -2855,7 +2118,9 @@ module debug_nurbs_interp(points, degree, splinesteps=16, method="centripetal",
 }
 
 
-// Section: Interpolation System Builder (shared by curve & surface)
+// =====================================================================
+// SECTION: Interpolation System Builder (shared by curve & surface)
+// =====================================================================
 
 // Builds the collocation matrix and BOSL2-format knots for a single
 // parameterized direction.  Returns [N_mat, bosl2_knots].
@@ -3117,7 +2382,9 @@ function _solve_with_edges(systems, data, params, edge_idxs, p,
                          int_kn     = [for (i = [1:1:len(knots)-2]) knots[i]],
                          U_full     = _full_clamped_knots(int_kn, seg_p),
                          eff_smooth = (smooth == 3 && seg_p < 2) ? 2 : smooth,
-                         R          = _regularization_matrix(M, eff_smooth, seg_p, U_full)
+                         R          = eff_smooth <= 2
+                                    ? [for (i = [0:1:M-1]) _ltl_row(M, i, eff_smooth)]
+                                    : _bending_energy_matrix(M, seg_p, U_full)
                        )
                        _nullspace_solve(R, N_mat, rhs)
                      : linear_solve(N_mat, rhs)
@@ -3140,7 +2407,9 @@ function _solve_with_edges(systems, data, params, edge_idxs, p,
     _combine_corner_segs(segments, params, edge_idxs, p);
 
 
-// Section: Surface Interpolation
+// =====================================================================
+// SECTION: Surface Interpolation
+// =====================================================================
 
 // Compute per-point tangent vectors for a degenerate apex row or column.
 // Returns true if all points in pts are collinear (lie on a single line).
@@ -3316,43 +2585,50 @@ function _surface_params_v(points, method, periodic) =
 
 
 // Function&Module: nurbs_interp_surface()
-// Synopsis: Returns a NURBS surface that passes through a grid of 3D data points.
+// Synopsis: Returns a NURBS surface that passes through a regular grid of 3D data points.
 // SynTags: Geom
 // Topics: NURBS Surfaces, Interpolation
 // See Also: nurbs_vnf(), nurbs_interp()
 //
 // Usage: As a function, returns a NURBS parameter list:
-//   nurbs_param = nurbs_interp_surface(points, degree, [method=], [row_wrap=], [col_wrap=], [normal1=], [normal2=], [flat_edges=], [flat_end1=], [flat_end2=], [row_edges=], [col_edges=], [extra_pts=], [smooth=], [first_row_deriv=], [last_row_deriv=], [first_col_deriv=], [last_col_deriv=]);
+//   result = nurbs_interp_surface(points, degree, [method=], [row_wrap=], [col_wrap=], [normal1=], [normal2=], [flat_edges=], [flat_end1=], [flat_end2=],
+//                [u_edges=], [v_edges=], [extra_pts=], [smooth=], [first_row_deriv=], [last_row_deriv=], [first_col_deriv=], [last_col_deriv=]);
 // Usage: As a module, renders the surface directly:
-//   nurbs_interp_surface(points, degree, [splinesteps=], [row_wrap=], [col_wrap=], [method=], [extra_pts=], [smooth=], ...) CHILDREN;
+//   nurbs_interp_surface(points, degree, [splinesteps=], [method=], [row_wrap=], [col_wrap=],
+//                [style=], [reverse=], [triangulate=],
+//                [caps=], [cap1=], [cap2=],
+//                [first_row_deriv=], [last_row_deriv=],
+//                [first_col_deriv=], [last_col_deriv=],
+//                [normal1=], [normal2=],
+//                [flat_edges=], [flat_end1=], [flat_end2=],
+//                [u_edges=], [v_edges=],
+//                [extra_pts=], [smooth=],
+//                [data_color=], [data_size=]);
+//
 // Description:
-//   Finds the control points and knot vectors for a NURBS surface of the specified degree that passes
+//   Finds the control points and knot vectors for a NURBS surface that passes
 //   exactly through every data point in a grid of 3D points.  The result has
 //   uniform weights but non-uniform knots so it is actually a non-uniform B-spline.
-//   When called as a function, the return value is a NURBS parameter list
-//   `[type, degree, ctrl_grid, knots, undef, undef, uv]` that can be passed
-//   directly to `{{nurbs_vnf()}}`.  The extra return value `uv`,
-//   described in detail below, enables you to locate your input points in the computed spline
+//   Uses the two-pass method from Piegl & Tiller §9.2.5: first interpolate each
+//   row in the v-direction, then each column in the u-direction.  When called as a
+//   function, the return value is a NURBS parameter list
+//   `[type, degree, ctrl_grid, knots, undef, undef, rotation, u]` that can be passed
+//   directly to `{{nurbs_vnf()}}`.  The 8th element `u` is `[u_params, v_params]`,
+//   the parameterization vectors used in the solve.
 //   When called as a module, renders the NURBS surface as geometry.
 //   .
-//   Several of the parameters that correspond to parameters for {{nurbs_interp()}} 
-//   can be given as either a scalar or 2-vector.  When you give a 2-vector the
-//   first value applies along the first index of your point data, i.e. from row
-//   to row, or along columns.  The second value applies along the second index,
-//   i.e. within rows.  
-//   .
-//   Setting `row_wrap=true` smoothly connects the first and last rows in a loop,  
-//   and `col_wrap=true` smoothly joins the first and last columns.  Both false (the default) gives a
+//   `row_wrap=true` makes the surface wrap in the u-direction (joining the first
+//   and last rows into a smooth loop).  `col_wrap=true` wraps in the v-direction
+//   (joining the first and last columns).  Both false (the default) gives a flat
 //   surface with four edges.  One true gives a tube; both true gives a torus.
-//   A tube by itself is not a valid closed manifold in OpenSCAD; you can make it valid by adding caps or
-//   you can close it into a ball by specifying degenerate edges where the entire edge collapses to
-//   one identical point. 
+//   A tube by itself is not a valid closed manifold in OpenSCAD; you can close it
+//   into a ball by specifying degenerate edges where every point is the same.
 //   .
 //   **Boundary constraints**
 //   .
 //   Flat boundary (`row_wrap=false, col_wrap=false`) — `flat_edges=`.  Applies when
 //   all four surface edges are coplanar.  Set `flat_edges` to a 4-element list
-//   `[first_row, last_row, first_col, last_col]`; each entry is a scalar or per-point list
+//   `[start_u, end_u, start_v, end_v]`; each entry is a scalar or per-point list
 //   giving the derivative scale for that edge (`undef` leaves the edge unconstrained).
 //   `flat_edges=s` expands to `[s,s,s,s]`.  A positive value flares the surface
 //   outward from the edge; negative turns it inward.
@@ -3378,70 +2654,50 @@ function _surface_params_v(points, method, periodic) =
 //   surface may wander between them.  When both u- and v-boundary derivatives are
 //   active, the cross-derivative is assumed zero at corners.
 //   .
-//   **Edges** — `row_edges=` and `col_edges=` insert edges or creases across the surface.
-//   Use `row_edges=` to specify the indices of rows that will be edges or creases,
-//   and `col_edges=` to specify the indices of columns that will be edges or creases. 
-//   For a non-wrapped direction, indices must be interior (not first or last).
-//   If you place edges close together, the effective degree of a narrow patch between
-//   edges may be reduced.  These patches are assembled into a single NURBS so this
-//   process is transparent to the user.  
+//   **Crease edges** — `u_edges=` and `v_edges=` insert C0 discontinuities across the
+//   surface.  `u_edges=` specifies row indices where a crease runs in the v-direction;
+//   `v_edges=` specifies column indices where a crease runs in the u-direction.
+//   For a wrapped direction, the smallest named index becomes the seam and the
+//   direction is handled as clamped internally.  For a non-wrapped direction, indices
+//   must be interior (not first or last).  Compatible with same-direction boundary
+//   derivative constraints.
 //   .
-//   **Extra control points** (`extra_pts=`, `smooth=`) — By default the solver uses
-//   exactly the number of control points needed to satisfy the constraints, which
-//   gives a unique solution that may be badly behaved.  Specifying `extra points=`
-//   and optionally `smooth=`, works the same way as in 
-//   for {{nurbs_interp()}}.  Both parameters can be scalars or 2-vectors to
-//   provide different values along the two directions.  
+//   **Extra control points** (`extra_pts=`, `smooth=`) — same as for curves
+//   (see `{{nurbs_interp()}}`), applied independently in each direction.  Scalar
+//   `extra_pts=N` applies to both; `[ep_u, ep_v]` sets each independently.
 //   .
-//   **Locating points in the spline** — In order to locate your original data
-//   points in the spline you need the `u` and `v` nurbs parameter values that you
-//   can pass to {{nurbs_patch_points()}}.  The last return value `uv` gives these:
-//   `uv[0][j]` is the u parameter for row `j` and `uv[1][k]` is the v parameter
-//   for column `k`, so the point `points[j][k]` lies at `(uv[0][j], uv[1][k])`
-//   in NURBS parameter space.
-//   .
-//   **Smoothness** — The smoothness of B-splines is determined by the
-//   degree.  If you request a degree p spline then it will be C^(p-1) at
-//   knot points and C^inf everywhere else.  If you request edges then
-//   these are points where the surface is not differentiable; edges may
-//   also divide the surface into smaller regions that lack sufficient points
-//   to support an interpolation of your requested degree: a degree p interpolation
-//   requires p+1 points.  In this case, the interpolation is performed at a lower
-//   degree and elevated, which means it will be less smooth at knots.
+//   **Seam rotation** — when a wrapped direction is shifted to align a crease, the
+//   column/row rotation is returned in `result[6]` as `[u_rot, v_rot]`.  The
+//   parameterization in `result[7]` is always indexed to match the original input grid.
 // Arguments:
 //   points = Rectangular grid of 3D data points
-//   degree = scalar or 2-vector giving the degree of the B-spline in the two directions.
-//   splinesteps  = (module) Scalar or 2-vector giving the number of segments between each knot in the two directions.  Default: 16
+//   degree = Scalar or `[u_degree, v_degree]` giving the B-spline degree in each direction
 //   ---
 //   method    = Parameterization method: `"length"`, `"centripetal"`, `"dynamic"`, `"foley"`, or `"fang"`.  Default: `"centripetal"`
-//   row_wrap  = If true, smoothly connect the first row to the last row.  Default: false
-//   col_wrap  = If true, smoothly connect the first column to the last column.  Default: false
-//   extra_pts = Scalar or 2-vector giving the number of extra points in the two directions.  Default: `0`
-//   smooth    = Scalar or 2-vector giving the smoothness metric for extra points in the two directions: `1` (min polygon length), `2` (min bending), `3` (min bending energy).   Default: `3`
-//   flat_edges = 4-element list `[first_row, last_row, first_col, last_col]` of derivative scales at the four coplanar boundary edges.  Each entry is a scalar or per-point list; `undef` leaves that edge unconstrained.  Shorthand: `flat_edges=s` → `[s,s,s,s]`.  Requires `row_wrap=false, col_wrap=false`. 
-//   normal1   = Surface normal at the first degenerate boundary edge (mixed wrap surface only). 
-//   normal2   = Surface normal at the second degenerate boundary edge (mixed wrap surface only).
-//   flat_end1 = Inward derivative scale at the first coplanar non-degenerate boundary edge (mixed wrap surface).  Scalar or per-point list. 
-//   flat_end2 = Inward derivative scale at the second coplanar non-degenerate boundary edge (mixed wrap surface).  Scalar or per-point list.
-//   row_edges   = Row indices (or index) of rows that are treated as edges or creases.  
-//   col_edges   = Column indices (or index) of columns that are treated as edges or creases
-//   first_row_deriv = dS/du constraint along u=0 (first row).  Single vector or list of vectors (one per column).  Requires `row_wrap=false`.
-//   last_row_deriv  = dS/du constraint along u=1 (last row).  Single vector or list of vectors (one per column).  Requires `row_wrap=false`.
-//   first_col_deriv = dS/dv constraint along v=0 (first column).  Single vector or list of vectors (one per row).  Requires `col_wrap=false`.
-//   last_col_deriv  = dS/dv constraint along v=1 (last column).  Single vector or list of vectors (one per row).  Requires `col_wrap=false`.
-//   data_size    = (module) Radius of data-point markers; 0 suppresses markers.  Default: 0
-//   data_color   = (module) Color for data-point markers.  Default: `"red"`
-//   style        = (module) Triangulation style passed to `vnf_vertex_array()`.  Default: `"default"`
-//   reverse      = (module) If true, reverses face normals.  Default: false
-//   triangulate  = (module) If true, triangulates all quads.  Default: false
-//   caps         = (module) Cap both open boundary edges (mixed wrap only).  Default: false
-//   cap1         = (module) Cap the first open boundary edge.  
-//   cap2         = (module) Cap the second open boundary edge. 
-//   cp = (module) Centerpoint for determining intersection anchors or centering the shape.  Determines the base of the anchor vector.  Can be "centroid", "mean", "box" or a 3D point.  Default: "centroid"
-//   anchor = (module) Translate so anchor point is at origin (0,0,0).  See [anchor](attachments.scad#subsection-anchor).  Default: `"origin"`
-//   spin = (module) Rotate this many degrees around the Z axis after anchor.  See [spin](attachments.scad#subsection-spin).  Default: `0`
-//   orient = (module) Vector to rotate top toward, after spin. See [orient](attachments.scad#subsection-orient).  Default: `UP`
-//   atype = (module) Select "hull" or "intersect" anchor type.  Default: "hull"
+//   row_wrap  = If true, the surface wraps in the u-direction (rows form a closed loop).  Default: `false`
+//   col_wrap  = If true, the surface wraps in the v-direction (columns form a closed loop).  Default: `false`
+//   extra_pts = Extra control points per direction.  Scalar applies to both; `[ep_u, ep_v]` sets each independently.  Default: `0`
+//   smooth    = Smoothness metric for extra points: `1` (min polygon length), `2` (min bending), `3` (min bending energy).  Scalar or `[su, sv]`.  Default: `3`
+//   flat_edges = 4-element list `[start_u, end_u, start_v, end_v]` of derivative scales at the four coplanar boundary edges.  Each entry is a scalar or per-point list; `undef` leaves that edge free.  Shorthand: `flat_edges=s` → `[s,s,s,s]`.  Requires `row_wrap=false, col_wrap=false`.  Default: `undef`
+//   normal1   = Surface normal at the first degenerate boundary edge (mixed wrap surface).  Default: `undef`
+//   normal2   = Surface normal at the second degenerate boundary edge (mixed wrap surface).  Default: `undef`
+//   flat_end1 = Inward derivative scale at the first coplanar non-degenerate boundary edge (mixed wrap surface).  Scalar or per-point list.  Default: `undef`
+//   flat_end2 = Inward derivative scale at the second coplanar non-degenerate boundary edge (mixed wrap surface).  Scalar or per-point list.  Default: `undef`
+//   u_edges   = Row index or list of indices where a crease runs in the v-direction.  Requires `row_wrap=false`.  Default: `undef`
+//   v_edges   = Column index or list of indices where a crease runs in the u-direction.  Requires `col_wrap=false`.  Default: `undef`
+//   first_row_deriv = $\partial S/\partial u$ constraint along u=0 (first row).  Single vector or list of vectors (one per column).  Requires `row_wrap=false`.  Default: `undef`
+//   last_row_deriv  = $\partial S/\partial u$ constraint along u=1 (last row).  Single vector or list of vectors (one per column).  Requires `row_wrap=false`.  Default: `undef`
+//   first_col_deriv = $\partial S/\partial v$ constraint along v=0 (first column).  Single vector or list of vectors (one per row).  Requires `col_wrap=false`.  Default: `undef`
+//   last_col_deriv  = $\partial S/\partial v$ constraint along v=1 (last column).  Single vector or list of vectors (one per row).  Requires `col_wrap=false`.  Default: `undef`
+//   splinesteps  = (Module form only) Steps per knot span per direction.  Default: `16`
+//   style        = (Module form only) Triangulation style passed to `nurbs_vnf()`.  Default: `"default"`
+//   reverse      = (Module form only) If true, reverses face normals.  Default: `false`
+//   triangulate  = (Module form only) If true, triangulates all quads.  Default: `false`
+//   caps         = (Module form only) Cap both open boundary edges (mixed wrap only).  Default: `undef`
+//   cap1         = (Module form only) Cap the first open boundary edge.  Default: `undef`
+//   cap2         = (Module form only) Cap the second open boundary edge.  Default: `undef`
+//   data_size    = (Module form only) Radius of data-point markers; `0` suppresses markers.  Default: `0`
+//   data_color   = (Module form only) Color for data-point markers.  Default: `"red"`
 
 function nurbs_interp_surface(points, degree, method="centripetal",
                               row_wrap=false, col_wrap=false,
@@ -3450,18 +2706,18 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                               normal1=undef, normal2=undef,
                               flat_end1=undef, flat_end2=undef,
                               flat_edges=undef,
-                              row_edges=undef, col_edges=undef,
+                              u_edges=undef, v_edges=undef,
                               extra_pts=0, smooth=3) =
     // Preamble: extract shape/edge info needed for closed-direction dispatch.
     let(
         n_rows      = len(points),
         n_cols      = len(points[0]),
-        ue_norm_pre = is_undef(row_edges) ? undef : force_list(row_edges),
-        ve_norm_pre = is_undef(col_edges) ? undef : force_list(col_edges),
+        ue_norm_pre = is_undef(u_edges) ? undef : force_list(u_edges),
+        ve_norm_pre = is_undef(v_edges) ? undef : force_list(v_edges),
         has_ue_pre  = !is_undef(ue_norm_pre) && len(ue_norm_pre) > 0,
         has_ve_pre  = !is_undef(ve_norm_pre) && len(ve_norm_pre) > 0
     )
-    // col_edges on a closed v-direction: rotate columns so the first crease column
+    // v_edges on a closed v-direction: rotate columns so the first crease column
     // becomes the v=0/v=1 boundary, append a copy at the end for the C0 seam,
     // then recurse with col_wrap=false.  Remaining crease indices are shifted
     // into the rotated coordinate system.
@@ -3484,12 +2740,13 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                 first_col_deriv=first_col_deriv, last_col_deriv=last_col_deriv,
                 normal1=normal1, normal2=normal2,
                 flat_end1=flat_end1, flat_end2=flat_end2, flat_edges=flat_edges,
-                row_edges=row_edges, col_edges=adj_ve,
+                u_edges=u_edges, v_edges=adj_ve,
                 extra_pts=extra_pts, smooth=smooth))
         [inner[0], inner[1], inner[2], inner[3], inner[4], inner[5],
-         [inner[6][0],
-          list_rotate(select(inner[6][1], 0, n_cols-1), -rot)]]
-    // row_edges on a closed u-direction: rotate rows so the first crease row
+         [(len(inner) > 6 ? inner[6][0] : undef), rot],
+         [_surface_params_u(points, method, row_wrap),
+          _surface_params_v(points, method, col_wrap)]]
+    // u_edges on a closed u-direction: rotate rows so the first crease row
     // becomes the u=0/u=1 boundary, append a copy at the end, recurse clamped.
     : has_ue_pre && row_wrap ?
         let(
@@ -3509,11 +2766,12 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                 first_col_deriv=first_col_deriv, last_col_deriv=last_col_deriv,
                 normal1=normal1, normal2=normal2,
                 flat_end1=flat_end1, flat_end2=flat_end2, flat_edges=flat_edges,
-                row_edges=adj_ue, col_edges=col_edges,
+                u_edges=adj_ue, v_edges=v_edges,
                 extra_pts=extra_pts, smooth=smooth))
         [inner[0], inner[1], inner[2], inner[3], inner[4], inner[5],
-         [list_rotate(select(inner[6][0], 0, n_rows-1), -rot),
-          inner[6][1]]]
+         [rot, (len(inner) > 6 ? inner[6][1] : undef)],
+         [_surface_params_u(points, method, row_wrap),
+          _surface_params_v(points, method, col_wrap)]]
     // Normal path: both directions already clamped, or no conflicting edge constraints.
     : let(
         p_u    = is_list(degree) ? degree[0] : degree,
@@ -3578,7 +2836,7 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                    : [],
         fe1_ok     = !has_fe1 || (_is_coplanar_pts(fe1_edge) && !is_undef(_pts_plane_normal(fe1_edge))),
         fe2_ok     = !has_fe2 || (_is_coplanar_pts(fe2_edge) && !is_undef(_pts_plane_normal(fe2_edge))),
-        // flat_edges= parsing: 4-element list [first_row, last_row, first_col, last_col].
+        // flat_edges= parsing: 4-element list [start_u, end_u, start_v, end_v].
         // Scalar shorthand: flat_edges=s expands to [s, s, s, s].
         fe_norm  = !is_undef(flat_edges) && !is_list(flat_edges)
                  ? [flat_edges, flat_edges, flat_edges, flat_edges]
@@ -3593,8 +2851,8 @@ function nurbs_interp_surface(points, degree, method="centripetal",
         has_fesv = has_fe && !is_undef(fe_sv),
         has_feev = has_fe && !is_undef(fe_ev),
         // Edge (C0 discontinuity) support.  Singleton promotion: scalar → list.
-        ue_norm = is_undef(row_edges) ? undef : force_list(row_edges),
-        ve_norm = is_undef(col_edges) ? undef : force_list(col_edges),
+        ue_norm = is_undef(u_edges) ? undef : force_list(u_edges),
+        ve_norm = is_undef(v_edges) ? undef : force_list(v_edges),
         has_ue = !is_undef(ue_norm) && len(ue_norm) > 0,
         has_ve = !is_undef(ve_norm) && len(ve_norm) > 0
     )
@@ -3664,12 +2922,12 @@ function nurbs_interp_surface(points, degree, method="centripetal",
            "nurbs_interp_surface: flat_end2 requires the surface to be clamped in one direction and closed in the other")
     assert(fe1_ok,
            has_fe1_u
-           ? "nurbs_interp_surface: flat_end1 requires the first row (u=0 boundary) to be coplanar and non-collinear"
-           : "nurbs_interp_surface: flat_end1 requires the first column (v=0 boundary) to be coplanar and non-collinear. If your first row is coplanar, try row_wrap=true, col_wrap=false.")
+           ? "nurbs_interp_surface: flat_end1 requires the u=0 boundary (first row) to be coplanar and non-collinear"
+           : "nurbs_interp_surface: flat_end1 requires the v=0 boundary (first column) to be coplanar and non-collinear. If your first row is coplanar, swap type order (e.g. [\"clamped\",\"closed\"] instead of [\"closed\",\"clamped\"])")
     assert(fe2_ok,
            has_fe2_u
-           ? "nurbs_interp_surface: flat_end2 requires the last row (u=1 boundary) to be coplanar and non-collinear"
-           : "nurbs_interp_surface: flat_end2 requires the last column (v=1 boundary) to be coplanar and non-collinear. If your last row is coplanar, try row_wrap=true, col_wrap=false.")
+           ? "nurbs_interp_surface: flat_end2 requires the u=1 boundary (last row) to be coplanar and non-collinear"
+           : "nurbs_interp_surface: flat_end2 requires the v=1 boundary (last column) to be coplanar and non-collinear. If your last row is coplanar, swap type order (e.g. [\"clamped\",\"closed\"] instead of [\"closed\",\"clamped\"])")
     assert(!(has_fe1_u && has_sud),
            "nurbs_interp_surface: flat_end1 conflicts with first_row_deriv")
     assert(!(has_fe2_u && has_eud),
@@ -3692,23 +2950,23 @@ function nurbs_interp_surface(points, degree, method="centripetal",
            str("nurbs_interp_surface: flat_end2 list must have ", has_fe2_u ? n_cols : n_rows, " entries"))
     // flat_edges assertions.
     assert(!has_fe || (is_list(fe_norm) && len(fe_norm) == 4),
-           "nurbs_interp_surface: flat_edges must be a scalar or 4-element list [first_row, last_row, first_col, last_col]")
+           "nurbs_interp_surface: flat_edges must be a scalar or 4-element list [start_u, end_u, start_v, end_v]")
     assert(!(has_fesu && has_sud),
-           "nurbs_interp_surface: flat_edges[0] (first_row) conflicts with first_row_deriv")
+           "nurbs_interp_surface: flat_edges[0] (start_u) conflicts with first_row_deriv")
     assert(!(has_feeu && has_eud),
-           "nurbs_interp_surface: flat_edges[1] (last_row) conflicts with last_row_deriv")
+           "nurbs_interp_surface: flat_edges[1] (end_u) conflicts with last_row_deriv")
     assert(!(has_fesv && has_svd),
-           "nurbs_interp_surface: flat_edges[2] (first_col) conflicts with first_col_deriv")
+           "nurbs_interp_surface: flat_edges[2] (start_v) conflicts with first_col_deriv")
     assert(!(has_feev && has_evd),
-           "nurbs_interp_surface: flat_edges[3] (last_col) conflicts with last_col_deriv")
+           "nurbs_interp_surface: flat_edges[3] (end_v) conflicts with last_col_deriv")
     assert(!(has_fesu && has_sun),
-           "nurbs_interp_surface: flat_edges[0] (first_row) conflicts with normal1 on same edge")
+           "nurbs_interp_surface: flat_edges[0] (start_u) conflicts with normal1 on same edge")
     assert(!(has_feeu && has_eun),
-           "nurbs_interp_surface: flat_edges[1] (last_row) conflicts with normal2 on same edge")
+           "nurbs_interp_surface: flat_edges[1] (end_u) conflicts with normal2 on same edge")
     assert(!(has_fesv && has_svn),
-           "nurbs_interp_surface: flat_edges[2] (first_col) conflicts with normal1 on same edge")
+           "nurbs_interp_surface: flat_edges[2] (start_v) conflicts with normal1 on same edge")
     assert(!(has_feev && has_evn),
-           "nurbs_interp_surface: flat_edges[3] (last_col) conflicts with normal2 on same edge")
+           "nurbs_interp_surface: flat_edges[3] (end_v) conflicts with normal2 on same edge")
     assert(!has_fesu || !is_list(fe_su) || len(fe_su) == n_cols,
            str("nurbs_interp_surface: flat_edges[0] scale list must have ", n_cols, " entries (one per column)"))
     assert(!has_feeu || !is_list(fe_eu) || len(fe_eu) == n_cols,
@@ -3719,14 +2977,14 @@ function nurbs_interp_surface(points, degree, method="centripetal",
            str("nurbs_interp_surface: flat_edges[3] scale list must have ", n_rows, " entries (one per row)"))
     // Edge (C0) validation.
     assert(!has_ue || !row_wrap,
-           "nurbs_interp_surface: row_edges requires row_wrap=false")
+           "nurbs_interp_surface: u_edges requires row_wrap=false")
     assert(!has_ve || !col_wrap,
-           "nurbs_interp_surface: col_edges requires col_wrap=false")
+           "nurbs_interp_surface: v_edges requires col_wrap=false")
     assert(!has_ue || (min(ue_norm) >= 1 && max(ue_norm) <= n_rows-2),
-           str("nurbs_interp_surface: row_edges indices must be interior (1..", n_rows-2, ")"))
+           str("nurbs_interp_surface: u_edges indices must be interior (1..", n_rows-2, ")"))
     assert(!has_ve || (min(ve_norm) >= 1 && max(ve_norm) <= n_cols-2),
-           str("nurbs_interp_surface: col_edges indices must be interior (1..", n_cols-2, ")"))
-    // row_edges / col_edges are compatible with same-direction boundary derivatives,
+           str("nurbs_interp_surface: v_edges indices must be interior (1..", n_cols-2, ")"))
+    // u_edges / v_edges are compatible with same-direction boundary derivatives,
     // normals, and flat_edges: the first/last segment of the edge-aware system
     // carries the boundary derivative constraint.
     let(
@@ -3773,13 +3031,13 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                 ) d_hat * s]
     )
     assert(!has_fesu || min([for (j = [0:1:n_cols-1]) let(d = points[1][j] - points[0][j], d_flat = d - (d * fe_N_hat) * fe_N_hat) norm(d_flat)]) > 1e-10,
-           "nurbs_interp_surface: flat_edges[0] (first_row) direction is perpendicular to the boundary plane at one or more points")
+           "nurbs_interp_surface: flat_edges start_u direction is perpendicular to the boundary plane at one or more points")
     assert(!has_feeu || min([for (j = [0:1:n_cols-1]) let(d = points[n_rows-1][j] - points[n_rows-2][j], d_flat = d - (d * fe_N_hat) * fe_N_hat) norm(d_flat)]) > 1e-10,
-           "nurbs_interp_surface: flat_edges[1] (last_row) direction is perpendicular to the boundary plane at one or more points")
+           "nurbs_interp_surface: flat_edges end_u direction is perpendicular to the boundary plane at one or more points")
     assert(!has_fesv || min([for (k = [0:1:n_rows-1]) let(d = points[k][1] - points[k][0], d_flat = d - (d * fe_N_hat) * fe_N_hat) norm(d_flat)]) > 1e-10,
-           "nurbs_interp_surface: flat_edges[2] (first_col) direction is perpendicular to the boundary plane at one or more points")
+           "nurbs_interp_surface: flat_edges start_v direction is perpendicular to the boundary plane at one or more points")
     assert(!has_feev || min([for (k = [0:1:n_rows-1]) let(d = points[k][n_cols-1] - points[k][n_cols-2], d_flat = d - (d * fe_N_hat) * fe_N_hat) norm(d_flat)]) > 1e-10,
-           "nurbs_interp_surface: flat_edges[3] (last_col) direction is perpendicular to the boundary plane at one or more points")
+           "nurbs_interp_surface: flat_edges end_v direction is perpendicular to the boundary plane at one or more points")
     assert(!has_fe || is_coplanar(concat(
         points[0], points[n_rows-1],
         [for (k = [1:1:n_rows-2]) points[k][0]],
@@ -3838,33 +3096,33 @@ function nurbs_interp_surface(points, degree, method="centripetal",
         has_svd_eff = has_svd || has_svn || has_fesv || has_fe1_v,
         has_evd_eff = has_evd || has_evn || has_feev || has_fe2_v
     )
-    // row_edges / col_edges boundary-derivative segment-size checks.
+    // u_edges / v_edges boundary-derivative segment-size checks.
     // A derivative-carrying edge segment needs at least 3 rows/columns;
     // with only 2 the degree-reduced knot vector becomes degenerate.
     assert(!(has_ue && has_sud_eff && ue_norm[0] + 1 < 3),
            !has_ue ? "" :
-           str("nurbs_interp_surface: row_edges=", ue_norm,
+           str("nurbs_interp_surface: u_edges=", ue_norm,
                " creates a ", ue_norm[0]+1, "-row first segment (rows 0-",
                ue_norm[0], ") which is too short to carry the start-u derivative constraint. ",
-               "Move the first row_edges index to at least 2"))
+               "Move the first u_edges index to at least 2"))
     assert(!(has_ue && has_eud_eff && n_rows - last(ue_norm) < 3),
            !has_ue ? "" :
-           str("nurbs_interp_surface: row_edges=", ue_norm,
+           str("nurbs_interp_surface: u_edges=", ue_norm,
                " creates a ", n_rows - last(ue_norm), "-row last segment (rows ",
                last(ue_norm), "-", n_rows-1, ") which is too short to carry the end-u derivative constraint. ",
-               "Move the last row_edges index to at most ", n_rows - 3))
+               "Move the last u_edges index to at most ", n_rows - 3))
     assert(!(has_ve && has_svd_eff && ve_norm[0] + 1 < 3),
            !has_ve ? "" :
-           str("nurbs_interp_surface: col_edges=", ve_norm,
+           str("nurbs_interp_surface: v_edges=", ve_norm,
                " creates a ", ve_norm[0]+1, "-column first segment (columns 0-",
                ve_norm[0], ") which is too short to carry the start-v derivative constraint. ",
-               "Move the first col_edges index to at least 2"))
+               "Move the first v_edges index to at least 2"))
     assert(!(has_ve && has_evd_eff && n_cols - last(ve_norm) < 3),
            !has_ve ? "" :
-           str("nurbs_interp_surface: col_edges=", ve_norm,
+           str("nurbs_interp_surface: v_edges=", ve_norm,
                " creates a ", n_cols - last(ve_norm), "-column last segment (columns ",
                last(ve_norm), "-", n_cols-1, ") which is too short to carry the end-v derivative constraint. ",
-               "Move the last col_edges index to at most ", n_cols - 3))
+               "Move the last v_edges index to at most ", n_cols - 3))
     let(
         // Averaged parameterization in each direction
         u_params = _surface_params_u(points, method, row_wrap),
@@ -3880,7 +3138,7 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                            path_length([for (k = [0:1:n_rows-1]) points[k][l]])],
 
         // ----- Build v-direction system -----
-        // When col_edges is active, precompute per-segment collocation systems.
+        // When v_edges is active, precompute per-segment collocation systems.
         // Otherwise use the standard (or derivative-extended) system.
         v_edge_sys = has_ve
                    ? _build_edge_systems(v_params, p_v, ve_norm,
@@ -3904,10 +3162,12 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                        vU = !col_wrap
                           ? _full_clamped_knots(vint, p_v)
                           : _full_closed_knots(vk, M_v, p_v))
-                   _regularization_matrix(M_v, smooth_v, p_v, vU, periodic=col_wrap),
+                   smooth_v <= 2
+                   ? [for (i = [0:1:M_v-1]) _ltl_row(M_v, i, smooth_v, periodic=col_wrap)]
+                   : _bending_energy_matrix(M_v, p_v, vU, periodic=col_wrap),
 
         // ----- Pass 1: Interpolate rows in v-direction -----
-        // With col_edges: solve each row via edge-aware segmented system.
+        // With v_edges: solve each row via edge-aware segmented system.
         // Without: same A_v matrix for every row; only the RHS changes per row.
         R_raw = has_ve
             ? [for (k = [0:1:n_rows-1])
@@ -3943,7 +3203,7 @@ function nurbs_interp_surface(points, degree, method="centripetal",
         // ∂S/∂u along u=0 or u=1 is given at the n_cols data v-positions.
         // To use them as derivative RHS in the u-direction column solves, we
         // must express them in the v B-spline control basis — done by solving
-        // the same v-system.  When col_edges is active, project through the
+        // the same v-system.  When v_edges is active, project through the
         // edge-aware segmented system instead.
         zero_v = repeat(0, dim),
         _su_der_data = has_sud_eff
@@ -3982,7 +3242,7 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                   : undef,
 
         // ----- Build u-direction system -----
-        // When row_edges is active, precompute per-segment systems.
+        // When u_edges is active, precompute per-segment systems.
         u_edge_sys = has_ue
                    ? _build_edge_systems(u_params, p_u, ue_norm,
                                           has_sd=has_sud_eff,
@@ -4005,14 +3265,16 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                        uU = !row_wrap
                           ? _full_clamped_knots(uint, p_u)
                           : _full_closed_knots(uk, M_u, p_u))
-                   _regularization_matrix(M_u, smooth_u, p_u, uU, periodic=row_wrap),
+                   smooth_u <= 2
+                   ? [for (i = [0:1:M_u-1]) _ltl_row(M_u, i, smooth_u, periodic=row_wrap)]
+                   : _bending_energy_matrix(M_u, p_u, uU, periodic=row_wrap),
 
         // ----- Pass 2: Interpolate columns in u-direction -----
         // Transpose R so each entry is a column of intermediate points.
         R_T  = [for (j = [0:1:n_v_ctrl-1])
                     [for (k = [0:1:n_rows-1]) R[k][j]]],
 
-        // With row_edges: solve each column via edge-aware segmented system.
+        // With u_edges: solve each column via edge-aware segmented system.
         // Without: add u-tangent constraint rows to the RHS for each column j.
         P_T_raw = has_ue
             ? [for (j = [0:1:n_v_ctrl-1])
@@ -4041,12 +3303,15 @@ function nurbs_interp_surface(points, degree, method="centripetal",
                         [for (j = [0:1:n_v_ctrl-1]) P_T[j][i]]]
     )
     [[row_wrap ? "closed" : "clamped", col_wrap ? "closed" : "clamped"],
-     [p_u, p_v], P, [u_knots, v_knots], undef, undef,
+     [p_u, p_v], P, [u_knots, v_knots], undef, undef, [0, 0],
      [u_params, v_params]];
 
 
-module nurbs_interp_surface(points, degree, splinesteps=16,
-                            method="centripetal",
+// Module: nurbs_interp_surface()
+// See Also: nurbs_interp_surface() (function form, above)
+
+module nurbs_interp_surface(points, degree,
+                            splinesteps=16, method="centripetal",
                             row_wrap=false, col_wrap=false,
                             style="default", reverse=false, triangulate=false,
                             caps=undef, cap1=undef, cap2=undef,
@@ -4055,12 +3320,9 @@ module nurbs_interp_surface(points, degree, splinesteps=16,
                             normal1=undef, normal2=undef,
                             flat_end1=undef, flat_end2=undef,
                             flat_edges=undef,
-                            row_edges=undef, col_edges=undef,
+                            u_edges=undef, v_edges=undef,
                             extra_pts=0, smooth=3,
-                            data_color="red", data_size=0,
-                            atype="hull", convexity=10, cp="centroid", anchor="origin", spin=0, orient=UP
-)
-   {
+                            data_color="red", data_size=0) {
     result = nurbs_interp_surface(points, degree,
                  method=method, row_wrap=row_wrap, col_wrap=col_wrap,
                  first_row_deriv=first_row_deriv, last_row_deriv=last_row_deriv,
@@ -4068,11 +3330,11 @@ module nurbs_interp_surface(points, degree, splinesteps=16,
                  normal1=normal1, normal2=normal2,
                  flat_end1=flat_end1, flat_end2=flat_end2,
                  flat_edges=flat_edges,
-                 row_edges=row_edges, col_edges=col_edges,
+                 u_edges=u_edges, v_edges=v_edges,
                  extra_pts=extra_pts, smooth=smooth);
-    nurbs_vnf(result, splinesteps=splinesteps, style=style,
+    vnf_polyhedron(nurbs_vnf(result, splinesteps=splinesteps, style=style,
                              reverse=reverse, triangulate=triangulate,
-                             caps=caps, cap1=cap1, cap2=cap2, convexity=convexity, atype=atype, anchor=anchor, spin=spin, orient=orient) children();
+                             caps=caps, cap1=cap1, cap2=cap2));
     if (data_size > 0)
         color(data_color)
             for (row = points)
@@ -4081,72 +3343,128 @@ module nurbs_interp_surface(points, degree, splinesteps=16,
 }
 
 
-// Section: Usage Examples
+// =====================================================================
+// SECTION: Usage Examples
+// =====================================================================
 //
-// Example(2D): Clamped curve (default)
+// ---- Example 1: CLAMPED (default) ----
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   data = [[0,0], [10,30], [25,15], [40,35], [60,10], [80,25]];
 //   debug_nurbs_interp(data, 3);
 //
-// Example(2D): Closed curve (debug view)
-//   // Do NOT repeat the first point at the end.
+//
+// ---- Example 2: CLOSED (debug view) ----
+//   Do NOT repeat the first point at the end.
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   data = [[0,0], [30,50], [60,40], [80,10], [50,-20], [20,-10]];
 //   debug_nurbs_interp(data, 3, closed=true);
 //
-// Example(2D): Closed polygon
-//   // All data points lie exactly on the polygon boundary.
+//
+// ---- Example 3: Closed polygon ----
+//   All data points should lie exactly on the boundary of the polygon.
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   data = [[0,0], [30,50], [60,40], [80,10], [50,-20], [20,-10]];
 //   path = nurbs_interp_curve(data, 3, splinesteps=16, closed=true);
 //   polygon(path);
 //   color("red") move_copies(data) circle(r=0.25, $fn=16);
 //
-// Example(2D): Get just the path
+//
+// ---- Example 5: Get just the path ----
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   data = [[0,0], [10,30], [25,15], [40,35], [60,10], [80,25]];
 //   path = nurbs_interp_curve(data, 3, splinesteps=32);
 //   stroke(path, width=0.5);
 //   color("red") move_copies(data) circle(r=0.25, $fn=16);
 //
-// Example(2D): Low-level NURBS parameter list
-//   // nurbs_interp() returns a BOSL2 NURBS parameter list compatible
-//   // with nurbs_curve(), debug_nurbs(), etc.
+//
+// ---- Example 6: Low-level access ----
+//   nurbs_interp() returns a NURBS parameter list that can be passed
+//   directly to nurbs_curve(), debug_nurbs(), etc.
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   data = [[0,0], [10,30], [25,15], [40,35], [60,10], [80,25]];
 //   result = nurbs_interp(data, 3);
 //   curve = nurbs_curve(result, splinesteps=24);
 //   stroke(curve, width=0.5);
 //
-// Example(3D): 3D closed curve
+//
+// ---- Example 7: 3D closed curve ----
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   data3d = [[20,0,0],[0,20,10],[-20,0,20],[0,-20,10]];
 //   path = nurbs_interp_curve(data3d, 3, splinesteps=32, closed=true);
 //   stroke(path, width=1, closed=true);
 //   color("red") move_copies(data3d) sphere(r=0.25, $fn=16);
 //
-// Example(2D): Parameterization methods for sharp turns
-//   // "length" (blue), "centripetal" (red), "dynamic" (orange) compared.
-//   // For data with sudden direction changes or uneven chord spacing,
-//   // "centripetal" and "dynamic" reduce unwanted oscillations.
+//
+// ---- Example 8: Parameterization methods for sharp turns ----
+//   "length" (blue), "centripetal" (red), "dynamic" (orange) compared.
+//   For data with sudden direction changes or uneven chord spacing,
+//   "centripetal" and "dynamic" reduce unwanted oscillations.
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   sharp = [[0,0], [5,40],[6,40], [10,0], [50,0], [55,40],[56,42], [60,0]];
 //   color("blue")   stroke(nurbs_interp_curve(sharp, 3), width=0.1);
 //   color("red")    stroke(nurbs_interp_curve(sharp, 3, method="centripetal"), width=0.1);
-//   color("orange") stroke(nurbs_interp_curve(sharp, 3, method="dynamic"), width=0.1);
+//   color("orange") stroke(nurbs_interp_curve(sharp, 3, method="centripetal"), width=0.1);
 //   color("green") move_copies(sharp) circle(r=.1, $fn=16);
 //
-// Example(2D): Endpoint tangent control
-//   // Specify start and/or end tangent vectors.  Each vector is automatically
-//   // scaled by the total chord length; a unit vector produces natural
-//   // arc-length speed.  Magnitude > 1 increases pull, < 1 weakens it.
+//
+// ---- Example 9: Endpoint tangent control ----
+//   Specify start and/or end tangent vectors.  Each vector is automatically
+//   scaled by the total chord length; a unit vector produces natural
+//   arc-length speed.  Magnitude > 1 increases pull, < 1 weakens it.
+//   BOSL2 direction constants (UP, RIGHT, etc.) work for 2D curves.
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   data = [[0,0], [20,30], [50,25], [80,0]];
 //   // No tangent control (natural):
 //   color("gray") stroke(nurbs_interp_curve(data, 3), width=0.3);
-//   // Start going straight up, end going straight down:
+//   // Tangent: start going straight up, end going straight down:
 //   color("blue") stroke(
 //       nurbs_interp_curve(data, 3, start_deriv=[0,1], end_deriv=[0,-1]),
 //       width=0.3);
-//   // Start going right, end going right:
+//   // Tangent: start going right, end going right:
 //   color("red") stroke(
 //       nurbs_interp_curve(data, 3, start_deriv=[1,0], end_deriv=[1,0]),
 //       width=0.3);
 //   color("black") move_copies(data) circle(r=0.25, $fn=16);
 //
-// Example(2D): Start tangent only
+//
+// ---- Example 10: Start tangent only ----
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   data = [[0,0], [20,30], [50,25], [80,0]];
 //   color("gray") stroke(nurbs_interp_curve(data, 3), width=0.3);
 //   color("blue") stroke(
@@ -4155,10 +3473,17 @@ module nurbs_interp_surface(points, degree, splinesteps=16,
 //   color("black") move_copies(data) circle(r=0.25, $fn=16);
 //
 //
-// Section: Surface Interpolation Examples
+// =====================================================================
+// SECTION: Surface Interpolation Examples
+// =====================================================================
 //
-// Example(3D): Basic surface interpolation
-//   // A 4x5 grid of 3D data points produces a smooth interpolating surface.
+// ---- Example 11: Basic surface interpolation ----
+//   A 4x5 grid of 3D data points → smooth interpolating surface.
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   data = [
 //       [[-50, 50,  0], [-16, 50,  20], [ 16, 50,  10], [50, 50,  0], [80, 50,  5]],
 //       [[-50, 16, 20], [-16, 16,  40], [ 16, 16,  30], [50, 16, 20], [80, 16, 10]],
@@ -4167,8 +3492,14 @@ module nurbs_interp_surface(points, degree, splinesteps=16,
 //   ];
 //   nurbs_interp_surface(data, 3, splinesteps=8);
 //
-// Example(3D): Different degrees per direction
-//   // Quadratic in u (rows), cubic in v (columns).
+//
+// ---- Example 12: Different degrees per direction ----
+//   Quadratic in u, cubic in v.
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   data = [
 //       for (u = [-40:20:40])
 //           [for (v = [-40:20:40])
@@ -4176,25 +3507,58 @@ module nurbs_interp_surface(points, degree, splinesteps=16,
 //   ];
 //   nurbs_interp_surface(data, [2,3], splinesteps=8);
 //
-// Example(3D): Tube (surface closed in one direction)
-//   // Closed around the column direction (the rings), clamped along rows
-//   // (the axis).  Uses 5 rings: a cubic closed direction needs at least
-//   // p+2 = 5 data points to have interior knot freedom.
+//
+// ---- Example 13: Surface closed in one direction (tube) ----
+//   Closed around the v-direction (the rings), clamped in u (along the
+//   axis).  Uses 5 rings rather than 4: a cubic closed direction needs
+//   at least p+2 = 5 data rows/columns to have interior knot freedom.
+//   With only p+1 = 4, the system is solvable but the closed direction
+//   has no interior flexibility and produces results nearly identical to
+//   the clamped case.
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   r = 20;
-//   data = [for (u = [0:15:60])
+//   data = [for (u = [0:15:60])      // 5 rings: u = 0,15,30,45,60
 //       [for (i = [0:1:5])
 //           let(a = i * 360/6)
 //           [r*cos(a), r*sin(a), u]]
 //   ];
-//   nurbs_interp_surface(data, 3, splinesteps=8, col_wrap=true);
+//   nurbs_interp_surface(data, 3, splinesteps=8,
+//             col_wrap=true);
 //
-// Example(3D): Torus (surface closed in both directions)
-//   // Both directions sample a full 360 circle with even angular spacing,
-//   // so the closing segment equals the inter-point spacing and
-//   // parameterization is uniform.  Each direction uses N=6 > p+1=4
-//   // points to ensure interior knot freedom.
-//   R = 30; r = 10;
-//   N = 6;
+//
+// ---- Example 14: Surface closed in both directions (torus) ----
+//   For ["closed","closed"] to produce a shape visibly different from
+//   ["clamped","closed"], two conditions must both be met:
+//
+//   1. ENOUGH POINTS: each direction needs at least p+2 points so the
+//      periodic system has at least one interior knot with genuine
+//      freedom.  With exactly p+1 points the system is solvable but
+//      there is no interior flexibility, and the result looks nearly
+//      identical to the clamped case.
+//
+//   2. BALANCED PARAMETERIZATION: the data must form an actual closed
+//      loop in each direction.  For chord-length parameterization the
+//      "closing" segment (last point back to first) is included in the
+//      parameter budget.  If that segment is much longer than the inter-
+//      point distances the closed direction folds back on itself rather
+//      than forming a smooth loop.  Use evenly-spaced data, or data
+//      whose first and last points coincide (so the closing chord is
+//      zero and parameter spacing is uniform).
+//
+//   The canonical example is a torus: both directions sample a full
+//   360° circle with even angular spacing, so the closing segment
+//   equals the inter-point spacing and parameterization is uniform.
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
+//   R = 30; r = 10;    // major / minor torus radii
+//   N = 6;             // 6 samples each way  (N > p+1 = 4 for cubic)
 //   data = [for (i = [0:1:N-1])
 //       let(phi = i * 360/N)
 //       [for (j = [0:1:N-1])
@@ -4204,11 +3568,17 @@ module nurbs_interp_surface(points, degree, splinesteps=16,
 //            r*sin(theta)]]
 //   ];
 //   nurbs_interp_surface(data, 3, splinesteps=12,
-//       row_wrap=true, col_wrap=true);
+//             row_wrap=true, col_wrap=true);
 //
-// Example(3D): Low-level surface access
-//   // nurbs_interp_surface() returns a BOSL2 NURBS parameter list
-//   // compatible with nurbs_vnf(), debug_nurbs(), etc.
+//
+// ---- Example 15: Low-level surface access ----
+//   nurbs_interp_surface() returns a NURBS parameter list that can be
+//   passed directly to nurbs_vnf().
+//
+//   include <BOSL2/std.scad>
+//   include <BOSL2/nurbs.scad>
+//   include <nurbs_interp.scad>
+//
 //   data = [
 //       [[-30,30,0], [0,30,20], [30,30,0]],
 //       [[-30, 0,10],[0, 0,30], [30, 0,10]],

@@ -821,3 +821,84 @@
   - Removed `closed_mult0` let-binding and closed branch of `elevate_once` dispatch.
   - Removed closed-specific knot-normalization branches from `xknots` computation.
   - Updated doc comment: `type=` now documented as `"clamped"` or `"open"` only.
+
+## v179
+- Merged `_elevate_once_clamped` and `_elevate_once_open` into a single `_elevate_once(ctrl, p, U)` that operates on the full expanded knot vector. `nurbs_elevate_degree` expands clamped xknots to full U before calling (`concat(repeat(k0,p), xknots, repeat(km,p))`) and strips the result back to xknots format after (`U_new[p_new..len-p_new-1]`); open passes through unchanged. The Greville + collocation solve is now in one place.
+
+## v180
+- Three refactors in one version:
+  1. **Eliminated `type_u`/`type_v`/`closed_u`/`closed_v`** in `nurbs_interp_surface`: the four alias variables are gone; all code now uses `row_wrap`/`col_wrap` directly. `type_u == "clamped"` → `!row_wrap`, `type_u == "closed"` → `row_wrap`, etc. Assert messages updated accordingly. `_surface_params_u`/`_surface_params_v` parameter renamed from `closed_u`/`closed_v` to `periodic`.
+  2. **`nurbs_elevate_degree` weights-first**: rational NURBS case now handled immediately after the `times==0` early return — lifts to homogeneous space, calls the non-rational path recursively (which handles all asserts, knot normalization, and the `times` loop), then extracts weights from the last coordinate. Removed the duplicate rational branch at the end of the function.
+  3. **Doc updates**: `nurbs_elevate_degree` description rewritten to reflect merged paths and rational handling. `nurbs_interp_surface` description and argument list rewritten to use `row_wrap`/`col_wrap` language throughout; removed all `["clamped","clamped"]` / `["closed","clamped"]` type-string references.
+
+## v181
+- **`flat_edges` assert and comment nomenclature**: updated all assert messages and inline comments that referred to `[start_u, end_u, start_v, end_v]` to use `[first_row, last_row, first_col, last_col]`, matching the established boundary-derivative parameter names (`first_row_deriv`, `last_row_deriv`, etc.). Specifically: the 4-element format string in the conflict assert, all per-element conflict/geometry assert labels (`flat_edges[n] (first_row)` etc.), the `flat_edges=` parsing inline comment, and the coplanarity assert messages for `flat_end1`/`flat_end2` (removed stale `["clamped","closed"]` type-swap hint; replaced with `row_wrap=true, col_wrap=false` suggestion).
+
+## v182
+- **Hand-edited documentation pass** (no functional changes):
+  - `nurbs_elevate_degree()`: synopsis and description rewritten to be concise; removed verbose rational-NURBS and knot-format implementation detail; argument descriptions simplified; removed backtick-wrapped `Default:` values from optional params.
+  - `nurbs_interp()`: description rewritten for clarity — improved closed/clamped distinction, added note about using `debug_nurbs_interp()` to examine knot positions, reworded `deriv` scaling explanation (now says "multiple of `path_length(points)`"), improved `extra_pts` and `corners` paragraphs; argument descriptions simplified and `Default:` backtick-wrapping removed.
+  - `nurbs_interp_surface()`: synopsis shortened; description rewritten — `row_wrap`/`col_wrap` explained more plainly, tube-closing note improved, `u` → `uv` in return-list description; `splinesteps` moved before `extra_pts` in the argument list; `u_edges`/`v_edges` descriptions simplified; all optional-param `Default:` entries de-backticked.
+  - **Code simplification** (same semantics): in `nurbs_elevate_degree()`, the homogeneous-lift expression replaced with `[for (i = idx(control)) [each control[i]*weights[i], weights[i]]]`; the weight-extraction expression replaced with `[for (pt = r[2]) slice(pt,0,-2)/last(pt)]`; the clamped interior-knot strip replaced with `slice(r[1], degree+1, -degree-2)`. All three use BOSL2 `idx()` / `slice()` idioms.
+
+## v183
+- Renamed `u_edges=` → `row_edges=` and `v_edges=` → `col_edges=` throughout `nurbs_interp_surface()` and its internal helpers, to match the established `row_wrap`/`col_wrap`, `first_row_deriv`/`last_row_deriv`, `first_col_deriv`/`last_col_deriv` naming convention.  All occurrences updated: function signature, recursive call sites, `ue_norm`/`ve_norm` let bindings, assert messages, and doc comments.
+
+## v184
+- **`nurbs_interp_surface` module: BOSL2 attachment support** — the module now accepts the standard BOSL2 attachment parameters `atype`, `convexity`, `cp`, `anchor`, `spin`, `orient` and passes them through; rendering changed from `vnf_polyhedron(nurbs_vnf(...))` to `nurbs_vnf(...) children()` so the module form of `nurbs_vnf` is used and attachments work correctly.
+- **Doc pass — `nurbs_interp()`**:
+  - Usage line reformatted to a single line; return variable renamed `result` → `nurbs_param`.
+  - Description: "computes a curve of the specified degree"; `rotation` and `u` return values introduced inline.
+  - New **Locating points in the spline** section: explains `u[k]` parameter values and the `rotation` entry, replacing the old "Starting Point for closed curves" section.
+  - New **Smoothness** section: describes C^{p−1} continuity at knots, corner behavior, and degree reduction/elevation for short segments.
+- **Doc pass — `nurbs_interp_surface()`**:
+  - Both usage lines collapsed to single lines; return variable renamed `result` → `nurbs_param`; module usage line ends with `CHILDREN`.
+  - Description: "of the specified degree" added; two-pass algorithm detail removed; added paragraph explaining which parameters accept scalar vs. 2-vector.
+  - **Edges** section rewritten: mentions narrow-patch degree reduction and transparent elevation.
+  - **Extra control points** section rewritten for clarity; explicitly notes scalar/2-vector.
+  - New **Locating points in the spline** section (parallel to curve version): describes `uv[0][j]`/`uv[1][k]` indexing and `rotation` entry.
+  - New **Smoothness** section (parallel to curve version).
+  - **Seam rotation** section removed (absorbed into new Locating points section).
+  - Argument list: `degree` and `splinesteps` descriptions simplified; `extra_pts`/`smooth` note scalar-or-2-vector; `flat_edges` "leaves that edge free" → "leaves that edge unconstrained"; `row_edges` typo fixed ("indidces"); module-only params reordered (data_size/data_color first); `cp`, `anchor`, `spin`, `orient`, `atype` added.
+
+## v185
+- **Bug fix: `uv` return value not rotated in `row_edges`/`col_edges` + wrap dispatch**:
+  When `col_edges` is given with `col_wrap=true`, the solver rotates columns by `rot` before recursing. The inner call's `uv[1][k]` is the v parameter for new column `k`, which corresponds to original column `(k+rot)%n_cols`. The outer return was incorrectly recomputing `uv` from the original unrotated points (using a different parameterization than the actual solve). Fixed by taking the inner uv and unrotating: `list_rotate(inner[7][1], -rot)` for the v direction so that `uv[1][k]` correctly corresponds to original column `k`. Symmetric fix for the `row_edges`+`row_wrap` case: `list_rotate(inner[7][0], -rot)` for the u direction.
+
+## v186
+- **Bug fix: `u` return value wrong for closed-with-corners curves in `nurbs_interp()`**:
+  When `closed=true` and `corners=` are specified, `_nurbs_interp_closed_corners` rotates points by `rot = corners[0]`, builds `aug_pts = [points[rot], ..., points[rot-1], points[rot]]` (n+1 points, closing duplicate appended), and solves as clamped. The inner clamped solve uses `_interp_params(aug_pts, method)` so `aug_params[k]` is the parameter for `points[(k+rot)%n]`.  The outer return fell through to `_interp_params(points, method)` (unrotated, non-closed) — a completely mismatched parameterization.  Fixed by adding a third branch for this case: recomputes `aug_params = _interp_params(aug_pts, method)` and unrotates via `[for (j=[0..n-1]) aug_params[(j-rot+n)%n]]` so that `u[j]` correctly gives the parameter for `points[j]`.  The basic closed case (no corners) was already correct.
+
+## v187
+- **Removed `rotation` return entry** from both `nurbs_interp()` and `nurbs_interp_surface()`: the second-to-last element is gone; `u` / `uv` moves from index `[7]` to `[6]`. Return formats are now `[type, degree, ctrl, knots, undef, undef, u]` and `[type, degree, ctrl_grid, knots, undef, undef, uv]` respectively. Docs updated to remove all rotation-entry mentions.
+- **Bug fix: off-by-one in `uv` for wrapped-edge dispatch in `nurbs_interp_surface()`**: When `col_edges + col_wrap` is active, `new_pts` has `n_cols+1` columns (closing duplicate appended), so `inner[6][1]` (v params) has length `n_cols+1`. Previously `list_rotate(inner[6][1], -rot)` operated on this length-`n_cols+1` vector, giving a result shifted by one. Fixed by truncating to `n_cols` elements first: `list_rotate(select(inner[6][1], 0, n_cols-1), -rot)`. Symmetric fix for the `row_edges + row_wrap` case: `list_rotate(select(inner[6][0], 0, n_rows-1), -rot)`.
+
+## v188
+- **Doc compliance pass** against `Papers/WRITING_DOCS.md` (BOSL2 openscad-docsgen style sheet):
+  - `// LibFile:` header rewritten to use proper three-space body indentation and concise prose; added `// Includes:` block with the three `include <...>` lines (the doc generator prepends these to all Example/Figure blocks automatically).
+  - Removed `// SynTags: Geom` from `nurbs_interp()` — that tag means "returns geometry when called as a module", but `nurbs_interp()` is a function only. Kept it on `nurbs_interp_surface()` (`Function&Module`) where it is correct.
+  - Replaced `&mdash;` HTML entities with `—` in the **Smoothness** section of both `nurbs_interp()` and `nurbs_interp_surface()` docs.
+  - Fixed typo `[splineteps]` → `[splinesteps=]` in the module-form Usage line of `nurbs_interp_surface()`.
+  - Replaced LaTeX math `$\partial S/\partial u$` / `$\partial S/\partial v$` with plain-text `dS/du` / `dS/dv` in the four partial-derivative argument descriptions (LaTeX does not render in GitHub wiki Markdown).
+  - Removed the redundant `// Module: nurbs_interp_surface()` block that appeared just above the module definition; the `// Function&Module:` block above already documents both the function and module forms together.
+  - Fixed remaining stray LaTeX-style math (`$C^{p-1}$`, `$C^\infty$`, `$p$`) in Smoothness paragraphs to plain text (`C^(p-1)`, `C^inf`, `p`); also fixed typo `inteprolation` → `interpolation`.
+  - Changed all 13 section headers from triple-line `// SECTION: Name` block format to single-line `// Section: Name` format required by the doc generator.
+  - Converted both example sections (`Usage Examples` and `Surface Interpolation Examples`) from freeform `// ---- Example N: title ----` + include blocks format to BOSL2 `// Example(2D): title` / `// Example(3D): title` block format; removed all `include <...>` lines from example bodies (handled globally by `// Includes:`).
+  - Bug fix in parameterization example: orange curve was incorrectly using `method="centripetal"` instead of `method="dynamic"`.
+
+## v189
+- **`_nurbs_interp_closed_basic`: removed rotation search fallback**: When the heuristic rotation produced a control-point spread ratio above the `2^p / p` threshold, the function previously tried all `n` rotations and picked the one with the smallest spread (O(n) solves, plus an `echo`). This search is now removed — the heuristic result is returned as-is regardless of spread ratio. Removed helpers that were only used by the search: `_ctrl_point_ratio`, `_find_closed_rotation` usage as a search driver.
+- **Improved singular-system assert message**: `"nurbs_interp (closed): singular system"` now reads `"nurbs_interp (closed): singular system — try adding extra_pts= to relax the knot structure"`.
+
+## v190
+- Removed dead `_ctrl_point_ratio()` helper (ratio/threshold check was already removed in v189; function had no remaining callers).
+- Updated stale doc comment on `_nurbs_interp_closed_basic` to remove reference to the rotation search.
+
+## v191
+- Extracted `_regularization_matrix(M, smooth, p, U_full, [periodic=])` helper: centralizes the repeated `smooth<=2 ? _ltl_row(...) : _bending_energy_matrix(...)` dispatch that appeared in 6 call sites (clamped nullspace fallback, closed basic nullspace fallback, closed constrained nullspace fallback, corner-segment solve, surface v-direction, surface u-direction). All 6 sites now call `_regularization_matrix()` instead.
+
+## v192
+- **`_bending_energy_matrix`: two-part speedup**:
+  1. **`_d2nip_span(s, p, t, U)`** — new helper that returns the full (p+1)-element vector of non-zero degree-p second derivatives at parameter t in span s, using a bottom-up de Boor triangle (`_deboor_to_degree` / `_deboor_step`) built to degree p-2, then two applications of the derivative recurrence (P&T §2.3 eq. 2.9).  Cost: O(p²) per quadrature point instead of the previous O(M·p²) from calling `_d2nip()` individually for each of the M basis functions.
+  2. **Banded assembly** — `_bending_energy_matrix` now stores `[span, weight, d2_local]` per quadrature point and skips R[j][k] entries where the supports of basis j and k cannot overlap: `|j-k| > p` for clamped (bandwidth 2p+1), circular distance `> p` for periodic (circulant band). Local indices `lj = j-(s-p)` are used for O(1) lookup into `d2_local` instead of re-evaluating basis functions. Periodic aliasing (index j+M for j < p) is handled inline in the assembly.
+  - Added `_deboor_step(b_prev, k, s, t, U)` and `_deboor_to_degree(s, k, t, U)` as reusable de Boor triangle helpers.

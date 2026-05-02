@@ -623,3 +623,56 @@ Implement algorithm A5.9"
 ## v178
 "Remove degree elevation for the closed type."
 (Added assert rejecting `type="closed"`. Deleted `_elevate_once_closed` and all v177 helpers. Removed `closed_mult0`, closed dispatch branch, and closed knot-normalization branches.)
+
+## v179
+"Yes." (to "could you merge the open and clamped code paths for elevation?")
+(Replaced `_elevate_once_clamped` and `_elevate_once_open` with single `_elevate_once(ctrl, p, U)`. Caller expands/strips xknots for clamped; open passes full vector directly.)
+
+## v180
+"eliminate type_u/type_v and closed_u/closed_v and have the code just use row_wrap and col_wrap, and of course only mention those things in asserts. in nurbs_elevate_degree, check for weights FIRST and handle that case immediately rather than doing it afterwards, which appears to be much messier. update the docs to match the current revised api."
+(Removed type_u/type_v/closed_u/closed_v aliases; all code uses row_wrap/col_wrap directly. Rational NURBS case in nurbs_elevate_degree moved before asserts/knot normalization. Docs updated throughout.)
+
+## v181
+"The assert for flat_edges errors refers to start_v and end_v which maybe should be rows or cols? Asserts also reference u_edge1, u_edge2, v_edge1 & vedge2. Update these to the current nomenclature."
+(Updated flat_edges assert messages and inline comments to use first_row/last_row/first_col/last_col. Confirmed u_edge1/u_edge2/v_edge1/v_edge2 references were already absent from the file after the v180 doc rewrite — no code change needed for those.)
+
+## v183
+"Change all references to u_edges and v_edges to the current nomenclature."
+(Renamed `u_edges=` → `row_edges=` and `v_edges=` → `col_edges=` to match the `row_wrap`/`col_wrap` and `first_row_deriv`/`last_row_deriv` naming convention.)
+
+## v185
+"The last return value from nurbs_interp_surface is supposed to provide coordinate mapping into the u-v coordinates that map to the input points, so uv[0][k], uv[1][j] in nurbs parameter space corresponds to points[j][k] in the input list. It appears that the uv lists are not correctly rotated and that they required a list_rotate by -return[6][0] and -return[6][1] in order to be correct. Please fix."
+(Fixed: both wrapped-edge dispatch branches now carry inner[7][0/1] through and apply list_rotate(..., -rot) to unrotate the affected direction, instead of recomputing params from the original unrotated points.)
+
+## v186
+"The u return has the same bug for nurbs_interp that existed in nurbs_interp_surface."
+(Fixed closed-with-corners case: `u` was `_interp_params(points, method)` — unrotated non-closed params. Now rebuilds `aug_pts` from the rotation and computes `aug_params`, then unrotates so `u[j]` matches `points[j]`. Basic closed case was already correct.)
+
+## v187
+"Remove the rotation value that is currently returned second to last in the return from both nurbs_interp() and nurbs_interp_surface(). Also remove mention of it from the docs. There is an off-by-one error in the uv return for nurbs_interp_surface."
+(Removed rotation entry [6] from both returns; uv/u moves to [6]. Fixed off-by-one in wrapped-edge dispatch: inner uv for the rotated direction has n+1 elements due to closing duplicate; now truncated with select() before list_rotate.)
+
+## v188
+"Read Papers/WRITING_DOCS.md. Treat that as a style sheet and update nurbs_interp.scad to comply with those standards."
+(Fixed: LibFile header + added Includes block; removed wrong SynTags: Geom from function-only nurbs_interp(); replaced &mdash; HTML entities; fixed splineteps typo in Usage; replaced LaTeX math with plain text in Arguments; removed redundant Module: nurbs_interp_surface() block.)
+
+- "SECTION headings should comply with format for blocks. Keep the v188 version number."
+  (Changed all 13 section headers from triple-line all-caps `SECTION:` format to single-line `// Section: Name` format per WRITING_DOCS.md.)
+- "The examples should be in example block format. Both 2d and 3d examples. Keep the current v188 version number."
+  (Converted all examples to `// Example(2D):` / `// Example(3D):` blocks; removed include lines from example bodies; fixed orange curve bug in parameterization example.)
+
+## v189
+"In nurbs_interp() with closed=true (_nurbs_interp_closed_basic) eliminate the rotation search that is performed when the control point ratio fails to meet the threshold. Don't try all the rotations: just return the original result. In the case of the singular system suggest in the assert message that the user try using extra_pts."
+(Removed the O(n)-solve rotation search fallback; heuristic result is now returned unconditionally. Singular-system assert message updated to mention extra_pts=.)
+
+## v190
+"Yes," (remove the now-dead _ctrl_point_ratio helper and stale doc comment.)
+(Deleted `_ctrl_point_ratio()`; updated `_nurbs_interp_closed_basic` comment to remove rotation-search description.)
+
+## v191
+"In several places the regularization matrix is computed with repeated code that checks if smooth<=2 and calls _ltl_rows or alternatively calls _bending_energy_matrix. Create a single helper function that generates the regularization matrix that can be called from all those places without the repeated code."
+(Added `_regularization_matrix()` and replaced all 6 call sites.)
+
+## v192
+"Why the bending energy matrix calculation is so slow and is there a way to speed it up? Implement both."
+(Added _deboor_step, _deboor_to_degree, _d2nip_span helpers; rewrote _bending_energy_matrix with banded assembly and per-span O(p²) second-derivative evaluation.)
