@@ -605,3 +605,300 @@
 - **`nurbs_interp_surface()` doc — return value**: `result[4]` now labelled as `mult` (not "no rational weights"); `result[5]` (weights) added; rotation entries described as `0` (not `undef`) when no rotation.
 - **`nurbs_interp_surface()` doc — `flat_edges=`**: Clarified that it requires **both** directions to be `"clamped"` (not just the affected direction). `flat_end1=`/`flat_end2=` are now clearly presented as the alternative for mixed-type surfaces.
 - **`nurbs_interp_surface()` Arguments**: Removed all blank lines between argument entries; `u_edges=`/`v_edges=` entries removed "C0"; `flat_edges=` and `flat_end1=`/`flat_end2=` descriptions revised; Returns section updated to show `mult, weights` (both `undef`) and `0` rotation.
+
+## v157
+- **Manual edit by adrianVmariano.** Changes relative to v156:
+- **`nurbs_elevate_degree()` doc**: Synopsis tightened; Topics trimmed to `NURBS Curves`; continuity-preservation explanation reworded using $C^1$/$C^2$ concrete example; param-list usage described inline ("Instead of providing separate parameters…"); `Returns:` section removed (superseded by inline description); argument descriptions shortened; `mult` parameter added to the dispatch assert logic (`num_defined` check).
+- **`nurbs_interp()` doc**: Synopsis reworded; `SynTags: Geom` added; Usage line reordered (`start_deriv=`/`end_deriv=` before `deriv=`); Description restructured — type section rewritten as prose (no bullet list), parameterization section leads with "In order to solve…" framing and notes scale-invariance property of `"dynamic"` and scale-dependence of `"fang"`; knot-vector section rewritten as prose without formula; derivative section expanded with practical speed advice; curvature section expanded with osculating-circle explanation and vector-form details; corners section expanded with clamped-segment assembly explanation; extra_pts section reworded; new **Starting Point for "closed" curves** section explains `last(result)` index; argument descriptions tightened throughout.
+- **`nurbs_interp_curve()` removed**: Function and its doc block deleted entirely.
+- **`debug_nurbs_interp()` doc**: Synopsis reworded; Description revised — corners shown via black diamond on derivative arrow (not separate marker description); curvature overlay described as cylinder in 3D; knots section simplified; control polygon section rewritten with `show_control=true`/`control_index=true` logic; `size=` described as "text size for labels"; `show_control=` and `control_index=` argument descriptions tightened.
+- **`nurbs_interp_surface()` doc**: Synopsis reworded; `SynTags: Geom` added; `See Also` trimmed; Usage line condensed; Description restructured — intro mentions non-uniform B-spline nature; type/topology section rewritten as prose with torus/tube explanation; boundary-constraints section reorganised with `flat_edges=` (clamped+clamped), `normal1=`/`normal2=` (degenerate ends), `flat_end1=`/`flat_end2=` (mixed-type flat ends) each in their own paragraph; return-value element list removed from Description (now only in Returns); advanced deriv-constraint section retained; flat_edges positive/negative sign semantics added.
+
+## v158
+- **`nurbs_elevate_degree()`**: accepts `times=0`, returning the input unchanged (param-list input returns the list as-is; raw input returns `[type, degree, control, knots, undef, weights]`).
+- **`nurbs_interp()`**: `type=` parameter replaced by `closed=false` (boolean). `closed=false` → clamped curve; `closed=true` → smooth closed loop. All asserts updated. 8th return element added: `u`, the parameterization vector where `u[k]` is the NURBS parameter assigned to `points[k]`. For closed curves, `u` is rotated via `list_rotate` so `u[0]` corresponds to `points[0]`.
+- **`debug_nurbs_interp()`**: `type=` parameter replaced by `closed=false`. Passes `closed=closed` to `nurbs_interp()`.
+- **`nurbs_interp_surface()`** (function and module): `type=` parameter replaced by `closed=false`. Scalar boolean applies to both u and v directions; 2-vector `[u_closed, v_closed]` sets each independently. 8th return element added: `[u_params, v_params]`, the averaged parameterization vectors from the solve.
+- **Docs**: All doc blocks and examples updated to reflect `closed=` convention.
+
+## v159
+- **`nurbs_elevate_degree()`**: Added `mult=undef` parameter and made `knots=undef` (now optional). Accepts the same knot/mult input forms as `nurbs_curve()`:
+  - `knots=` alone: interior-format vector (existing behavior); knots need not be in [0,1].
+  - `mult=` alone: uniform knot positions 0..1 with those multiplicities.
+  - Both `knots=` and `mult=`: distinct knot positions with per-knot multiplicities.
+  - For clamped curves, endpoint repetitions are stripped internally so the elevation algorithm receives `[k0, interior..., km]` regardless of which form is used.
+  - Param-list dispatch now passes `mult=control[4]` to the recursive call.
+  - `times=0` return now preserves the input `mult` (was `undef`): `[type, degree, control, knots, mult, weights]`.
+- **Doc**: Updated Usage and Arguments to describe the new `knots=`/`mult=` flexibility.
+
+## v160
+- **`nurbs_elevate_degree()`**: Fixed two bugs in `xknots` normalization:
+  1. **Missing "neither" case**: When both `knots=` and `mult=` are omitted, now generates BOSL2-compatible uniform knots: clamped → `lerpn(0,1, n-p+1)` (interior format); open → `lerpn(0,1, n+p+2)` (full); closed → `lerpn(0,1, n+1)` (bar_knots format). The `assert(!is_undef(xknots), ...)` guard is no longer needed and was removed.
+  2. **Endpoint mult not forced for `mult=`-only + clamped**: When `mult=` is given without `knots=`, endpoint multiplicities are now forced to `degree+1` before expanding (matching BOSL2's `nurbs_curve()` behavior). Previously the mult vector was used literally, producing a knot vector too short by the missing endpoint repetitions, yielding an incorrect elevation.
+- **Doc**: Updated description and argument docs to describe the "neither" case and the endpoint-forcing behavior.
+
+## v161
+- **`_elevate_once_clamped()`**: Fixed hardcoded `0`/`1` endpoint values. The function now extracts `k0 = xknots[0]` and `km = last(xknots)` and uses them everywhere: building `U_old`, `new_xknots`, and `U_new`. Previously, knot vectors with endpoints outside [0,1] caused a parameter-domain mismatch between `U_old` (arbitrary range) and `U_new` (hardcoded [0,1]), producing a singular collocation matrix and the "should not happen" assert.
+- **`nurbs_elevate_degree()`**: Added assert `len(mult) == len(knots)` when both are provided.
+
+## v162
+- **`_elevate_once_closed()`**: Complete rewrite to fix all closed-curve degree elevation failures.
+  - **Knot construction**: Endpoint positions now appear **once** in the xknots vector fed to `_extend_knot_vector` (acting as the period boundary). Interior positions appear `curr_m[i]` times. This keeps the first extension step non-zero (`bar_knots[0]→bar_knots[1]`) so `_extend_knot_vector` produces a correctly-periodic U. Previously all positions including endpoints were repeated `curr_mult_per` times, giving delta=0 at the start and corrupting the extension.
+  - **`n_new`**: Derived as `len(xknots_new) - 1` (correct for any multiplicity structure). Previous formula `2*n+1` was only right for the first elevation with uniform simple knots, and was wrong for all subsequent elevations and non-uniform mults.
+  - **Multiplicity increment**: `new_m[i] = curr_m[i] + 1` (increment by 1 per elevation). Previous code doubled: `new_mult_per = 2 * curr_mult_per`, giving wrong multiplicities on the second and subsequent elevations.
+  - **Greville shifting**: Greville abscissae are now shifted into the active domain `[a_new, b_new]` before evaluating the new-basis collocation matrix. Previously they were used unshifted, so sites below `a_new` produced all-zero rows in A → singular system. Only the old-curve evaluation (C_vals) was shifted; now both A and C_vals use correctly shifted sites.
+  - **Auto-deduplication**: When `curr_mult` is undef and `bar_knots` contains repeated consecutive values (as occurs when re-elevating a closed curve via its NURBS param-list, whose knots field is `xknots_new` from the prior elevation), the function deduplicates to find unique positions and counts their multiplicities automatically.
+  - **Return format changed**: Now returns `[new_ctrl, xknots_new, p_new, new_m, true_bar_knots]` (5 elements). `xknots_new` is BOSL2-compatible for direct use by `nurbs_curve()`; `new_m` and `true_bar_knots` are threaded through recursive elevation calls.
+- **`nurbs_elevate_degree()`**: Multiple fixes for closed and clamped+knots+mult cases.
+  - **Clamped + knots+mult**: Endpoint multiplicities are now forced to `degree+1` before expanding and stripping, matching the mult-only clamped behavior. Previously the raw user-provided mult was used, so endpoint mult < degree+1 would cause the strip to remove the endpoint values entirely, producing wrong xknots.
+  - **Closed + mult-only**: `xknots` is now the distinct uniform positions (K values), not the expanded form. The user's `mult` is passed separately as `closed_mult0`.
+  - **Closed + knots+mult**: `xknots` is now the distinct knot positions (not expanded). The user's `mult` is passed separately as `closed_mult0`.
+  - **`closed_mult0`**: New variable that determines the initial per-position multiplicity vector for `_elevate_once_closed`: user's `mult=` on the first call, `_curr_mult` (from prior step) on recursive calls, or `undef` for auto-detection.
+  - **`elevate_once` lambda**: Closed type now passes `closed_mult0` as `curr_mult`.
+  - **Recursion / return**: For closed type, recursive calls use `r[4]` (true_bar_knots) as the `knots` argument and `r[3]` (new_m) as `_curr_mult`. The final BOSL2 param-list uses `r[1]` (xknots_new) as the knots field and `undef` as mult, ensuring `nurbs_curve()` can evaluate it directly.
+  - **Removed closed-length assert**: The old `len(xknots)==len(control)+1` assert was too restrictive for non-uniform closed mult (where the K distinct positions ≠ n+1). Removed.
+
+## v163
+- **`nurbs_elevate_degree()`**: Fixed fatal error when `mult=undef`. The assert message string was calling `len(mult)` and `len(knots)` unconditionally; in this OpenSCAD version `len(undef)` aborts execution. Guards added: `is_undef(mult) ? "undef" : len(mult)` and similarly for knots.  The ternary operator in OpenSCAD evaluates lazily, so `len()` is only called when the value is not undef.
+
+## v164
+- **`_elevate_once_closed()`**: Complete rewrite to fix geometrically incorrect degree elevation for all five closed test cases in `Examples/elevate_fails.scad`.
+  - **New signature**: `(ctrl, p, U_old)` — accepts the full periodic knot vector directly instead of `(ctrl, p, bar_knots, curr_mult)`.
+  - **U_new construction**: Decomposes `U_old` into PREFIX/ACTIVE/EXTENSION regions and applies `_increment_knot_mults(ACTIVE)` to double every distinct knot value's multiplicity. This preserves `a_new = a_old` and `b_new = b_old` (active domain unchanged) and correctly satisfies the B-spline degree elevation theorem. Previously, the code applied `_extend_knot_vector` to `xknots_new`, which shifted `b_new` by one step per elevation and caused active-domain mismatch.
+  - **Return format simplified**: Now returns `[new_ctrl, U_new, p+1]` (3 elements). `U_new` has length `n_new + 2*(p+1) + 1`; BOSL2's `_extend_knot_vector(U_new, 0, target)` returns `U_new` unchanged, so `nurbs_curve(type="closed")` evaluates with exactly the knot vector used to compute `Q`.
+  - **C_vals evaluation**: Greville abscissae of `U_new` lie within `[U_old[0], U_old[-1]]`, so the original curve is evaluated directly at each site without any domain-shifting. Removed the buggy two-step shift (`grev → [a_new,b_new] → [a_old,b_old]`) that could double-shift sites outside the valid range.
+  - **Removed**: `grev_raw`, `grev`, `grev_orig` shift logic, `true_bar`, `auto_m`, `curr_m`, `new_m`, `xknots_old`, `xknots_new`, `a_old`/`b_old`/`a_new`/`b_new` variables.
+- **`nurbs_elevate_degree()`**: Updated closed-type path to match new `_elevate_once_closed` interface.
+  - **`closed_U_old`**: New variable that computes the full periodic `U_old` from the user's `knots`/`mult` input for each input variant (no-knots/no-mult: uniform bar_knots; knots-only: pass through to `_extend_knot_vector`; mult-only or knots+mult: expand positions by multiplicities then extend). On recursive calls, `knots=U_new` (full vector) is passed; `_extend_knot_vector` returns it unchanged.
+  - **Removed**: `_curr_mult` parameter, `closed_mult0` variable, `r[3]`/`r[4]` threading for closed type.
+  - **Recursion simplified**: `nurbs_elevate_degree(r[0], r[2], r[1], type=type, times=times-1)` for all types (closed passes `r[1]=U_new` as `knots`; non-closed passes `r[1]=new_xknots`).
+  - **Note (v165 follow-up)**: The v164 approach of returning `U_new` (full vector, length `n_new+2*p_new+1`) as the `knots` field triggered BOSL2's closed-knot assertion (`len(bar_knots) must equal n+1`). Reverted in v165.
+
+## v165
+- **`_elevate_once_closed()`**: Reverted to bar_knots-based approach (signature `(ctrl, p, bar_knots, curr_mult=undef)`) and fixed the actual geometry bug: **Greville site selection**.
+  - **Root cause**: `_greville(U_new, p_new)` returns `n_new+p_new` values.  The first few lie below `a_new`; when shifted by `+T` they coincide with later unshifted sites (exact duplicate rows → singular collocation matrix for all closed test cases).
+  - **Fix**: Compute `start = count(grev_all[i] < a_new)` and take `grev_all[start..start+n_new-1]` instead of `grev_all[0..n_new-1]`.  Sites above `b_new` are wrapped by `-T`.  This guarantees `n_new` distinct sites within `[a_new, b_new)` with no coincidences.
+  - **`U_old`/`U_new`**: Computed via `_extend_knot_vector(xknots_old/new, ...)` (BOSL2-compatible).  Returns `[Q, xknots_new, p_new]` (3 elements) so BOSL2's `nurbs_curve(type="closed")` receives the correct bar_knots format.
+  - **Removed**: `grev_orig` shift, `a_old`/`b_old` variables (active domains are always equal), `true_bar`/`new_m` return elements (simplified to 3).
+- **`nurbs_elevate_degree()`**: Restored `closed_mult0 = mult` (user's mult for first call; `undef` in recursive calls so auto-detect picks up mults from `xknots_new`).  Recursive call passes `r[1]=xknots_new` as bar_knots.
+- **`nurbs_interp_surface()`** function and module: Replaced `closed=` parameter with `row_wrap=false, col_wrap=false`.
+  - `row_wrap=true` wraps the u-direction (joining first and last rows into a smooth closed loop).
+  - `col_wrap=true` wraps the v-direction (joining first and last columns).
+  - Scalar `closed=true/false` and 2-vector `closed=[u,v]` syntax removed.
+  - Updated all doc comments, usage examples, recursive internal calls, and module form.
+
+## v166
+- **`nurbs_interp_surface()` bugfix**: Removed two stale `type_u`/`type_v` lines from the "normal path" inner `let()` block that referenced an undefined variable `type` (leftover from the old `type=` API). The outer `let()` block already defines `type_u`/`type_v` correctly from `row_wrap`/`col_wrap`. Eliminates `WARNING: Ignoring unknown variable "type"` at line 2998.
+
+## v167
+- **Parameter rename**: `nurbs_interp_surface()` boundary derivative parameters renamed for clarity:
+  - `u_edge1_deriv` → `first_row_deriv` (∂S/∂u at u=0, first row)
+  - `u_edge2_deriv` → `last_row_deriv` (∂S/∂u at u=1, last row)
+  - `v_edge1_deriv` → `first_col_deriv` (∂S/∂v at v=0, first column)
+  - `v_edge2_deriv` → `last_col_deriv` (∂S/∂v at v=1, last column)
+  - All 72 occurrences renamed (doc comments, function signatures, internal usage).
+  - Updated stale parameter names in `Examples/edgetest.scad`, `Examples/edgetest2.scad`, `Examples/snippet-2.scad`, `snippet-1.scad`, and `Bugs/degree3bug.scad` (`end_normal` → `normal2`, `start_u_der` → `first_row_deriv`, etc.).
+
+## v168
+- **`_elevate_once_closed` (intermediate)**: Attempted fix via Greville site wrapping (+T for sites below a_new). This approach has n_new = n_old + (B-1) interior-knot increments (single endpoint copies). Numerical testing shows errors up to 0.58 — the Greville approach is irrelevant when the endpoint multiplicity is wrong.
+
+## v169
+- **`_elevate_once_closed` (intermediate)**: Described the doubled-endpoint fix in the changelist, but the archive was created from still-incorrect code (single endpoint copies). The live file was subsequently corrected but the version was not bumped; the fix is captured in v170.
+
+## v170
+- **`_elevate_once_closed` bugfix — confirmed correct**: `nurbs_elevate_degree(type="closed")` now exactly preserves the curve geometry under degree elevation. Verified numerically (Python) and in OpenSCAD via `Bugs/test_elevate_diag.scad` (direct `_nip`-based evaluation, no BOSL2 caching): all errors are 0 at all test u values.
+  - **Root cause**: The last endpoint of `xknots_new` appeared exactly once, giving `n_new = n_old + (B-1)` control points. With T repeated only once, `_extend_knot_vector` produced a U_new where the seam had multiplicity 1 for degree p_new, giving C^{p_new-1} continuity — strictly smoother than the original C^{p-1}. The degree-p curve cannot lie in a space with higher smoothness at the seam, so collocation found the closest approximation in the wrong space.
+  - **Fix**: Last endpoint of `xknots_old` uses `each repeat(last(true_bar), curr_m[B-1])` and `xknots_new` uses `each repeat(last(true_bar), new_m[B-1])`. This gives `n_new = n_old + (B-1) + 1` control points, seam multiplicity `gmult[0]+new_m[B-1] = curr_m[0]+curr_m[B-1]+1 → C^{p_new-2}` (matching the original C^{p-1}), and an n_new × n_new collocation system with condition number ~5 and residual ~1e-14.
+  - Greville selection uses `start = first index ≥ a_new`, wrapping sites > b_new down by −T (either approach works once n_new is correct).
+
+## v172
+- **`_elevate_once_closed` — replace Greville collocation with uniform sites**:
+  Removed the Greville abscissae computation entirely (including collision detection and fallback logic from v171). Replaced with unconditionally uniform collocation sites `τ_k = a_new + (k+0.5)*T/n_new`. Uniform sites are always distinct, never land on knot boundaries, and avoid all wrapping ambiguities. The domain-alignment delta shift (from v171) is retained: `C_vals` are evaluated at `τ_k + delta` in U_old's domain, and `xknots_aligned = xknots_new + delta` is returned so that BOSL2's `nurbs_curve()` maps u∈[0,1] to the same parameter range for original and elevated curves. Fixes both `singular.scad` (singular matrix from Greville collision on high-mult knots) and `singular2.scad` (wrong curve for p≥3 due to domain phase shift).
+
+## v171
+- **`_elevate_once_closed` two-bug fix — handles `singular.scad` and `singular2.scad`**:
+  - **Domain phase-shift fix** (`singular2.scad`: `approx(c1,c2)` returned false for p≥3):
+    BOSL2 maps u∈[0,1] to `[U[p], U[n+p]]`. For p≥3 the elevated `xknots_new` places `U_new[p_new]` at a different phase than `U_old[p]` (specifically, `a_new = xknots_new[p_new-1]` while `a_old = xknots_old[p-1]`). All of `xknots_new` is now shifted by `delta = a_old - a_new` before returning, realigning the active domains so `nurbs_curve()` maps the same u∈[0,1] to the same underlying parameter for both original and elevated curves. `Q` is computed against the unshifted `xknots_new`; after the shift it remains correct by translation invariance of `_nip`. C_vals are evaluated at `grev + delta` to stay within `U_old`'s active domain.
+  - **Greville collision fix** (`singular.scad`: assertion fires on singular matrix):
+    High-multiplicity interior knots (e.g. `mult=[…,3,…]`) can cause wrapped Greville sites to coincide with unwrapped ones, making the collocation matrix singular. Added collision detection: sort Greville sites, check minimum adjacent gap. If any gap < 1e-10, fall back to uniform sites `a_new + (k+0.5)*T/n_new` which are guaranteed distinct and produce a well-conditioned system.
+
+## v173
+- **`_elevate_once_closed` — structural fix for singular collocation matrix**:
+  Root cause of the persistent singularity: the old `xknots_new` construction used
+  `curr_m[0]` copies of `true_bar[0]` followed by all interior `true_bar` values
+  with incremented multiplicities.  When any pre-domain knot value (≤ a_old) had
+  multiplicity ≥ 2 after incrementing, `xknots_new[0..p_new]` contained duplicate
+  entries.  `_extend_knot_vector` then produced zero-width intervals in U_new
+  (e.g. `[25,25)`), making the wrap basis functions `N_{n_new+j}` identically zero
+  for all u — rendering the entire wrap column of A zero regardless of site choice.
+  No collocation strategy could fix this; the singularity was structural.
+  - **Fix**: Compute `U_old` and `a_old` first.  Construct `xknots_new` with:
+    (1) `pre_new`: `p_new` equally-spaced *distinct* values in `[true_bar[0], a_old)`,
+    guaranteeing `xknots_new[0..p_new]` is strictly increasing;
+    (2) `a_old` as the anchor knot;
+    (3) only active-domain interior knots — `true_bar[i]` strictly between `a_old`
+    and `last(true_bar)` — with multiplicity incremented by 1;
+    (4) `new_m[B-1]` copies of `last(true_bar)`.
+  - Strictly-increasing pre-domain ⟹ all extension gaps > 0 ⟹ all wrap basis
+    functions have non-empty support ⟹ non-singular collocation matrix.
+  - Fixes `Bugs/singular.scad` (p=2, `mult=[1,1,1,1,1,3,1,1,1]`, times=2) and
+    `Bugs/singular2.scad` (p=3, all-mult-1, times=1): `echo(approx(c1,c2))` → true.
+
+## v174
+- **`_elevate_once_closed` — complete rewrite with correct periodic knot construction**:
+  Root cause analysis: v172/v173 constructions produced `bar_knots_new` whose
+  `_extend_knot_vector` extension was incompatible with the correctly-elevated full
+  knot vector. The pre-domain of `bar_knots_new` must equal the last `p_new` active
+  values before `b_old`, shifted back by `T`, so that BOSL2's extension reproduces
+  the right periodic structure.
+  - **New algorithm**:
+    1. Reconstruct `U_old = _extend_knot_vector(bar_knots_full, 0, n+2p+1)`
+       (expanding `bar_knots` with `curr_mult` when provided on the first call).
+    2. Identify `a_old = U_old[p]`, `b_old = U_old[n+p]` (active domain).
+    3. Extract interior active knots: `U_old[p+1..n+p-1]` strictly between `a_old`
+       and `b_old`; double each value's multiplicity via `_increment_knot_mults`.
+    4. Build `active_new = [a_old, doubled_interior..., b_old]`.
+    5. `pre_new[k] = active_new[n_new - p_new + k] - T` (periodic wrap-around).
+    6. `bar_knots_new = [pre_new..., active_new[0..n_new-p_new]]`.
+       `_extend_knot_vector(bar_knots_new, ...)` reproduces `U_new_full` exactly.
+    7. Collocate at `n_new` uniform sites in `[a_old, b_old)`. All sites in the
+       active domain; wrap columns activated for sites `> U_new[n_new]`.
+  - Eliminates v172's incompatible doubled-`U_old_full` and v173's wrong function
+    space. The active domain is preserved (`[a_old, b_old]` unchanged after elevation)
+    and the collocation matrix is full-rank.
+  - Fixes both `Bugs/singular.scad` and `Bugs/singular2.scad`: `echo(approx(c1,c2))` → true.
+
+## v175
+- **`_elevate_once_closed` — replaced collocation with exact blossom/polar-form algorithm** (P&T §5.4 Algorithm A5.9 equivalent):
+  The v174 collocation approach failed in two distinct ways: (1) `singular2.scad` (all-distinct knots): uniform collocation sites gave a singular matrix; (2) `singular.scad` (interior knot at mult=p+1): after elevation the knot becomes mult=p_new+1, creating degenerate Greville abscissae — neither uniform sites nor Greville abscissae give a non-singular matrix.
+  - **New algorithm** — no linear solve, no matrix, always exact:
+    Each elevated control point `Q[j]` is the arithmetic mean of `(p+1)` de Boor blossoms
+    of the original degree-`p` curve, one per argument removed from
+    `(U_new[j+1], …, U_new[j+p+1])`.
+  - **Doubly-extended representation** for blossom evaluation: prepend `p` backward-periodic
+    ctrl/knot entries so that arguments in the pre-domain and split knots (mult = p+1)
+    are handled by the standard rightmost-span convention without special cases.
+  - New helpers: `_blossom_ec(full_ctrl, full_U, p, args)` (span-find + de Boor triangular reduction)
+    and `_blossom_ec_r()` (recursive de Boor step). `assert(Q != [])` removed (no solve).
+  - `bar_knots_new` construction from v174 preserved unchanged (correct periodic wrap).
+  - Fixes `Bugs/singular.scad` (p=2, mult=3 interior knot, times=2) and
+    `Bugs/singular2.scad` (p=3, all-distinct knots, times=1): `echo(approx(c1,c2))` → true.
+
+## v176
+- **`_elevate_once_closed` — replaced blossom with periodic collocation** (root-cause analysis of v175 failure):
+  v175's blossom/polar-form approach was mathematically unsound for the closed/periodic case: `T_args` for small `j` indices contains pre-domain values (encoded as `pre_new[k] = active_new[n_new-p_new+k] - T`). Evaluating the periodic B-spline's polar form using a single fixed knot span `k` (chosen by `u_max`) and extrapolating back through multiple polynomial pieces gives wrong results — the periodic B-spline blossom is piecewise-global, not equivalent to any single polynomial piece extrapolated over multiple spans.
+  - **Root cause**: `_blossom_ec` used the span containing `u_max` and the de Boor triangular algorithm to extrapolate to arguments spanning distant spans (e.g., `u_max = 25/21` extrapolated back to `a_old = 13/21`), producing wildly incorrect coefficients due to large negative alphas (-11, -4.5, etc.).
+  - **New algorithm** — periodic collocation (same structure as the successful `_elevate_once_clamped`):
+    - `n_new` uniform collocation points in `[a, b)`, one per degree of freedom.
+    - Original curve evaluated at each site with periodic wrap: `B_j(u) = N_j(u) + (j < p ? N_{j+n}(u) : 0)`.
+    - Elevated collocation matrix uses the same periodic wrap for the degree-`p_new` basis.
+    - `linear_solve` recovers the exact elevated ctrl (the elevated B-spline space contains the original).
+  - Removed `_blossom_ec` and `_blossom_ec_r` helpers (superseded).
+  - `bar_knots_new` construction from v174/v175 preserved unchanged.
+  - Fixes `Bugs/singular.scad` (p=2, mult=3 interior knot, times=2) and
+    `Bugs/singular2.scad` (p=3, all-distinct knots, times=1): `echo(approx(c1,c2))` → true.
+
+## v177
+- **`_elevate_once_closed` — replaced periodic collocation with Bézier extraction** (v176's collocation also singular for these cases):
+  - **Root cause of v176 failure**: Greville abscissae are not unisolvent for periodic B-splines. Uniform sites also fail: the elevated knot vector has interior values repeated `p_new` times, creating zero-width spans that collapse rows of the collocation matrix to identical values → structural rank deficiency. No choice of collocation sites can fix this.
+  - **New algorithm** — Bézier extraction via Boehm knot insertion (no `linear_solve`):
+    1. Build virtual extended ctrl `Q_ext[j] = ctrl[j % n]` for `j = 0..n+p-1`.
+    2. Collect distinct interior knot values in `(a, b)` from `U_old`; insert each up to multiplicity `p` via repeated Boehm insertion → full Bézier decomposition.
+    3. Find non-zero spans in `[a, b]`; `s = len(span_ks)`, `n_new = s * (p+1)`.
+    4. Elevate each Bézier segment of degree `p` to degree `p+1` via the exact formula.
+    5. Assemble elevated segments (drop shared endpoint of each seg after the first).
+    6. Re-impose periodicity: `ctrl_new[0] = (assembled[0] + assembled[n_new]) / 2`.
+    7. Build `active_new` with `b` repeated `p_new` times → `bar_knots_new` with correct periodic pre-domain wrap.
+  - C0 corner knots (mult `p+1` in `U_old`): `r = max(0, p - mult) = 0` insertions; zero-width spans automatically filtered by non-zero span check — C0 junctions preserved.
+  - New helpers: `_distinct_vals()`, `_boehm_insert_closed()`, `_boehm_insert_closed_r()`, `_bezier_extract()`, `_elev_bez()`.
+  - Removed old helpers: `linear_solve` call removed from `_elevate_once_closed`.
+  - Fixes `Bugs/singular.scad` (p=2, C0 interior knot mult=p+1, times=2) and `Bugs/singular2.scad` (p=3, all-distinct knots, times=1): `echo(approx(c1,c2))` → true.
+
+## v178
+- Removed degree elevation support for `type="closed"`:
+  - `assert` in `nurbs_elevate_degree()` now rejects `type="closed"` (previously allowed).
+  - Deleted `_elevate_once_closed()` and all five helpers introduced in v177: `_distinct_vals()`, `_boehm_insert_closed()`, `_boehm_insert_closed_r()`, `_bezier_extract()`, `_elev_bez()`.
+  - Removed `closed_mult0` let-binding and closed branch of `elevate_once` dispatch.
+  - Removed closed-specific knot-normalization branches from `xknots` computation.
+  - Updated doc comment: `type=` now documented as `"clamped"` or `"open"` only.
+
+## v179
+- Merged `_elevate_once_clamped` and `_elevate_once_open` into a single `_elevate_once(ctrl, p, U)` that operates on the full expanded knot vector. `nurbs_elevate_degree` expands clamped xknots to full U before calling (`concat(repeat(k0,p), xknots, repeat(km,p))`) and strips the result back to xknots format after (`U_new[p_new..len-p_new-1]`); open passes through unchanged. The Greville + collocation solve is now in one place.
+
+## v180
+- Three refactors in one version:
+  1. **Eliminated `type_u`/`type_v`/`closed_u`/`closed_v`** in `nurbs_interp_surface`: the four alias variables are gone; all code now uses `row_wrap`/`col_wrap` directly. `type_u == "clamped"` → `!row_wrap`, `type_u == "closed"` → `row_wrap`, etc. Assert messages updated accordingly. `_surface_params_u`/`_surface_params_v` parameter renamed from `closed_u`/`closed_v` to `periodic`.
+  2. **`nurbs_elevate_degree` weights-first**: rational NURBS case now handled immediately after the `times==0` early return — lifts to homogeneous space, calls the non-rational path recursively (which handles all asserts, knot normalization, and the `times` loop), then extracts weights from the last coordinate. Removed the duplicate rational branch at the end of the function.
+  3. **Doc updates**: `nurbs_elevate_degree` description rewritten to reflect merged paths and rational handling. `nurbs_interp_surface` description and argument list rewritten to use `row_wrap`/`col_wrap` language throughout; removed all `["clamped","clamped"]` / `["closed","clamped"]` type-string references.
+
+## v181
+- **`flat_edges` assert and comment nomenclature**: updated all assert messages and inline comments that referred to `[start_u, end_u, start_v, end_v]` to use `[first_row, last_row, first_col, last_col]`, matching the established boundary-derivative parameter names (`first_row_deriv`, `last_row_deriv`, etc.). Specifically: the 4-element format string in the conflict assert, all per-element conflict/geometry assert labels (`flat_edges[n] (first_row)` etc.), the `flat_edges=` parsing inline comment, and the coplanarity assert messages for `flat_end1`/`flat_end2` (removed stale `["clamped","closed"]` type-swap hint; replaced with `row_wrap=true, col_wrap=false` suggestion).
+
+## v182
+- **Hand-edited documentation pass** (no functional changes):
+  - `nurbs_elevate_degree()`: synopsis and description rewritten to be concise; removed verbose rational-NURBS and knot-format implementation detail; argument descriptions simplified; removed backtick-wrapped `Default:` values from optional params.
+  - `nurbs_interp()`: description rewritten for clarity — improved closed/clamped distinction, added note about using `debug_nurbs_interp()` to examine knot positions, reworded `deriv` scaling explanation (now says "multiple of `path_length(points)`"), improved `extra_pts` and `corners` paragraphs; argument descriptions simplified and `Default:` backtick-wrapping removed.
+  - `nurbs_interp_surface()`: synopsis shortened; description rewritten — `row_wrap`/`col_wrap` explained more plainly, tube-closing note improved, `u` → `uv` in return-list description; `splinesteps` moved before `extra_pts` in the argument list; `u_edges`/`v_edges` descriptions simplified; all optional-param `Default:` entries de-backticked.
+  - **Code simplification** (same semantics): in `nurbs_elevate_degree()`, the homogeneous-lift expression replaced with `[for (i = idx(control)) [each control[i]*weights[i], weights[i]]]`; the weight-extraction expression replaced with `[for (pt = r[2]) slice(pt,0,-2)/last(pt)]`; the clamped interior-knot strip replaced with `slice(r[1], degree+1, -degree-2)`. All three use BOSL2 `idx()` / `slice()` idioms.
+
+## v183
+- Renamed `u_edges=` → `row_edges=` and `v_edges=` → `col_edges=` throughout `nurbs_interp_surface()` and its internal helpers, to match the established `row_wrap`/`col_wrap`, `first_row_deriv`/`last_row_deriv`, `first_col_deriv`/`last_col_deriv` naming convention.  All occurrences updated: function signature, recursive call sites, `ue_norm`/`ve_norm` let bindings, assert messages, and doc comments.
+
+## v184
+- **`nurbs_interp_surface` module: BOSL2 attachment support** — the module now accepts the standard BOSL2 attachment parameters `atype`, `convexity`, `cp`, `anchor`, `spin`, `orient` and passes them through; rendering changed from `vnf_polyhedron(nurbs_vnf(...))` to `nurbs_vnf(...) children()` so the module form of `nurbs_vnf` is used and attachments work correctly.
+- **Doc pass — `nurbs_interp()`**:
+  - Usage line reformatted to a single line; return variable renamed `result` → `nurbs_param`.
+  - Description: "computes a curve of the specified degree"; `rotation` and `u` return values introduced inline.
+  - New **Locating points in the spline** section: explains `u[k]` parameter values and the `rotation` entry, replacing the old "Starting Point for closed curves" section.
+  - New **Smoothness** section: describes C^{p−1} continuity at knots, corner behavior, and degree reduction/elevation for short segments.
+- **Doc pass — `nurbs_interp_surface()`**:
+  - Both usage lines collapsed to single lines; return variable renamed `result` → `nurbs_param`; module usage line ends with `CHILDREN`.
+  - Description: "of the specified degree" added; two-pass algorithm detail removed; added paragraph explaining which parameters accept scalar vs. 2-vector.
+  - **Edges** section rewritten: mentions narrow-patch degree reduction and transparent elevation.
+  - **Extra control points** section rewritten for clarity; explicitly notes scalar/2-vector.
+  - New **Locating points in the spline** section (parallel to curve version): describes `uv[0][j]`/`uv[1][k]` indexing and `rotation` entry.
+  - New **Smoothness** section (parallel to curve version).
+  - **Seam rotation** section removed (absorbed into new Locating points section).
+  - Argument list: `degree` and `splinesteps` descriptions simplified; `extra_pts`/`smooth` note scalar-or-2-vector; `flat_edges` "leaves that edge free" → "leaves that edge unconstrained"; `row_edges` typo fixed ("indidces"); module-only params reordered (data_size/data_color first); `cp`, `anchor`, `spin`, `orient`, `atype` added.
+
+## v185
+- **Bug fix: `uv` return value not rotated in `row_edges`/`col_edges` + wrap dispatch**:
+  When `col_edges` is given with `col_wrap=true`, the solver rotates columns by `rot` before recursing. The inner call's `uv[1][k]` is the v parameter for new column `k`, which corresponds to original column `(k+rot)%n_cols`. The outer return was incorrectly recomputing `uv` from the original unrotated points (using a different parameterization than the actual solve). Fixed by taking the inner uv and unrotating: `list_rotate(inner[7][1], -rot)` for the v direction so that `uv[1][k]` correctly corresponds to original column `k`. Symmetric fix for the `row_edges`+`row_wrap` case: `list_rotate(inner[7][0], -rot)` for the u direction.
+
+## v186
+- **Bug fix: `u` return value wrong for closed-with-corners curves in `nurbs_interp()`**:
+  When `closed=true` and `corners=` are specified, `_nurbs_interp_closed_corners` rotates points by `rot = corners[0]`, builds `aug_pts = [points[rot], ..., points[rot-1], points[rot]]` (n+1 points, closing duplicate appended), and solves as clamped. The inner clamped solve uses `_interp_params(aug_pts, method)` so `aug_params[k]` is the parameter for `points[(k+rot)%n]`.  The outer return fell through to `_interp_params(points, method)` (unrotated, non-closed) — a completely mismatched parameterization.  Fixed by adding a third branch for this case: recomputes `aug_params = _interp_params(aug_pts, method)` and unrotates via `[for (j=[0..n-1]) aug_params[(j-rot+n)%n]]` so that `u[j]` correctly gives the parameter for `points[j]`.  The basic closed case (no corners) was already correct.
+
+## v187
+- **Removed `rotation` return entry** from both `nurbs_interp()` and `nurbs_interp_surface()`: the second-to-last element is gone; `u` / `uv` moves from index `[7]` to `[6]`. Return formats are now `[type, degree, ctrl, knots, undef, undef, u]` and `[type, degree, ctrl_grid, knots, undef, undef, uv]` respectively. Docs updated to remove all rotation-entry mentions.
+- **Bug fix: off-by-one in `uv` for wrapped-edge dispatch in `nurbs_interp_surface()`**: When `col_edges + col_wrap` is active, `new_pts` has `n_cols+1` columns (closing duplicate appended), so `inner[6][1]` (v params) has length `n_cols+1`. Previously `list_rotate(inner[6][1], -rot)` operated on this length-`n_cols+1` vector, giving a result shifted by one. Fixed by truncating to `n_cols` elements first: `list_rotate(select(inner[6][1], 0, n_cols-1), -rot)`. Symmetric fix for the `row_edges + row_wrap` case: `list_rotate(select(inner[6][0], 0, n_rows-1), -rot)`.
+
+## v188
+- **Doc compliance pass** against `Papers/WRITING_DOCS.md` (BOSL2 openscad-docsgen style sheet):
+  - `// LibFile:` header rewritten to use proper three-space body indentation and concise prose; added `// Includes:` block with the three `include <...>` lines (the doc generator prepends these to all Example/Figure blocks automatically).
+  - Removed `// SynTags: Geom` from `nurbs_interp()` — that tag means "returns geometry when called as a module", but `nurbs_interp()` is a function only. Kept it on `nurbs_interp_surface()` (`Function&Module`) where it is correct.
+  - Replaced `&mdash;` HTML entities with `—` in the **Smoothness** section of both `nurbs_interp()` and `nurbs_interp_surface()` docs.
+  - Fixed typo `[splineteps]` → `[splinesteps=]` in the module-form Usage line of `nurbs_interp_surface()`.
+  - Replaced LaTeX math `$\partial S/\partial u$` / `$\partial S/\partial v$` with plain-text `dS/du` / `dS/dv` in the four partial-derivative argument descriptions (LaTeX does not render in GitHub wiki Markdown).
+  - Removed the redundant `// Module: nurbs_interp_surface()` block that appeared just above the module definition; the `// Function&Module:` block above already documents both the function and module forms together.
+  - Fixed remaining stray LaTeX-style math (`$C^{p-1}$`, `$C^\infty$`, `$p$`) in Smoothness paragraphs to plain text (`C^(p-1)`, `C^inf`, `p`); also fixed typo `inteprolation` → `interpolation`.
+  - Changed all 13 section headers from triple-line `// SECTION: Name` block format to single-line `// Section: Name` format required by the doc generator.
+  - Converted both example sections (`Usage Examples` and `Surface Interpolation Examples`) from freeform `// ---- Example N: title ----` + include blocks format to BOSL2 `// Example(2D): title` / `// Example(3D): title` block format; removed all `include <...>` lines from example bodies (handled globally by `// Includes:`).
+  - Bug fix in parameterization example: orange curve was incorrectly using `method="centripetal"` instead of `method="dynamic"`.
+
+## v189
+- **`_nurbs_interp_closed_basic`: removed rotation search fallback**: When the heuristic rotation produced a control-point spread ratio above the `2^p / p` threshold, the function previously tried all `n` rotations and picked the one with the smallest spread (O(n) solves, plus an `echo`). This search is now removed — the heuristic result is returned as-is regardless of spread ratio. Removed helpers that were only used by the search: `_ctrl_point_ratio`, `_find_closed_rotation` usage as a search driver.
+- **Improved singular-system assert message**: `"nurbs_interp (closed): singular system"` now reads `"nurbs_interp (closed): singular system — try adding extra_pts= to relax the knot structure"`.
+
+## v190
+- Removed dead `_ctrl_point_ratio()` helper (ratio/threshold check was already removed in v189; function had no remaining callers).
+- Updated stale doc comment on `_nurbs_interp_closed_basic` to remove reference to the rotation search.
+
+## v191
+- Extracted `_regularization_matrix(M, smooth, p, U_full, [periodic=])` helper: centralizes the repeated `smooth<=2 ? _ltl_row(...) : _bending_energy_matrix(...)` dispatch that appeared in 6 call sites (clamped nullspace fallback, closed basic nullspace fallback, closed constrained nullspace fallback, corner-segment solve, surface v-direction, surface u-direction). All 6 sites now call `_regularization_matrix()` instead.
+
+## v192
+- **`_bending_energy_matrix`: two-part speedup**:
+  1. **`_d2nip_span(s, p, t, U)`** — new helper that returns the full (p+1)-element vector of non-zero degree-p second derivatives at parameter t in span s, using a bottom-up de Boor triangle (`_deboor_to_degree` / `_deboor_step`) built to degree p-2, then two applications of the derivative recurrence (P&T §2.3 eq. 2.9).  Cost: O(p²) per quadrature point instead of the previous O(M·p²) from calling `_d2nip()` individually for each of the M basis functions.
+  2. **Banded assembly** — `_bending_energy_matrix` now stores `[span, weight, d2_local]` per quadrature point and skips R[j][k] entries where the supports of basis j and k cannot overlap: `|j-k| > p` for clamped (bandwidth 2p+1), circular distance `> p` for periodic (circulant band). Local indices `lj = j-(s-p)` are used for O(1) lookup into `d2_local` instead of re-evaluating basis functions. Periodic aliasing (index j+M for j < p) is handled inline in the assembly.
+  - Added `_deboor_step(b_prev, k, s, t, U)` and `_deboor_to_degree(s, k, t, U)` as reusable de Boor triangle helpers.

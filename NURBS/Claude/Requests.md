@@ -550,3 +550,129 @@ For zero curvature, draw a shorter line that is the same width as the curve and 
 
 ## v156
 "Rewrite and consolidate docs for nurbs_elevate_degree (concise, no internals, continuity preservation). The docs suggest mult is never new — isn't that false in the closed case? Accept mult or a nurbs parameter list. In nurbs_interp docs just say result can be passed to nurbs_curve(); don't say dynamic is the default; don't say end_deriv refers to [n] index, use last(deriv). In arguments give minimal smooth= descriptions. Don't say 'C0 corner'/'corner joint'. Knot markers are green not purple; control polygon looks gray; no need to mention debug_nurbs(). Disable labels with control_index=false. Turn overlay list into bullet list. Is nurbs_interp_surface return type correct (mult at [4])? flat_edges= with closed type doesn't work — docs misleading? Clarify flat_end. No blank lines in Arguments."
+
+## v157
+Manual edit by adrianVmariano. See diff between v156 and v157 archives for full details.
+
+## v158
+"It looks like nurbs_elevate_degree doesn't really accept mult and knots compatibly with how nurbs_curve works, where you can give mult alone (uniformly spaced knots with multiplicity) or give knots, where mult acts to duplicate the knots. I wonder if we need to refactor nurbs_curve to separate the argument processing code from the core so that both versions can have identical behavior. For example, knots are not required to lie in [0,1] by the core code. nurbs_elevate_degree should accept times=0 and just return the input. Should we consider changing the calling convention from type='clamped'/type='closed' to closed=true/closed=false? Since you can request 'closed' but get 'clamped' I wonder about our existing convention. Basically it's like changing the input to describe the data point set rather than to (sort of?) describe the desired NURBS type output. What are the required degrees for the different smooth options? In one place it says degree 3 or higher and in another it says >=2. So which is correct? Correct the documentation to state this consistently. For nurbs_interp(), debug_nurbs_interp() and nurbs_interp_surface(), change the way of specifying whether we treat the point list as closed or not. Eliminate the type parameter and replace it with a closed parameter. When closed=true that is equivalent to the old type='closed' and when closed=false that corresponds to the old type='clamped'. For surfaces closed can be a single boolean or a pair of booleans. It's fine to leave 'clamped'/'closed' terminology elsewhere in the code when describing the type of nurbs being built, and nurbs_degree_elevate should continue to use the type argument---no change there. Update the docs everywhere to describe the new convention. The return from nurbs_interp() and nurbs_interp_surface() is currently a length 7 list which has the rotation as its final entry. Add an 8th entry to this return in both functions that gives the parametrization, u, for the interpolation. In cases where rotation has occurred, apply list_rotate so that u[0] corresponds to points[0]."
+
+## v159
+"I notice that the 8th return from nurbs_interp_surface says 'averaged parametrization vectors'. Does this mean those vectors don't necessarily correspond to the actual locations where the points appear? If that's the case can we get an actual full 2d array such that u[i][j] corresponds precisely to points[i][j]. nurbs_elevate_degree needs to be compatible with nurbs_curve for its input parameters. This means that it should accept knots by itself, mult by itself (uniform knots with multiplicity), or knots and mult together. Also knots need not be given in [0,1]. What is the best way to do this? Yes, check nurbs.scad first."
+
+## v160
+"nurbs_elevate_degree missed a case handled by nurbs_curve, namely neither mult nor knots provided, in which case knots are simply uniform with multiplicity 1 everywhere. Hmmm. Actually tried testing a case and it failed. In this case the elevated curve doesn't match the original: [test case with mpts and mult=[1,1,1,2,1,1,1,1]]"
+
+## v161
+"mpts = [[5,0],[0,20],[33,43],[37,88],[60,62],[44,22],[77,44],[79,22],[44,3],[22,7]]; knots = [0,1,3,5,9,13,14,19,21]; e = nurbs_elevate_degree(mpts,2,knots=knots); Above case fails with a 'singular system (should not happen)' error. If I normalize the knots by dividing by 21 then the above case works. So it seems claude was confused about knots outside of [0,1] working in its elevation code. Claude didn't give an error when length(mult) doesn't match length(knots) in the elevation code."
+
+## v162
+"nurbs_elevate_degree() fails in most cases. See Examples/elevate_fails.scad for examples."
+
+## v163
+"All of those test cases now generate the error: WARNING: len() parameter could not be converted: argument 0: expected string, found undefined (undef) ... Execution aborted"
+
+## v164
+"Fix nurbs_elevate_degree() for type='closed' so all five closed test cases in Examples/elevate_fails.scad pass (approx(c1,c2) returns true for all five). Currently they run without error but give geometrically wrong results."
+
+## v165
+"Change the way users select closed vs clamped for surfaces. Instead of closed=[true,false], use row_wrap=true, col_wrap=false. Also: the examples in elevate_fails.scad are now failing with BOSL2 assertion errors (knot vector wrong length) introduced by the v164 changes."
+
+## v166
+"WARNING: Ignoring unknown variable 'type' in file nurbs_interp_165.scad, line 2998. Make sure that you correctly handle the new input method using row_wrap and col_wrap while still producing the old style type listed in the nurbs parameter list. A simple way to do this would be to revert back to the last version that accepted type= and simply add a processing step that computes the type from row_wrap and col_wrap. Then all the internals can remain the same."
+
+## v167
+"rename u_edge1_deriv to first_row_deriv, u_edge2_deriv to last_row_deriv, v_edge1_deriv to first_col_deriv, and v_edge2_deriv to last_col_deriv. Check all the examples and docs to ensure all recent name changes were made correctly."
+
+## v168
+"mpts = [[5,0],...]; knots = [0,1,3,5,9,13,14,19,21,24,29]/29; e = nurbs_elevate_degree(mpts,2,knots=knots,times=1,type='closed'); c1 = nurbs_curve(mpts,2,knots=knots,splinesteps=16,type='closed'); c2 = nurbs_curve(e,splinesteps=16); echo(approx(c1,c2)); Even the above case with knots and times=1 fails. All examples with type 'closed' now run and produce a result but the curve does not agree. It appears like the discrepancy is towards the end of the curve. Could it be related to the knot structure which has all duplicated knots except 0 and 1, which are not duplicated? I thought you needed to use the mult= parameter to make the closed case work correctly because just duplicating the knots doesn't work properly around the periodic joint."
+
+## v169
+"Here's the result of test_elevate_closed.scad. Does it tell us anything?" (diagnostic showed errors of 3–24 units at all u values; root cause identified as xknots_new missing the doubled period endpoint T — fix applied to live file but archive not updated; see v170)
+
+## v170
+"resume" (session resumed after context limit; confirmed fix via Bugs/test_elevate_diag.scad showing zero errors at all test points)
+
+## v171
+"There is now a copy of nurbs.scad in the workspace with line 200 corrected. Look at singular.scad and singular2.scad in the Bugs directory. singular.scad fails with an error, and singular2.scad runs, but line 10 echoes 'false'."
+
+## v172
+"You've tried a long sequence of incremental fixes and it's still not working. In fact the results have gotten worse with the latest update. How can we break this cycle to get something that works? Would it make sense to start over completely for the closed case? What about converting the closed case to open, elevating, and then converting back to closed? Would that be possible? Can you propose any other strategy that might solve this problem?" → Proposed replacing Greville collocation with uniform sites; user agreed: "Yes, implement the change."
+
+## v173
+"Both fail with: ERROR: Assertion '(Q != [])' failed: 'nurbs_elevate_degree: singular periodic collocation (closed)'"
+(singular.scad and singular2.scad both hit the singular-matrix assertion after v172's uniform-sites change; root cause traced to structural zero columns in A from duplicate pre-domain knots in xknots_new; fixed by replacing old xknots_new construction with strictly-increasing pre-domain approach)
+
+## v174
+"Both singular.scad and singular2.scad fail with: ERROR: Assertion '(Q != [])' failed: \"nurbs_elevate_degree: singular periodic collocation (closed)\"
+(Complete rewrite of _elevate_once_closed: correct periodic knot construction via pre-domain wrap-around ensures _extend_knot_vector reproduces the right U_new_full; uniform collocation sites in [a_old, b_old); full-rank matrix guaranteed by wrap-function activation)
+
+## v175
+"singular.scad and singular2.scad still fail
+Implement algorithm A5.9"
+(Replaced collocation in `_elevate_once_closed` with exact blossom/polar-form algorithm. v174 failed two ways: (1) singular2.scad: uniform sites → singular matrix; (2) singular.scad: interior knot at mult=p+1 becomes mult=p_new+1 after elevation → degenerate Greville abscissae, no collocation sites give full rank. New approach: each elevated control Q[j] is the mean of (p+1) de Boor blossoms computed via doubly-extended ctrl/knot representation. No linear solve; always exact. New helpers: `_blossom_ec`, `_blossom_ec_r`. Both bug files now pass.)
+
+## v176
+"They both still fail. [blossom approach] — knot-insertion-based degree elevation suggestion provided"
+(Root-cause analysis showed v175's blossom approach was fundamentally wrong for the periodic case: polar-form evaluation using a single fixed span extrapolates wildly across multiple polynomial pieces when T_args spans pre-domain and post-domain values. Replaced with periodic collocation: n_new uniform sites in [a,b), original curve and elevated matrix both use periodic B-basis wrap B_j = N_j + (j<p ? N_{j+n} : 0), linear_solve gives exact elevated ctrl. Removed `_blossom_ec`/`_blossom_ec_r`.)
+
+## v177
+"They both still fail. Use knot insertion instead of collocation. Degree elevation by 1 is equivalent to: Insert every knot in the knot vector exactly once, then every interior knot (already at multiplicity p) becomes multiplicity p+1, then you have a full Bézier decomposition of the original curve. Elevate each Bézier segment to degree p+1. Re-impose periodicity on the assembled result. [Explicit algorithm derivation provided]"
+(Replaced periodic collocation with Bézier extraction via Boehm knot insertion. No `linear_solve`. New helpers: `_distinct_vals`, `_boehm_insert_closed`, `_boehm_insert_closed_r`, `_bezier_extract`, `_elev_bez`. C0 corner knots handled automatically by zero-insertion and zero-span filtering.)
+
+## v178
+"Remove degree elevation for the closed type."
+(Added assert rejecting `type="closed"`. Deleted `_elevate_once_closed` and all v177 helpers. Removed `closed_mult0`, closed dispatch branch, and closed knot-normalization branches.)
+
+## v179
+"Yes." (to "could you merge the open and clamped code paths for elevation?")
+(Replaced `_elevate_once_clamped` and `_elevate_once_open` with single `_elevate_once(ctrl, p, U)`. Caller expands/strips xknots for clamped; open passes full vector directly.)
+
+## v180
+"eliminate type_u/type_v and closed_u/closed_v and have the code just use row_wrap and col_wrap, and of course only mention those things in asserts. in nurbs_elevate_degree, check for weights FIRST and handle that case immediately rather than doing it afterwards, which appears to be much messier. update the docs to match the current revised api."
+(Removed type_u/type_v/closed_u/closed_v aliases; all code uses row_wrap/col_wrap directly. Rational NURBS case in nurbs_elevate_degree moved before asserts/knot normalization. Docs updated throughout.)
+
+## v181
+"The assert for flat_edges errors refers to start_v and end_v which maybe should be rows or cols? Asserts also reference u_edge1, u_edge2, v_edge1 & vedge2. Update these to the current nomenclature."
+(Updated flat_edges assert messages and inline comments to use first_row/last_row/first_col/last_col. Confirmed u_edge1/u_edge2/v_edge1/v_edge2 references were already absent from the file after the v180 doc rewrite — no code change needed for those.)
+
+## v183
+"Change all references to u_edges and v_edges to the current nomenclature."
+(Renamed `u_edges=` → `row_edges=` and `v_edges=` → `col_edges=` to match the `row_wrap`/`col_wrap` and `first_row_deriv`/`last_row_deriv` naming convention.)
+
+## v185
+"The last return value from nurbs_interp_surface is supposed to provide coordinate mapping into the u-v coordinates that map to the input points, so uv[0][k], uv[1][j] in nurbs parameter space corresponds to points[j][k] in the input list. It appears that the uv lists are not correctly rotated and that they required a list_rotate by -return[6][0] and -return[6][1] in order to be correct. Please fix."
+(Fixed: both wrapped-edge dispatch branches now carry inner[7][0/1] through and apply list_rotate(..., -rot) to unrotate the affected direction, instead of recomputing params from the original unrotated points.)
+
+## v186
+"The u return has the same bug for nurbs_interp that existed in nurbs_interp_surface."
+(Fixed closed-with-corners case: `u` was `_interp_params(points, method)` — unrotated non-closed params. Now rebuilds `aug_pts` from the rotation and computes `aug_params`, then unrotates so `u[j]` matches `points[j]`. Basic closed case was already correct.)
+
+## v187
+"Remove the rotation value that is currently returned second to last in the return from both nurbs_interp() and nurbs_interp_surface(). Also remove mention of it from the docs. There is an off-by-one error in the uv return for nurbs_interp_surface."
+(Removed rotation entry [6] from both returns; uv/u moves to [6]. Fixed off-by-one in wrapped-edge dispatch: inner uv for the rotated direction has n+1 elements due to closing duplicate; now truncated with select() before list_rotate.)
+
+## v188
+"Read Papers/WRITING_DOCS.md. Treat that as a style sheet and update nurbs_interp.scad to comply with those standards."
+(Fixed: LibFile header + added Includes block; removed wrong SynTags: Geom from function-only nurbs_interp(); replaced &mdash; HTML entities; fixed splineteps typo in Usage; replaced LaTeX math with plain text in Arguments; removed redundant Module: nurbs_interp_surface() block.)
+
+- "SECTION headings should comply with format for blocks. Keep the v188 version number."
+  (Changed all 13 section headers from triple-line all-caps `SECTION:` format to single-line `// Section: Name` format per WRITING_DOCS.md.)
+- "The examples should be in example block format. Both 2d and 3d examples. Keep the current v188 version number."
+  (Converted all examples to `// Example(2D):` / `// Example(3D):` blocks; removed include lines from example bodies; fixed orange curve bug in parameterization example.)
+
+## v189
+"In nurbs_interp() with closed=true (_nurbs_interp_closed_basic) eliminate the rotation search that is performed when the control point ratio fails to meet the threshold. Don't try all the rotations: just return the original result. In the case of the singular system suggest in the assert message that the user try using extra_pts."
+(Removed the O(n)-solve rotation search fallback; heuristic result is now returned unconditionally. Singular-system assert message updated to mention extra_pts=.)
+
+## v190
+"Yes," (remove the now-dead _ctrl_point_ratio helper and stale doc comment.)
+(Deleted `_ctrl_point_ratio()`; updated `_nurbs_interp_closed_basic` comment to remove rotation-search description.)
+
+## v191
+"In several places the regularization matrix is computed with repeated code that checks if smooth<=2 and calls _ltl_rows or alternatively calls _bending_energy_matrix. Create a single helper function that generates the regularization matrix that can be called from all those places without the repeated code."
+(Added `_regularization_matrix()` and replaced all 6 call sites.)
+
+## v192
+"Why the bending energy matrix calculation is so slow and is there a way to speed it up? Implement both."
+(Added _deboor_step, _deboor_to_degree, _d2nip_span helpers; rewrote _bending_energy_matrix with banded assembly and per-span O(p²) second-derivative evaluation.)

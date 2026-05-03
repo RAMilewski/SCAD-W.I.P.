@@ -16,7 +16,7 @@ data = [
 // ── Ghost-data set for Test 5 ──────────────────────────────────────────────
 // Derivative constraints on flat (z=0) boundary rows/cols request a z-slope
 // that is physically impossible: if S(u,0)_z = 0 for all u, then
-// ∂S/∂u(u,0)_z = 0 identically, regardless of start_u_der.  The projection
+// ∂S/∂u(u,0)_z = 0 identically, regardless of first_row_deriv.  The projection
 // fix correctly zeros the impossible component — but that also removes G1.
 //
 // Solution: extend the data onto the prismoid faces with ghost rows and
@@ -50,8 +50,8 @@ debug_nurbs_interp_surface(data, 3, splinesteps=16);
 // Surface lifts off front and back edges at 45°.
 prismoid(size2=50*2,xang=45,yang=45, h=10,anchor=TOP);
 debug_nurbs_interp_surface(data, 3, splinesteps=16,
-    start_u_der=[0,-1,1],
-    end_u_der=[0,-1,-1]
+    first_row_deriv=[0,-1,1],
+    last_row_deriv=[0,-1,-1]
 );
 
 // ── Test 3: v-only constraints ────────────────────────────────────────────
@@ -59,8 +59,8 @@ debug_nurbs_interp_surface(data, 3, splinesteps=16,
 back(130){
 prismoid(size2=50*2,xang=45,yang=45, h=10,anchor=TOP);
 debug_nurbs_interp_surface(data, 3, splinesteps=16,
-    start_v_der=[1,0,1],
-    end_v_der=[1,0,-1]
+    first_col_deriv=[1,0,1],
+    last_col_deriv=[1,0,-1]
 );
 }
 // ── Test 4: all four constraints ──────────────────────────────────────────
@@ -71,10 +71,10 @@ debug_nurbs_interp_surface(data, 3, splinesteps=16,
 back(260){
 prismoid(size2=50*2,xang=45,yang=45, h=10,anchor=TOP);
 debug_nurbs_interp_surface(data, 3, splinesteps=16,
-    start_u_der=[0,-1,1],
-    end_u_der=[0,-1,-1],
-    start_v_der=[1,0,1],
-    end_v_der=[1,0,-1]
+    first_row_deriv=[0,-1,1],
+    last_row_deriv=[0,-1,-1],
+    first_col_deriv=[1,0,1],
+    last_col_deriv=[1,0,-1]
 );
 }
 

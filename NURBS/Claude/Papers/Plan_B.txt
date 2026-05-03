@@ -1,0 +1,23 @@
+Concrete implementation plan
+Step 1 — Build the extended open representation (trivial, already in the code):
+
+
+ext_ctrl = [ctrl..., ctrl[0], ..., ctrl[p-1]]   // n+p control points
+U        = _extend_knot_vector(bar_knots, 0, n+2p+1)
+Step 2 — Apply degree elevation for open B-splines (P&T §5.4, Algorithm A5.9):
+
+This decomposes the open B-spline into Bezier segments, elevates each one (exact formula), and merges them back. It's ~80 lines in OpenSCAD functional style. The key sub-steps:
+
+For each knot span [U[k], U[k+1]], extract the Bezier control points by the de Boor extraction formula
+Elevate each degree-p Bezier to degree p+1: b_new[i] = (i/(p+1)) * b[i-1] + (1 - i/(p+1)) * b[i]
+Merge adjacent elevated Beziers by removing the artificial multiplicity-p+1 junction knots (this is exact for smooth junctions)
+Result: (ext_ctrl_new, p+1, U_new) where U_new has the same distinct knot values as U but each interior multiplicity increased by 1.
+
+Step 3 — Extract the closed form:
+
+
+p_new    = p + 1
+n_new    = len(ext_ctrl_new) - p_new    // drop the p_new wrap-around copies
+ctrl_new = ext_ctrl_new[0 .. n_new-1]
+bar_knots_new = U_new[p_new .. n_new+p_new]   // the active segment
+The periodicity ctrl_new[j] == ext_ctrl_new[n_new + j] should hold to floating-point precision because degree elevation exactly preserves the curve geometry, including the periodic wrap.
