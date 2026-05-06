@@ -1,6 +1,5 @@
 include<BOSL2/std.scad>
 include<BOSL2/nurbs.scad>
-include<../nurbs_interp.scad>
 include<data.scad>
 
 method="centripetal";   // [length,centripetal,dynamic,foley,fang]

@@ -27,11 +27,11 @@ right(50){
 right(150) {
 
     debug_nurbs_interp(slice(data,0,-2), 3, closed = true, method = "centripetal", 
-        deriv = [NAN,polar_to_xy(1.1313,-40),undef,undef,NAN,undef,undef,polar_to_xy(1.1313,40)],
-        curvature = [undef,-0.06,undef,undef,undef,undef,undef,-0.06]);
+        deriv = [NAN,polar_to_xy(1.1,-40),undef,undef,NAN,undef,undef,polar_to_xy(1.1,40)],
+        curvature = [undef,-0.06,undef,undef,undef,undef,undef,-0.06], show_knots = true);
 
     path3 = nurbs_curve(nurbs_interp(slice(data,0,-2), 3, closed = true, method = "centripetal", 
-        deriv = [NAN,polar_to_xy(1.1313,-40),undef,undef,NAN,undef,undef,polar_to_xy(1.1313,40)],
+        deriv = [NAN,polar_to_xy(1.1,-40),undef,undef,NAN,undef,undef,polar_to_xy(1.1,40)],
         curvature = [undef,-0.06,undef,undef,undef,undef,undef,-0.06]));
     fwd(75) stroke(path3, closed = true);
 
