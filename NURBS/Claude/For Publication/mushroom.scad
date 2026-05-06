@@ -11,4 +11,3 @@ shape = [ repeat([0,0,-1],8),
         ];
 
 nurbs_interp_surface(shape, 3, normal1 = DOWN, normal2 = UP, col_wrap = true, row_edges = 7);
-/* */
