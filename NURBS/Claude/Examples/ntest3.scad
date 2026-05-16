@@ -11,25 +11,27 @@ method="centripetal";   // [length,centripetal,dynamic,foley,fang]
 
 
 ydistribute(250){
-xdistribute(250){
-nurbs_interp_surface(surf1, 3);
-nurbs_interp_surface(surf1, 3, row_edges=[4],flat_edges=1);
+distribute(250){
 
-} /*
+
+
+
+nurbs_interp_surface(surf1, 3);
 nurbs_interp_surface(surf1, 3, flat_edges=1);
-nurbs_interp_surface(surf1, 3, flat_edges=2); 
 nurbs_interp_surface(surf1, 3, flat_edges=[1,2,1,2]);
+nurbs_interp_surface(surf1, 3, flat_edges=2); 
 nurbs_interp_surface(surf1, 3, flat_edges=[1,2,[1,1,2,3,2,3,1,1,1],2]);
 nurbs_interp_surface(surf1, 3, flat_edges=[undef,2,1/2,2]);
 nurbs_interp_surface(rot([14,35,12],p=surf1), 3, flat_edges=1);
 nurbs_interp_surface(surf1, 3, row_edges=[4]);
+nurbs_interp_surface(surf1, 3, row_edges=[4],flat_edges=1);
 nurbs_interp_surface(surf1, 3, row_edges=[3,6],flat_edges=undef);
 nurbs_interp_surface(surf1, 2, row_edges=[3,6],flat_edges=undef);
 nurbs_interp_surface(surf1, 3, row_edges=[3,6],flat_edges=1);
 nurbs_interp_surface(surf1, 3, row_edges=[4],col_edges=5,flat_edges=1);
 }
 
-/*
+
 
 xdistribute(250){
 nurbs_interp_surface(surf2, 3);
@@ -64,5 +66,5 @@ nurbs_interp_surface(surf3, 3, row_edges=[3,6],flat_edges=1);
 nurbs_interp_surface(surf3, 3, row_edges=[4],col_edges=5,flat_edges=1);
 nurbs_interp_surface(surf3, 3, col_edges=4,flat_edges=1);
 }
-/* */
 }
+/* */
