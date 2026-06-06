@@ -1,0 +1,35 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": "",
+        "New set 2": {
+            "dividers": "[1, 2]",
+            "footprint": "[1, 3]"
+        },
+        "New set 3": {
+            "dividers": "[2, 1]",
+            "footprint": "[1, 2]"
+        },
+        "New set 4": {
+            "dividers": "[2, 1]",
+            "footprint": "[2, 3]",
+            "label": "true",
+            "label_height": "10"
+        },
+        "New set 5": {
+            "dividers": "[0, 0]",
+            "footprint": "[1, 1]",
+            "label": "true",
+            "label_height": "10",
+            "label_text": "Piffle"
+        },
+        "New set 6": {
+            "dividers": "[0, 0]",
+            "footprint": "[1, 8]",
+            "label": "true",
+            "label_height": "10",
+            "label_text": "Text",
+            "text_size": "8.5"
+        }
+    }
+}
