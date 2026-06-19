@@ -1,8 +1,3 @@
 include<BOSL2/std.scad>
-include<base_cutout.scad>
 
-
-
-
-
-base_cutout(size = [2,2]);
+rect_tube(size = [160,115], wall = 2, h = 10, rounding = 10);

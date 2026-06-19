@@ -1,9 +1,10 @@
-include<BOSL2/std.scad>
-include<BOSL2/nurbs.scad>
+include <BOSL2/std.scad>
+include <BOSL2/nurbs.scad>
+$vpr=[60,0,45];
+$vpt=[0,0,10];
+$vpd= 120;
+surface = [   
+  for(i=[0:8]) zrot(i*16,path3d(star(or=25,ir=22, n=11),i*2)),
+];
+nurbs_interp_surface(surface, method="dynamic", degree=2, col_wrap=true, row_wrap=true, extra_pts=7, smooth=2);
 
-
-
-// Example(3D): 3D closed curve
-   data3d = [[20,0,0],[0,20,20],[-20,0,0],[0,-20,10]];
-   debug_nurbs_interp(data3d, 3, splinesteps=32, closed=true);
-   

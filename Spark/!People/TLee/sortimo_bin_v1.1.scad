@@ -1,6 +1,6 @@
 /* 
     Bin Generator for Sortimo T-Boxx 320. 
-    Version 1.0
+    Version 1.1
     Copyright © 2026 By Richard A. Milewski
     All Rights Reserved
     Released under the BSD 2-Clause License
