@@ -1,4 +1,5 @@
 include <BOSL2/std.scad>
+$VPD = 300;
 
 /* [Trackpad Settings] */
 TRACKPAD = [160,115,11];
@@ -16,8 +17,8 @@ STRUT_TINE = [STRUT.x,5,5];
 STRUT_ROUNDING = 1;
 STRUT_BATTERY_CHANNEL_WIDTH = 25;
 STRUT_SEPARATION = 70;
-STRUT_CROSSBRACE = [STRUT_SEPARATION, 10, STRUT.z / 1.5];
-STRUT_CROSSBRACE_DEPTH = 80;
+STRUT_CROSSBRACE = [STRUT_SEPARATION, 10, STRUT.z / 1.5]; // Extends into struts to avoid rounding issues.
+STRUT_CROSSBRACE_OFFSET = 20;
 
 /* [Hidden] */
 
@@ -52,14 +53,14 @@ module frame(anchor = CENTER, spin=0, orient=UP) {
 
         // 5.  Profiling Wedge
                 position(TOP) yrot(180) tag("remove")
-                #wedge(TRACKPAD-[0,0,TRACKPAD_FRAME_FRONT_HEIGHT], anchor = BOT);
+                wedge(TRACKPAD-[0,0,TRACKPAD_FRAME_FRONT_HEIGHT], anchor = BOT);
             }
         }
         children();
     }
 }
 
-// 6. Struts and Rear Fork Assembly (not affected by port notches)
+// 6. Struts and Rear Fork Assembly
 module struts(anchor = CENTER, spin=0, orient=UP) {
     attachable(anchor, spin, orient, size = [STRUT_SEPARATION + 1 * STRUT.x, STRUT.y, STRUT.z]){
         union() {
@@ -74,12 +75,10 @@ module struts(anchor = CENTER, spin=0, orient=UP) {
                             cuboid(STRUT_TINE, rounding=STRUT_ROUNDING, except=BOT);
                     }
                 }
-                // Crossbrace between the two struts.
-                //                            back(STRUT_CROSSBRACE_DEPTH)
-                position(BOT)
+                // Crossbrace between the two struts.        
+                position(BOT) back(STRUT_CROSSBRACE_OFFSET)
                     cuboid(STRUT_CROSSBRACE, rounding=STRUT_ROUNDING, except = [LEFT,RIGHT], anchor = BOT);
         }
         children();
     }
 }
-

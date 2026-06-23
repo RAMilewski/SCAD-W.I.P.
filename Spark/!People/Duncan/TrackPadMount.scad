@@ -1,4 +1,5 @@
 include <BOSL2/std.scad>
+$VPD=300;
 
 // Trackpad Settings
 TRACKPAD_WIDTH = 160;
@@ -237,4 +238,4 @@ union() {
 }
 
 
-back(TRACKPAD_DEPTH/2) right(TRACKPAD_WIDTH/2-20) xrot(90) zrot(90) ruler();
+//back(TRACKPAD_DEPTH/2) zrot(90) ruler();

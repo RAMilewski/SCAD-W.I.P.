@@ -1,10 +1,13 @@
 include <BOSL2/std.scad>
 include <BOSL2/nurbs.scad>
-$vpr=[60,0,45];
-$vpt=[0,0,10];
-$vpd= 120;
-surface = [   
-  for(i=[0:8]) zrot(i*16,path3d(star(or=25,ir=22, n=11),i*2)),
-];
-nurbs_interp_surface(surface, method="dynamic", degree=2, col_wrap=true, row_wrap=true, extra_pts=7, smooth=2);
 
+edge = undef;
+
+surface = [
+[[-50, 50, 0], [-16, 50,  0], [ 16, 50,  0], [50, 50,  0], [80, 50, 0]],
+[[-50, 25, 0], [-16, 25, 40], [ 16, 25, 30], [50, 25, 20], [80, 25, 0]],
+[[-50,  0, 0], [-16,  0, 40], [ 16,  0, 30], [50,  0, 30], [80,  0, 0]],
+[[-50,-25, 0], [-16,-25, 35], [ 16,-25, 40], [50,-25, 15], [80,-25, 0]],
+[[-50,-50, 0], [-16,-50,  0], [ 16,-50,  0], [50,-50,  0], [80,-50, 0]],
+];
+nurbs_interp_surface(surface,3, flat_edges = edge);
