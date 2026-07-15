@@ -22,6 +22,7 @@ module knob() {
                     cyl(r = r - wall, h = width + 2 * wall, rounding = -5, teardrop = true,anchor = BOT);
         }
 }
+
 module clamp() {
     rect_tube(isize = [width+1, 5], wall = 2 * wall, l = 10, rounding = 10);
 }
