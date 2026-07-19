@@ -14,12 +14,12 @@ include <skull_pile_128x128.scad>
     
     //textured_tile(texture = skull_pile, size = [50, 50, 1], tex_reps = [1,1], tex_depth = 1);
   
-    part = "base"; //["holder", "base", "lid", "holder2"]
+    part = "lid"; //["holder", "base", "lid", "holder2"]
 
     
 if (part == "holder") holder();
 if (part == "base") back_half(s = 300) base(); 
-if (part == "lid") lid();
+if (part == "lid") back_half(s = 300) lid();
 if (part == "holder2") holder2();
     
 module holder () {    
