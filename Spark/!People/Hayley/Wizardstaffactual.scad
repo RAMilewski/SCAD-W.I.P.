@@ -18,7 +18,7 @@ include <skull_pile_128x128.scad>
 
     
 if (part == "holder") holder();
-if (part == "base") base(); 
+if (part == "base") back_half(s = 300) base(); 
 if (part == "lid") lid();
 if (part == "holder2") holder2();
     
@@ -67,9 +67,9 @@ module base () {
     
     difference() {
     union() {
-        tube(h=100, od1=47, od2=142, wall=3, rounding=3);
+        tube(h=100, od1=47, od2=140, wall=4, rounding=3);
         up(56)
-        threaded_rod(d=138, l=14, pitch=3); 
+        threaded_rod(d=137.5, l=14, pitch=3); 
      }   
        }
     //skull skin//
@@ -77,16 +77,17 @@ module base () {
          cyl(
             h=98,
             d=48,
-            d2=143,
+            d2=140,
             rounding=3,
             texture=skull_pile,
             tex_size=[65, 65],
             tex_depth=1
        );
         //hollow for skull skin//
-        cyl(h=101, d=47, d2=142);
+        cyl(h=101, d=47, d2=139);
        
 }
+    //up(64) xrot(90) ruler();
     }
 
 module lid () {
