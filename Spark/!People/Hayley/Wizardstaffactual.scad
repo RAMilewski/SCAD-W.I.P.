@@ -14,13 +14,14 @@ include <skull_pile_128x128.scad>
     
     //textured_tile(texture = skull_pile, size = [50, 50, 1], tex_reps = [1,1], tex_depth = 1);
   
-    part = "lid"; //["holder", "base", "lid", "holder2"]
+    part = "holder3"; //["holder", "base", "lid", "holder2", "holder3"]
 
     
 if (part == "holder") holder();
 if (part == "base") back_half(s = 300) base(); 
 if (part == "lid") back_half(s = 300) lid();
 if (part == "holder2") holder2();
+if (part == "holder3") holder3();
     
 module holder () {    
     difference() {
@@ -42,25 +43,42 @@ module holder () {
         cube([15, 22, 14], center=true);
     
         }
-    
-        //skull skin//
-        difference() {
-         cyl(
-            h=56,
-            d=143,
-            rounding=3, teardrop = true,
-            texture=skull_pile,
-            tex_size=[65,65],
-            tex_depth=1
-       );
-        //hollow for skull skin//
-        cyl(h=76, d=138);
-        down(14)
-        right(70)
-        cube([15, 22, 14], center=true);
-       }
-            
+//skull skin//
+    difference() {
+        cyl(
+        h=56,
+        d=143,
+        rounding=3, teardrop = true,
+        texture=skull_pile,
+        tex_size=[65,65],
+        tex_depth=1
+    );
+    //hollow for skull skin//
+    cyl(h=76, d=138);
+    down(14)
+    right(70)
+    cube([15, 22, 14], center=true);
     }
+            
+}
+
+module holder3 () {        
+    //skull skin//
+    diff() {
+        cyl( h=36, d=143, rounding=3, teardrop = true,
+        texture=skull_pile, tex_reps=[10,1], tex_depth=1 ) {
+            tag("remove") position(TOP) cyl(h = 36+12+0.01, d = 130, anchor = TOP);  //clear core
+            down(4) right(70) tag("remove") cube([15, 22, 14], center=true);   //charge port
+            position(BOT) threaded_rod(d=138, l=12, end_len1=2, pitch=3, anchor = TOP);
+            position(TOP) {
+                up(1) cyl(h = 4, d = 143, rounding2 = 4, anchor = TOP);
+                tag("remove") cyl(h = 10, d = 100);
+                up(1) tag("remove") zrot_copies(n = 10, r = 60) xscale(.75) cyl(h = 2, d = 15, anchor = TOP);
+           }
+        }        
+    }
+}
+
    
     
 module base () {
