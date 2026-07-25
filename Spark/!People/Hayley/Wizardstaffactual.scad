@@ -69,7 +69,7 @@ module holder3 () {
         texture=skull_pile, tex_reps=[10,1], tex_depth=1 ) {
             tag("remove") position(TOP) cyl(h = 36+12+0.01, d = 130, anchor = TOP);  //clear core
             down(4) right(70) tag("remove") cube([15, 22, 14], center=true);   //charge port
-            position(BOT) threaded_rod(d=138, l=12, end_len1=2, pitch=3, anchor = TOP);
+            position(BOT) threaded_rod(d=137, l=12, end_len1=2, pitch=3, anchor = TOP);
             position(TOP) {
                 up(1) cyl(h = 4, d = 143, rounding2 = 4, anchor = TOP);
                 tag("remove") cyl(h = 10, d = 100);
