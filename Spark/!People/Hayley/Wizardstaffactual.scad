@@ -73,7 +73,7 @@ module holder3 () {
             position(TOP) {
                 up(1) cyl(h = 4, d = 143, rounding2 = 4, anchor = TOP);
                 tag("remove") cyl(h = 10, d = 100);
-                up(1) tag("remove") zrot_copies(n = 10, r = 60) xscale(.75) cyl(h = 2, d = 15, anchor = TOP);
+                up(1) tag("remove") zrot_copies(n = 10, r = 60) xscale(.75.svg) cyl(h = 2, d = 15, anchor = TOP);
            }
         }        
     }
