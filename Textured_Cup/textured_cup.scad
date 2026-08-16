@@ -6,12 +6,12 @@
 base_d =40;
 top_d = 50;
 h =  40;
-wall = 2;
+wall = 2;   // [1:0.25:3]
 
 /* [Texture] */
 textured = true;
 tx_reps = 8;
-tx_depth = 0.5; // [-1:0.25:1]
+tx_depth = 0.25; // [-1:0.25:1]
 
 /* [Options] */
 td_ang = 35;    // [35:60] 
