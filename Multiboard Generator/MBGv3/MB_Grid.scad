@@ -9,11 +9,11 @@ include<BOSL2/std.scad>
 
 
 /* [Grid Size] */
-rows = 2;   //[2:1:10]
-cols = 2;   //[2:1:10]
+rows = 8;   //[2:1:10]
+cols = 8;   //[2:1:10]
 
 /* [Stack Size] */
-stack = 1; //[1:1:42]
+stack = 5; //[1:1:42]
 
 /* [Edge Type] */
 top = 0;    //[0:None, 1:Border, 2:Small Hole, 3:Alt A, 4:Alt B]

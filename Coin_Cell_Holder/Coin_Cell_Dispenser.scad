@@ -1,8 +1,12 @@
 include<BOSL2/std.scad>
 include<BOSL2/threading.scad>
 
-part = "all"; // [all,body,top,plunger,assembly]
-batt_idx = 5; // [0:CR2477, 1:CR2032, 2:CR2025, 3:CR2016, 4:LR44, 5:TCap] 
+$project = "CoinCellDispenser:";
+$part = "top"; // [all,body,top,plunger,assembly]
+$file = str($project,$part);
+
+//Battery Type
+batt_idx = 2; // [0:CR2477, 1:CR2032, 2:CR2025, 3:CR2016, 4:LR44, 5:TCap] 
 
 /* [Hidden] */
 $fn = 72;
@@ -36,11 +40,11 @@ bevel = 2;
 batt_slop = 0.5;
 spring_slop = 0.25; 
 
-if (part == "top")  { top(); } 
-if (part == "body") { body(); } 
-if (part == "plunger") { back_half() plunger(); }
-if (part == "all")  { left(body.x) body(); right(body.x) top(); plunger(); }
-if (part == "assembly") {
+if ($part == "top")  { top(); } 
+if ($part == "body") { body(); } 
+if ($part == "plunger") { back_half() plunger(); }
+if ($part == "all")  { left(body.x) body(); right(body.x) top(); plunger(); }
+if ($part == "assembly") {
         back_half(s=200) body(); 
         up(body.z) yrot(180) color("skyblue") back_half(s = 200) top();
         up(10) color("blue") springs(); 

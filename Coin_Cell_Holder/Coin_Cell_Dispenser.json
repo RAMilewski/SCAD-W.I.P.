@@ -1,37 +1,21 @@
 {
     "fileFormatVersion": "1",
     "parameterSets": {
-        "New set 1": {
-            "part": "top"
-        },
-        "New set 2": {
-            "part": "top"
-        },
-        "New set 3": {
-            "part": "assembly"
-        },
-        "New set 4": {
-            "part": "assembly"
-        },
-        "New set 5": {
-            "part": "top"
-        },
-        "New set 6": {
-            "part": "top"
-        },
-        "New set 7": {
-            "part": "top"
-        },
-        "New set 8": {
-            "part": "top"
-        },
-        "New set 9": {
-            "batt_idx": "0",
-            "part": "assembly"
-        },
-        "New set 10": {
-            "batt_idx": "2",
-            "part": "top"
+        "New set 1": "",
+        "New set 2": "",
+        "New set 3": "",
+        "New set 4": "",
+        "New set 5": "",
+        "New set 6": "",
+        "New set 7": "",
+        "New set 8": "",
+        "New set 9": "",
+        "New set 10": "",
+        "New set 11": "",
+        "New set 12": {
+            "$part": "assembly",
+            "$project": "CoinCellDispenser:",
+            "batt_idx": "2"
         }
     }
 }
