@@ -14,7 +14,7 @@ include <skull_pile_128x128.scad>
     
     //textured_tile(texture = skull_pile, size = [50, 50, 1], tex_reps = [1,1], tex_depth = 1);
   
-    part = "holder3"; //["holder", "base", "lid", "holder2", "holder3"]
+    part = "base"; //[holder, base, lid, holder2, holder3]
 
     
 if (part == "holder") holder();
