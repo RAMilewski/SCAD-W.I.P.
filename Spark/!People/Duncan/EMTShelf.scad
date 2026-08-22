@@ -12,7 +12,7 @@ include <BOSL2/std.scad>
  */
 
 /* [Display Mode] */
-MODE = "assembled"; // [assembled:Full Monolithic Assembly, single_piece_diagonal:Tilted 3D Monolithic Print (Fits Prusa Mini 180x180x180mm), cradle_only:Keyboard Cradle Only, shelf_only:Elevated Shelf Only]
+MODE = "cradle_only"; // [assembled:Full Monolithic Assembly, single_piece_diagonal:Tilted 3D Monolithic Print (Fits Prusa Mini 180x180x180mm), cradle_only:Keyboard Cradle Only, shelf_only:Elevated Shelf Only]
 
 /* [Prusa Mini Build Volume Check] */
 SHOW_BED_BOUNDS = false;        // Show translucent 180x180x180mm Prusa Mini build volume

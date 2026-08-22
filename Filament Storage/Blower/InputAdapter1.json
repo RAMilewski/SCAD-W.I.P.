@@ -1,0 +1,47 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$fn": "6",
+            "circum": "false",
+            "dia": "38",
+            "wall": "3"
+        },
+        "New set 2": {
+            "$fn": "28",
+            "circum": "true",
+            "dia": "40",
+            "wall": "1.75"
+        },
+        "New set 3": {
+            "$fn": "6",
+            "circum": "false",
+            "dia": "40",
+            "wall": "1.75"
+        },
+        "New set 4": {
+            "$fn": "25",
+            "circum": "true",
+            "dia": "40",
+            "wall": "1.75"
+        },
+        "New set 5": {
+            "$fn": "15",
+            "circum": "true",
+            "dia": "200",
+            "wall": "2.5"
+        },
+        "New set 6": {
+            "$fn": "8",
+            "circum": "false",
+            "dia": "20",
+            "wall": "2.5"
+        },
+        "New set 7": {
+            "$fn": "4",
+            "circum": "false",
+            "dia": "38",
+            "wall": "5"
+        }
+    }
+}

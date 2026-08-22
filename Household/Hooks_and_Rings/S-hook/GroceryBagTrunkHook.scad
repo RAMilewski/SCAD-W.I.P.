@@ -4,20 +4,20 @@ include <BOSL2/std.scad>
 // cross section
 cs =  1.5;         // [0.5:0.5:10]
 // Z scale 
-z_scale = 7;    // [1:1:12] 
+z_scale = 12;    // [1:1:12] 
 // Cross Section Sides
 sides = 4;       // [2:1:12]
 //Shaft Length     
-l_shaft  =  35;    // [1:1:200]
+l_shaft  =  55;    // [1:1:200]
 //
 /* [Top Loop] */
 //
 //Loop Radius
 ir_loop1  =  2;     // [1:1:100]
-angle1   =  189;    // [0:1:270]
-l_stem1 = 20;       // [0:1:50] tail stem length 
+angle1   =  188;    // [0:1:270]
+l_stem1 = 18;       // [0:1:50] tail stem length 
 r_curl1 = 12;        // tail curve radius
-angle_curl1 = 30;    // tail curve angle
+angle_curl1 = 44;    // tail curve angle
 
 /* [Bottom Loop] */
 //Loop Radius
