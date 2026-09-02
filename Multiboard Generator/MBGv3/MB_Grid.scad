@@ -8,27 +8,29 @@
 include<BOSL2/std.scad>
 
 
+
 /* [Grid Size] */
 rows = 8;   //[2:1:10]
 cols = 8;   //[2:1:10]
 
 /* [Stack Size] */
-stack = 5; //[1:1:42]
+stack = 3; //[1:1:42]
 
 /* [Edge Type] */
-top = 0;    //[0:None, 1:Border, 2:Small Hole, 3:Alt A, 4:Alt B]
-bottom = 0; //[0:None, 1:Border, 2:Small Hole, 3:Alt A, 4:Alt B]
-left = 0;   //[0:None, 1:Border, 2:Small Hole, 3:Alt A, 4:Alt B]
-right = 0;  //[0:None, 1:Border, 2:Small Hole, 3:Alt A, 4:Alt B]
+top = 3;    //[0:None, 1:Border, 2:Small Hole, 3:Alt A, 4:Alt B]
+bottom = 1; //[0:None, 1:Border, 2:Small Hole, 3:Alt A, 4:Alt B]
+left = 4;   //[0:None, 1:Border, 2:Small Hole, 3:Alt A, 4:Alt B]
+right = 1;  //[0:None, 1:Border, 2:Small Hole, 3:Alt A, 4:Alt B]
 
 /* [Corners] */
 top_left = 0;       //[0:None, 1:Small Hole, 2:Vertical Border, 3: Horizontal Border]
-top_right = 0;      //[0:None, 1:Small Hole, 2:Vertical Border, 3: Horizontal Border]
+top_right = 2;      //[0:None, 1:Small Hole, 2:Vertical Border, 3: Horizontal Border]
 bottom_left = 0;    //[0:None, 1:Small Hole, 2:Vertical Border, 3: Horizontal Border]
 bottom_right = 0;   //[0:None, 1:Small Hole, 2:Vertical Border, 3: Horizontal Border]
 
 
 /* [Hidden] */
+project = "MB_Grid_";
 grid = [cols,rows];
 alt_grid = grid - [1,1];
 grid_epsilon = [0.0,0.0];  // Tuning factor.
@@ -41,6 +43,9 @@ z = 6.4; //height of grid + 0.2
 /* MAIN */
 
 for (i = [0:stack-1]) up(i * z) mb_grid();
+
+
+$export_name = str(project,cols,"x",rows,"x",stack);
 
 
 /* Modules */
@@ -90,14 +95,14 @@ module make_corner(type,theta,phi) {
 
 
 module octohole() {
-    import("STL_Lib/Large Octagon Hole.stl");
+    simplify(0.05) import("STL_Lib/Large Octagon Hole.stl");
 }
 
 module thread_hole() {
-    import("STL_Lib/Small Thread Hole.stl");
+    simplify(0.05) import("STL_Lib/Small Thread Hole.stl");
 }
 
 module border_wedge(rot) {
     //The original STL from https://github.com/colbytimm/multiboard-storage-solution is offset from the origin
-    zrot(rot) back(mu.y/2) left(mu.x/2) import("STL_Lib/Border Connector.stl");
+    zrot(rot) back(mu.y/2) left(mu.x/2) simplify(0.05) import("STL_Lib/Border Connector.stl");
 }
