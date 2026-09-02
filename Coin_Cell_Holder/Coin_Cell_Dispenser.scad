@@ -1,9 +1,9 @@
 include<BOSL2/std.scad>
 include<BOSL2/threading.scad>
 
-$project = "CoinCellDispenser:";
-$part = "top"; // [all,body,top,plunger,assembly]
-$file = str($project,$part);
+project = "CoinCellDispenser_";
+part = "top"; // [all,body,top,plunger,assembly]
+
 
 //Battery Type
 batt_idx = 2; // [0:CR2477, 1:CR2032, 2:CR2025, 3:CR2016, 4:LR44, 5:TCap] 
@@ -23,12 +23,12 @@ batts = [
     [20.5, undef, 3.2, 0, 4, "CR2032"],
     [20.5, undef, 2.5, 0, 4, "CR2025"],
     [20.5, undef, 1.6, 0, 4, "CR2016"],
-    [11.6, undef, 5.5, 1, 4, "LR44"],
-    [19.5, undef, 2.5, 0, 2, "TCap"]   //EXPERIMENTAL for thermite welding charge starters.
+    [11.6, undef, 5.5, 1, 4, "LR44"]
 ];
 
 batt = batts[batt_idx];
-echo (batt);
+
+$export_name = str(project,batt[5],"_",part);
 
 
 // Dimensions
@@ -40,11 +40,11 @@ bevel = 2;
 batt_slop = 0.5;
 spring_slop = 0.25; 
 
-if ($part == "top")  { top(); } 
-if ($part == "body") { body(); } 
-if ($part == "plunger") { back_half() plunger(); }
-if ($part == "all")  { left(body.x) body(); right(body.x) top(); plunger(); }
-if ($part == "assembly") {
+if (part == "top")  { top(); } 
+if (part == "body") { body(); } 
+if (part == "plunger") { back_half() plunger(); }
+if (part == "all")  { left(body.x) body(); right(body.x) top(); plunger(); }
+if (part == "assembly") {
         back_half(s=200) body(); 
         up(body.z) yrot(180) color("skyblue") back_half(s = 200) top();
         up(10) color("blue") springs(); 
