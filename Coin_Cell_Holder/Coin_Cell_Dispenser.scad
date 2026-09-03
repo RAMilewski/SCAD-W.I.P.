@@ -1,8 +1,8 @@
 include<BOSL2/std.scad>
 include<BOSL2/threading.scad>
 
-project = "CoinCellDispenser_";
-part = "top"; // [all,body,top,plunger,assembly]
+project = "Coin_Cell_Dispenser_";
+part = "all"; // [all,body,top,plunger,assembly]
 
 
 //Battery Type
