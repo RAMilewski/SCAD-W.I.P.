@@ -12,7 +12,7 @@ path = nurbs_curve(nurbs_interp(data,3, deriv = [UP*2,undef,RIGHT,undef,DOWN*2])
 
 diff() {
 back(9) xflip_copy(offset = span/2) 
-    cuboid([22,38,8], chamfer = 3, except = [BOT], anchor = BOT)
-    back(10)tag("remove") cuboid([bolt,bolt,8.1]);
+    cuboid([22,38,12], chamfer = 3, except = [BOT], anchor = BOT)
+    back(10)tag("remove") cuboid([bolt,bolt,12.1]);
 }
 path_sweep(rect([15,20], chamfer = 3), path);

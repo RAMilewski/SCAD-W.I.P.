@@ -11,10 +11,10 @@ include<BOSL2/std.scad>
 
 /* [Grid Size] */
 rows = 8;   //[2:1:10]
-cols = 8;   //[2:1:10]
+cols = 9;   //[2:1:10]
 
 /* [Stack Size] */
-stack = 3; //[1:1:42]
+stack = 1; //[1:1:42]
 
 /* [Edge Type] */
 top = 3;    //[0:None, 1:Border, 2:Small Hole, 3:Alt A, 4:Alt B]
@@ -28,6 +28,8 @@ top_right = 2;      //[0:None, 1:Small Hole, 2:Vertical Border, 3: Horizontal Bo
 bottom_left = 0;    //[0:None, 1:Small Hole, 2:Vertical Border, 3: Horizontal Border]
 bottom_right = 0;   //[0:None, 1:Small Hole, 2:Vertical Border, 3: Horizontal Border]
 
+/* [Positioning Label] */
+suffix = "UL";     // [LL,LR,UL,UR,UC,LC]
 
 /* [Hidden] */
 project = "MB_Grid_";
@@ -45,7 +47,7 @@ z = 6.4; //height of grid + 0.2
 for (i = [0:stack-1]) up(i * z) mb_grid();
 
 
-$export_name = str(project,cols,"x",rows,"x",stack);
+$export_name = str(project,cols,"x",rows,"x",stack,"_",suffix);
 
 
 /* Modules */
