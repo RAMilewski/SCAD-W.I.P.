@@ -1,10 +1,15 @@
 include<BOSL2/std.scad>
 
-r1 = 50;
-r2 = 8;
-wall = 4;
-    
-difference() {
-    hull( circle(50) position(RIGHT) circle(10));
-    hull() circle(45) position(RIGHT) circle(10);
-}
+$fn = 72;
+r1 = 36;
+r2 = 6;
+offset = -4;
+
+wall = 2;
+h = 10;
+
+outer = hull_region([circle(r1+wall), right(r1+wall+offset, circle(r2))]);
+inner = hull_region([circle(r1), right(r1+offset, circle(r2))]);
+reg = difference(outer, inner);
+
+linear_sweep(reg,h);
