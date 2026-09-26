@@ -6,7 +6,7 @@ part = "all"; // [all,body,top,plunger,assembly]
 
 
 //Battery Type
-batt_idx = 2; // [0:CR2477, 1:CR2032, 2:CR2025, 3:CR2016, 4:LR44, 5:TCap] 
+batt_idx = 4; // [0:CR2477, 1:CR2032, 2:CR2025, 3:CR2016, 4:LR44, 5:TCap] 
 
 /* [Hidden] */
 $fn = 72;
