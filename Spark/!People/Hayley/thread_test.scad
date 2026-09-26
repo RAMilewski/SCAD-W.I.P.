@@ -11,13 +11,13 @@ M4	    0.70 mm	       0.50 mm	              3.3 mm
 M5	    0.80 mm	       0.50 mm	              4.2 mm
 */
 
-part = "shell";  //[shell,ring]
+part = "ring";  //[shell,ring]
 
 pitch = 0.5;    //[0.4:M2, 0.45:M2.5, 0.5:M3, 0.7:M4, 0.8:M5 ]
 dia = 25;
-len = 10;
+len = 15;
 wall = 1;
-flair = 4;
+flair = 2;
 base = 0.5;
 
 $fn = 144;
@@ -36,9 +36,12 @@ else
 module shell() {
     diff() {
         tube(h = len,  id = dia-pitch, wall = wall, orounding1 = -flair) {
+            position(BOT) tag("remove")
+                threaded_rod(d = dia, h = len/2, pitch = pitch,
+                lead_in_shape = "sqrt", internal = true, anchor = BOT);
             position(TOP) tag("remove")
-                threaded_rod(d = dia, h = len/2, pitch = pitch, bevel2 = true,
-                lead_in_shape = "sqrt", internal = true, anchor = TOP);
+                       cyl(h = len/2, d = dia, anchor = TOP);
+         
             position(BOT) tube(h = base, rounding1 = base, teardrop = true,
                 id = dia-pitch, od = dia + 2*wall + 2*flair, anchor = TOP);
        }   
@@ -50,6 +53,6 @@ module shell() {
 module ring(){
     diff() {
         threaded_rod(d = dia, h = len, pitch = pitch, bevel = 0.75, lead_in_shape = "sqrt");
-        tag("remove") cyl(d = dia - 3*wall, h = 11);
+        tag("remove") cyl(d = dia - 3*wall, h = len+1);
     }   
 };
