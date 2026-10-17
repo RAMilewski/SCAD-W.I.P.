@@ -13,7 +13,7 @@ ring = 3;
 //back_half()
 diff() {
     cuboid(block, rounding = 4, teardrop = true, edges = ["Z",BOT+RIGHT]){
-        tag("remove")  position(BOT+RIGHT) yrot(90) cuboid(groove, rounding = -4, 
+        tag("remove")  position(BOT+RIGHT) down(EPSILON) yrot(90) cuboid(groove, rounding = -4, 
             edges = TOP, except = [LEFT,RIGHT], anchor = TOP+RIGHT);
         tag("remove") up(.5) cyl(h = block.z, d = hole, $fn = 36);
         //tag("keep") position(BOT) left_half(x = -3) cyl(h = ring - 0, d = hole, anchor = BOT); 
