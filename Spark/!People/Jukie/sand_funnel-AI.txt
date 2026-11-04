@@ -1,0 +1,33 @@
+You: Using the BOSL2 Library make a cylinder with the tube_ dimensions.  Inside that holow out two cones using the throat and funnel dimensions. Orient them so their narrow ends meet in the center of the cylinder. On the outside of the cylinder place a flange in the vertical center that extends out from the cylinder's outer diameter by the value of the flange variable.  The flange should be 2mm thick in the center and 0.8mm thick at the outer edge.
+
+
+Applied: Hourglass-bored tube with a tapered centre flange (sand_funnel.scad)
+
+I'll start by looking at what's currently open, since you've referred to existing variables.Good — zflip_copy works as I expected. Here's the rewrite.I proposed a rewrite of sand_funnel.scad for your review. What changed and why:
+
+The bore. Each cone now spans exactly half the tube (h=tube_h/2), narrow end at z=0 (d1=throat_d) opening to d2=funnel_d at the ends. zflip_copy() mirrors it, so the two throats meet precisely at mid height. Your version used a fixed h=25 anchored to TOP with d1/d2 the other way round, so the narrow ends were at the ends of the tube rather than the centre.
+
+The flange. A tapered ring can't be made from a plain cyl() — thickness has to vary with radius — so it's a rotate_extrude() of a four-point trapezoid: 2mm tall at the tube wall, 0.8mm at the outer edge, symmetric about z=0. Its inner edge starts 0.5mm inside the tube wall so the union welds instead of leaving a coincident face.
+
+Two judgement calls worth confirming:
+
+I read "extends out from the outer diameter by flange" as radially, so the flange's overall diameter is tube_od + 2*flange = 53mm. Your original used tube_od + flange, which sticks out only 7.5mm per side. Say which you meant and it's a one-line change.
+
+"2mm thick in the center" I took as thickest where it meets the tube, tapering outward — not thickest at the midpoint of the ring's width.
+
+I've queued a follow-up to measure the result once it renders: I'll confirm the bounding box is 53 × 53 × 50, that the genus is 0 (one through-bore, not a trapped void), and look at a front view to check the taper and that the throats actually meet.
+ 
+
+Follow-up: Check the sand_funnel render: describe_geometry (expect genus 0, bbox 53 x 53 x 50), console, and a front/iso view to confirm the hourglass bore and tapered flange.
+
+Bounding box is exactly 53 × 53 × 50 and it's a single part. Let me look at it.Render confirms the model. Measurements and both views agree with the intent.
+
+Bounding box: 53 × 53 × 50 — exactly tube_od + 2*flange across and tube_h tall, so the flange is extending radially by the full 15mm as I'd assumed.
+
+Genus 1, not 0 — and 1 is the right answer. I predicted that wrong in my earlier note. A tube with a bore open at both ends is topologically a torus, so genus 1 is precisely the confirmation we wanted: the two throats do meet and open into each other. Had they failed to meet — leaving a wall at mid height — you'd get two blind pockets, each open to the outside, and genus would have been 0. So the number I called a pass condition was actually the failure signature.
+
+The front orthographic view shows the flange on the centreline at z=0, visibly tapering to a thin edge. The iso view shows the funnel mouth opening out at the top, and one solid part with no stray geometry.
+
+Volume cross-check. Measured 16904.78 mm³. Working it out by hand — tube 20774.6, minus two frusta at 3099.5 each, plus the revolved flange trapezoid at 2405.6, minus the 70 where the flange's inner lip is buried in the tube wall — gives 16911.3. The 0.04% shortfall is just $fn=144 faceting inscribing the circles. Nothing unaccounted for, which means the flange welded to the tube rather than merely touching it, and the bore subtracted once rather than twice.
+
+One thing the render can't tell you, worth a look before printing: at the ends the wall is only 1.5mm thick (tube_od 23 vs funnel_d 20), and the funnel mouth's knife edge there is where it will be weakest. And the flange's 0.8mm outer edge against a 15mm overhang is a fairly floppy disc in most materials. Both are consequences of the dimensions you gave rather than of the code, so I've left them alone — say the word if you'd like the mouth chamfered or the flange's taper made less aggressive.
