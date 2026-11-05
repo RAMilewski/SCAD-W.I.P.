@@ -1,11 +1,11 @@
 include <BOSL2/std.scad>
-include <diag_weave_vnf.tex>
+include <diag_weave.tex>
 
 show_profile = false;  //[true,false]
 
 /* [Profile] */
-r_base = 75;
-shape = [1.5,1.1,1];
+r_base = 100;
+shape = [1.2,1.3,1];
 tex_size = [30,30];
 
 r_top = shape.x * r_base;
@@ -23,8 +23,7 @@ if (show_profile) {
     debug_bezier(bez);
 } else {
     cyl(r = r_base + 1.5, h = floor, rounding1 = 1, teardrop = true, $fn = 144,anchor = BOT);
-    //up(1) rotate_sweep(path,180, texture = diag_weave_vnf, tex_reps = tex_reps, tex_depth = -1.5);
-    up(1) rotate_sweep(path, caps=true, texture=diag_weave_vnf, angle=360,
+    up(1) rotate_sweep(path, caps=true, texture=diag_weave, angle=360,
              tex_size=tex_size, convexity=12, tex_depth=5);
 }
 
