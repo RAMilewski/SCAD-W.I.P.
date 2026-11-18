@@ -6,7 +6,7 @@ show_profile = false;  //[true,false]
 /* [Profile] */
 r_base = 100;
 shape = [1.2,1.3,1];
-tex_size = [30,30];
+tex_size = [20,20];
 
 r_top = shape.x * r_base;
 bulge = shape.y * r_base;
