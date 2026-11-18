@@ -2,11 +2,11 @@ include<BOSL2/std.scad>
 include<BOSL2/threading.scad>
 
 project = "Coin_Cell_Dispenser_";
-part = "all"; // [all,body,top,plunger,assembly]
+part = "top"; // [all,body,top,plunger,assembly]
 
 
 //Battery Type
-batt_idx = 4; // [0:CR2477, 1:CR2032, 2:CR2025, 3:CR2016, 4:LR44, 5:TCap] 
+batt_idx = 1; // [0:CR2477, 1:CR2032, 2:CR2025, 3:CR2016, 4:LR44, 5:TCap] 
 
 /* [Hidden] */
 $fn = 72;
@@ -65,9 +65,9 @@ module top() {
                     rounding = batt.x/2, edges = "Z", except = FWD, anchor = BOT);
                 if (batt_idx == 5) {fwd(body.x/4 + 3) cuboid([batt.x,body.x/2,4], rounding = -3, edges = BOT, anchor = BOT); }
             }
-            path = path3d(arc(100, r=body.x/2, angle=[210, 360]));
-            tag("Keep") position(TOP) down (2.5) yrot(180)
-                path_text(path, batt[5], font="Impact", size=6, lettersize = 6);    
+            path = path3d(arc(100, r=body.x/2-0.45, angle=[210, 360]));
+            tag("keep8") position(TOP) down (2.5) yrot(180)
+                recolor("dodgerblue") path_text(path, batt[5], font="Impact", size=6, lettersize = 6);    
         }
     }
 }
@@ -86,7 +86,7 @@ module body() {
                 position(TOP) cyl(d = batt.x + batt_slop, l = body.z/4, anchor = BOT);
             }
             spring = springs[batt[3]];
-            tag("keep") position(BOT) up(floor)  //spring post
+            tag("keep") position(BOT) up(floor -.1)  //spring post
                 cyl(h = spring[3]/4, d1 = spring.y - spring_slop, d2 = spring.y*0.7, rounding2 = 2, anchor = BOT);
         }
     }

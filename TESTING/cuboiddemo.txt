@@ -1,0 +1,30 @@
+@new
+@rate 8   // recorded; edit freely
+@pause 3
+include <BOSL2/std.scad>
+@pause 3
+
+@type cuboid()
+@goto 3 8
+@type 50
+@goto 3 11
+@type ;
+@pause 1
+@render
+
+
+@pause 5
+@goto 3 10
+@type , 
+
+@type rounding 
+@type = 5 
+
+@render
+@pause 5
+@goto 3 25
+@type ,
+@pause 3.5
+@type  edges = TOP
+@pause 3
+@render

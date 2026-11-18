@@ -3,7 +3,7 @@ include <BOSL2/nurbs.scad>
 
 count = 8;
 
-surface = [ repeat([0,0,30],count),
+surface = [ repeat([0,0,35],count),
    for(i=[1:5]) path3d(circle(15,$fn = count),i*30),
    repeat([0,0,200],count)
 ];
