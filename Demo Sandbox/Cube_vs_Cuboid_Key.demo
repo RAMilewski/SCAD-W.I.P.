@@ -1,0 +1,89 @@
+@tab 1    // Cube vs. Cuboid
+@rate 12  // recorded; edit freely
+@render // clear the screen
+@mainwin size 1920  1080
+@mainwin position 150 130
+@view center over 0.1
+@view iso over 0.5 
+@rate 8
+@pause key   //*********** End Pre Positioning ***********
+
+
+
+include <BOSL2/std.scad>
+@enter 
+@pause key
+
+@type cube(50);
+@render
+@view all over 2
+
+
+@pause key
+@remove 3 cube
+@type cuboid
+@render
+@view all over 2
+
+
+
+@pause key
+@goto 3 10
+@type , rounding = 5
+@render
+
+@pause key
+@goto 3 24
+@type , $fn = 64
+@render
+
+@pause key
+@goto 3 24
+@type , edges = TOP
+@render
+
+@pause key
+@remove 3 edges = TOP
+@type edges = FWD
+@render
+
+@pause key
+@remove 3 edges = FWD
+@type edges = RIGHT
+@render
+
+@pause key
+@remove 3 edges = RIGHT
+@type edges = FWD+RIGHT
+@render
+
+@pause key
+@remove 3 edges = FWD+RIGHT
+@type edges = "Z"
+@render
+
+@pause key
+@remove 3 edges = "Z"
+@type except = TOP
+@render
+@rotate 315 5 over 3
+
+@pause key
+@remove 3 except = TOP
+@type edges = [TOP,BOT,FWD+RIGHT]
+@render
+@pause key
+
+@rotate 0 -5 over 3
+@zoom 6 at 25 -20 -20 over 3
+@pause key
+
+@remove 3 ],
+@type ], clip_angle = 45, 
+@render
+
+@pause key
+@zoom 0.1 at 25 -25 25
+@rotate 315 35.26 over 1
+@zoom 0.5
+
