@@ -6,6 +6,10 @@ tube_h   = 50;
 throat_d = 25.4/8;   // 3.175mm
 funnel_d = 20;
 flange   = 15; 
+
+
+
+//back_half()
 diff() {
     // Main tube
     cyl(h=tube_h, d=tube_od, anchor=CENTER){
