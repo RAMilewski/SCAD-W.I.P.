@@ -16,14 +16,15 @@ include <BOSL2/std.scad>
 
 @type cube(50);
 @render
-@view all over 2
+@view all over 1
 
 
 @pause key
+@zoom 0.75 over 1
 @remove 3 cube
 @type cuboid
 @render
-@view all over 2
+@view all over 1
 
 
 
@@ -72,10 +73,11 @@ include <BOSL2/std.scad>
 @remove 3 except = TOP
 @type edges = [TOP,BOT,FWD+RIGHT]
 @render
+@rotate 315 45 over 2
 @pause key
 
-@rotate 0 -5 over 3
-@zoom 6 at 25 -20 -20 over 3
+@rotate 0 0 over 2
+@zoom 6 at 25 -20 -20 over 1
 @pause key
 
 @remove 3 ],
