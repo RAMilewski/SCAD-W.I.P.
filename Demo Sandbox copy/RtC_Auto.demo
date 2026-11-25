@@ -1,0 +1,133 @@
+@tab 1    // Cube vs. Cuboid
+@rate 12  // recorded; edit freely
+@render // clear the screen
+@mainwin size 1920 1080
+@mainwin position 150 130
+@view iso over 0.5 
+@rate 8
+@super on RtC_Blue.png 
+@pause key   //*********** End Pre Positioning ***********
+
+@super on RtC_Main.png over 1.5   //Main Title Sequence
+@pause 2
+@super on RtC_Sub.png over 1
+@pause 4
+@super off RtC_Sub.png
+@super off RtC_Main.png 
+@super off RtC_Blue.png over 1   //End Main Title
+
+
+@pause 1
+include <BOSL2/std.scad>
+@enter 
+
+@super on RtC_Include.png over 1
+@pause 6
+@super off RtC_Include.png over 1
+
+@pause 1
+@type cube(50);
+@render
+@view all over 1
+@pause 2
+@super on RtC_Cube.png over 1
+@pause 5
+@super off RtC_Cube.png over 1
+
+@pause 1
+@zoom 0.75 over 1
+@remove 3 cube
+@type cuboid
+@render
+@view all over 1
+@super on RtC_Cuboid.png over 1
+@pause 5
+@super off RtC_Cuboid.png over 1
+
+
+
+@pause 1
+@goto 3 10
+@type , rounding = 5
+@render
+@super on RtC_Rounding_Radius.png over 1
+@pause 5
+@super off RtC_Rounding_Radius.png over 1
+
+@pause 1
+@goto 3 24
+@type , $fn = 64
+@render
+@super on RtC_$fn_Smoothing.png over 1
+@pause 5
+@super off RtC_$fn_Smoothing.png over 1
+
+
+@pause 2
+@super on RtC_Face_Names.png over 1
+@pause 5
+@super off RtC_Face_Names.png over 1
+
+
+@goto 3 24
+@type , edges = TOP
+@render
+@super on RtC_Face_Edges.png over 1
+@pause 5
+@super off RtC_Face_Edges.png over 1
+
+
+@remove 3 edges = TOP
+@type edges = [FWD,RIGHT]
+@render
+@super on RtC_Face_List.png over 1
+@pause 5
+@super off RtC_Face_List.png over 1
+
+
+@remove 3 edges = [FWD,RIGHT]
+@type edges = FWD+RIGHT
+@render
+@super on RtC_Single_Edge.png over 1
+@pause 5
+@super off RtC_Single_Edge.png over 1
+
+
+@remove 3 edges = FWD+RIGHT
+@type edges = "Z"
+@render
+@super on RtC_Axis_Edges.png over 1
+@pause 5
+@super off RtC_Axis_Edges.png over 1
+
+
+@remove 3 = 5, edges = "Z"
+@type = -5, edges = BOT
+@render
+@super on RtC_Negative_Rounding.png over 1
+@pause 5
+@super off RtC_Negative_Rounding.png over 1
+
+
+@remove 3 -5
+@type 5
+@render
+@rotate 0 0 over 2
+@zoom 6 at 25 -20 -20 over 1
+@super on RtC_Support.png over 1
+@pause 5
+@super off RtC_Support.png over 1
+
+@remove 3 5,
+@type 5, clip_angle = 45,
+@render
+@super on RtC_Clip_Angle.png over 1
+@pause 5
+@super off RtC_Clip_Angle.png over 1
+
+
+
+@rotate 315 35.26 over 0.5
+@zoom 0.1 at 25 -25 25
+@zoom 0.5
+

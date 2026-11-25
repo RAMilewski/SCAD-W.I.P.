@@ -1,0 +1,24 @@
+BelfrySCAD Demo Scripting Notes
+
+
+1080p = 1920 1080
+720p  = 1280 720
+
+AzEl of @view iso is @rotate 315 35.26
+
+
+
+@rotate 135 35.26 over 1  //Spin the cube
+@rotate 315 35.26 over 1
+
+
+ffmpeg incantation to make MacOS screenshots acceptable to Gitter.  Rename 
+"Screen Reording <some date-time-group>.mov"  to "demo.mov", then:
+
+ffmpeg -i "demo.mov" \
+  -vf "scale=1280:-2,fps=30"\
+  -c:v libx264 -preset veryfast -crf 26 -pix_fmt yuv420p \
+  -c:a aac -b:a 128k \
+  -movflags +faststart \
+  out.mp4
+  

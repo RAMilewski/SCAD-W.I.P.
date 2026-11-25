@@ -1,0 +1,137 @@
+@tab 1    //Rounding the Cube
+@rate 10
+@render // clear the screen
+@mainwin size 1920 1080
+@mainwin position 150 130       
+@view iso over 0.5 
+@super on RtC/Blue.png 
+@pause key   //*********** End Pre Positioning ***********
+
+@super on RtC/Main.png over 1.5   //Main Title Sequence
+@pause 1
+@super on RtC/Sub.png over 1
+@pause 4
+@super off RtC/Sub.png
+@super off RtC/Main.png 
+@super on RtC/Repository.png over 1
+@pause 5
+@super off RtC/Repository.png
+@super off RtC/Blue.png over 1   //End Main Title
+
+
+@pause 1
+@super on RtC/Include.png over 1
+include <BOSL2/std.scad>
+@enter 
+@pause 5
+@super off RtC/Include.png over 1
+
+
+@super on RtC/Cube.png over 1
+@type cube(50);
+@render
+@view all over 1
+@super on RtC/Origin_Arrow.png
+@pause 5
+@super off RtC/Origin_Arrow.png
+@super off RtC/Cube.png over 1
+
+@zoom 0.5 over 1
+@remove 3 cube(50);
+@type cuboid(50);
+@render
+@view all over 1
+@super on RtC/Cuboid.png over 1
+@pause 5
+@super off RtC/Cuboid.png over 1
+
+
+
+@super on RtC/Rounding_Radius.png over 1
+@remove 3 );
+@type , rounding = 5);
+@render
+@pause 5
+@super off RtC/Rounding_Radius.png over 1
+
+@super on RtC/$fn_Smoothing.png over 1
+@remove 3 );
+@type , $fn = 64);
+@render
+@pause 5
+@super off RtC/$fn_Smoothing.png over 1
+
+
+@super on RtC/Face_Names.png over 1
+@super on RtC/Face_Labels.png over 1
+@pause 5
+@super off RtC/Face_Labels.png over 0.5
+@super off RtC/Face_Names.png over 0.5
+
+
+@super on RtC/Face_Edges.png over 1
+@goto 3 24
+@type , edges = TOP
+@render
+@pause 5
+@super off RtC/Face_Edges.png over 1
+
+
+@super on RtC/Face_List.png over 1
+@remove 3 edges = TOP, 
+@type edges = [FWD,RIGHT], 
+@render
+@pause 5
+@super off RtC/Face_List.png over 1
+
+
+@super on RtC/Single_Edge.png over 1
+@remove 3 edges = [FWD,RIGHT]
+@type edges = FWD+RIGHT
+@render
+@pause 5
+@super off RtC/Single_Edge.png over 1
+
+
+@super on RtC/Axis_Edges.png over 1
+@remove 3 edges = FWD+RIGHT
+@type edges = "Z"
+@render
+@pause 5
+@super off RtC/Axis_Edges.png over 1
+
+
+@super on RtC/Negative_Rounding.png over 1
+@remove 3 = 5, edges = "Z"
+@type = -5, edges = BOT
+@render
+@pause 5
+@super off RtC/Negative_Rounding.png over 1
+
+
+@super on RtC/Support.png over 1
+@remove 3 -5
+@type 5
+@render
+@rotate 0 0 over 2
+@zoom 6 at 25 -20 -20 over 1
+@super on RtC/Support_Arrow.png over 1
+@pause 5
+@super off RtC/Support.png over 1
+
+
+@super on RtC/Clip_Angle.png over 1
+@remove 3 5,
+@type 5, clip_angle = 45,
+@render
+@super off RtC/Support_Arrow.png
+@pause 5
+@super off RtC/Clip_Angle.png over 1
+
+
+
+@zoom 0.1 at 25 -25 25
+@rotate 315 35.26 over 0.5
+@zoom 0.5 
+@super on RtC/Repository.png over 1
+@pause 5
